@@ -1045,6 +1045,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     const { learnThreshold } = await chrome.storage.sync.get('learnThreshold');
     if (learnThreshold === 0.9 || learnThreshold === 0.8) await chrome.storage.sync.set({ learnThreshold: 0.95 });
   }
+  // Erste Installation: Kennenlernen anbieten (Themenauswahl aus 20 Beispiel-Schlagzeilen).
+  // Nicht, wenn über die Chrome-Synchronisierung schon eine Auswahl da ist (zweiter Rechner).
+  if (details && details.reason === 'install') {
+    const { presets } = await chrome.storage.sync.get('presets');
+    if (presets === undefined) chrome.tabs.create({ url: chrome.runtime.getURL('kennenlernen.html') }).catch(() => {});
+  }
   pullSync().then(schedulePush).catch(() => {});
   // Fehlende Einstellungen mit Standardwerten auffüllen.
   // Nur fehlende Schlüssel schreiben, damit nichts Vorhandenes überschrieben wird.

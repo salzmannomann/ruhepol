@@ -365,3 +365,35 @@ test('Lernfilter: bei ungleich vielen Bewertungen zählen „sehen“-Wörter ni
   const s2 = L.score(m, 'Neues KI-Modell vorgestellt');
   assert.ok(s2 && s2.p > 0.9, JSON.stringify(s2));
 });
+
+test('Kennenlernen: je Thema eine Schlagzeile, die nur die eigene Liste trifft; Grenzfälle ohne Treffer', () => {
+  const P = require('../extension/lib/presets.js');
+  const O = require('../extension/lib/onboarding.js');
+  const m = Object.fromEntries(P.ALL_IDS.map((id) => [id, compile(P.termsFor([id]), { allow: P.ALLOW })]));
+  assert.deepEqual(O.TOPIC_QUESTIONS.map((q) => q.topic).sort(), P.ALL_IDS.slice().sort(), 'neue Themenliste braucht eine Schlagzeile');
+  for (const q of O.TOPIC_QUESTIONS) assert.deepEqual(P.ALL_IDS.filter((id) => m[id].find(q.text)), [q.topic], q.text);
+  for (const q of O.BORDER_QUESTIONS) assert.deepEqual(P.ALL_IDS.filter((id) => m[id].find(q.text)), [], q.text);
+  const qs = O.questions();
+  assert.equal(qs.length, 20);
+  assert.equal(new Set(qs).size, 20);
+});
+
+test('Kennenlernen: Auswahl und Stufe aus den Antworten', () => {
+  const O = require('../extension/lib/onboarding.js');
+  const qs = O.questions();
+  const ans = (fn) => qs.map(fn);
+  // nur Krieg und Terror belasten, Grenzfälle nicht
+  let r = O.infer(ans((q) => q.topic === 'krieg' || q.topic === 'terror'), qs);
+  assert.deepEqual(r.presets, ['krieg', 'terror']);
+  assert.equal(r.level, null);
+  // übersprungene Themen bleiben an, Grenzfälle überwiegend belastend → stark
+  r = O.infer(ans((q) => (q.topic === 'ki' ? false : q.topic === null ? true : null)), qs);
+  assert.equal(r.presets.length, 14);
+  assert.ok(!r.presets.includes('ki'));
+  assert.equal(r.level, 'stark');
+  // zu wenige Grenzfälle beantwortet: Stufe unverändert
+  let n = 0;
+  r = O.infer(ans((q) => (q.topic === null ? (n++ < 2 ? true : null) : true)), qs);
+  assert.equal(r.level, null);
+  assert.equal(r.presets.length, 15);
+});

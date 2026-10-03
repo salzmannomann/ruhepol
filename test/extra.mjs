@@ -323,6 +323,36 @@ async function main() {
       const bad = res.filter((r) => !r.ok);
       assert.equal(bad.length, 0, JSON.stringify(bad));
     });
+
+    await step('Kennenlernen: öffnet sich bei der Installation; Antworten → Themenauswahl und Stufe', async () => {
+      let p = ctx.pages().find((x) => x.url().includes('kennenlernen.html'));
+      if (!p) p = await ctx.waitForEvent('page', { predicate: (x) => x.url().includes('kennenlernen.html'), timeout: 5000 });
+      await p.waitForLoadState();
+      await p.click('#start');
+      const qs = await p.evaluate(() => SFOnboarding.questions());
+      // Grenzfälle okay → keine Stufen-Frage
+      for (const q of qs) await p.click(q.topic === null ? '#ansNo' : '#ansYes');
+      assert.ok(!(await p.isVisible('#levelRow')), 'Stufe ohne Anlass angeboten');
+      assert.equal(await p.$$eval('#topics input:checked', (l) => l.length), 15);
+      await p.click('#again');
+      for (const q of qs) {
+        assert.equal(await p.textContent('#headline'), q.text);
+        if (q.topic === 'krieg' || q.topic === 'terror' || q.topic === null) await p.click('#ansYes');
+        else if (q.topic === 'tod') await p.click('#dunno');
+        else await p.click('#ansNo');
+      }
+      assert.ok(await p.isVisible('#summary'));
+      assert.ok(await p.isVisible('#levelRow'), 'Grenzfälle belastend → Stufe anbieten');
+      const checked = await p.$$eval('#topics input:checked', (l) => l.map((c) => c.value));
+      assert.deepEqual(checked.sort(), ['krieg', 'terror', 'tod']);
+      await p.uncheck('#topics input[value="tod"]');
+      await p.click('#apply');
+      await p.waitForSelector('#done.active');
+      const st = await sw.evaluate(async () => chrome.storage.sync.get(['presets', 'semanticLevel']));
+      assert.deepEqual(st.presets, ['krieg', 'terror']);
+      assert.equal(st.semanticLevel, 'stark');
+      await p.close();
+    });
   } finally {
     await close();
     srv.close();
