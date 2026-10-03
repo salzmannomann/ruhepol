@@ -92,7 +92,10 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
   dazu eine Domain pro Zeile.
 - **Darstellung bei Treffer**:
   - **unscharf** (Standard): Text und Bilder des Blocks werden unscharf, ohne Hinweis auf
-    das Schlagwort und ohne Knöpfe. Ein Klick zeigt den Inhalt.
+    das Schlagwort und ohne Knöpfe. Ein Klick auf den unscharfen Block öffnet eine kleine
+    Leiste: **Passt so** (bleibt unscharf, wird gemerkt), **Will ich sehen** (zeigt an,
+    wird gemerkt), **Nur anzeigen** (danach Rückfrage „War das Ausblenden richtig?“) und
+    **×** (schließen).
   - Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten
   - komplett ausblenden
 
@@ -110,6 +113,7 @@ Schlagwörter allein unterscheiden nicht, ob „Krise“ eine Klimakrise oder ei
 Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
 
 **Bewerten:**
+- **Klick auf einen unscharfen Block:** Bewertungsleiste wie oben beschrieben.
 - **Rechtsklick auf einen Artikel oder ein Bild** (in jeder Darstellung, auch auf
   unscharfe Blöcke):
   - **„Will ich nicht sehen – ausblenden und merken“** blendet auch Inhalte ohne Schlagwort
