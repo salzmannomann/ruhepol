@@ -68,10 +68,10 @@ const { PRESETS, ALL_IDS, termsFor } = require('../extension/lib/presets.js');
 
 test('Platzhalter: Wortanfang, Wortende, Wortteil', () => {
   const m = compile(['Klimawandel*', '*krieg', '*krise*']);
-  assert.equal(m.find('Folgen des Klimawandels'), 'Klimawandel');
-  assert.equal(m.find('Der Ukrainekrieg geht weiter'), 'krieg');
-  assert.equal(m.find('Ukraine-Krieg'), 'krieg');
-  assert.equal(m.find('Regierungskrisengipfel'), 'krise');
+  assert.equal(m.find('Folgen des Klimawandels'), 'Klimawandels');
+  assert.equal(m.find('Der Ukrainekrieg geht weiter'), 'Ukrainekrieg');
+  assert.equal(m.find('Ukraine-Krieg'), 'Krieg');
+  assert.equal(m.find('Regierungskrisengipfel'), 'Regierungskrisengipfel');
   assert.equal(m.find('Kriegsende'), null, '*krieg ist nur Wortende');
   const short = compile(['*e']);
   assert.equal(short.find('Hase'), null, 'zu kurzer Platzhalter-Kern gilt als ganzes Wort');
@@ -117,6 +117,8 @@ test('Vorschlagslisten: keine typischen Fehltreffer', () => {
     'Konzert der Wiener Philharmoniker',
     'Bombenstimmung beim Fest',
     'Wetter: sonnig und mild',
+    'Neue Wohnungen am Stadtrand',
+    'Konzertkritik: Großer Applaus in der Staatsoper',
   ];
   for (const t of misses) assert.equal(m.find(t), null, `Fehltreffer: ${t} → ${m.find(t)}`);
 });
@@ -132,4 +134,43 @@ test('Leistung: 300 Begriffe, 5000 Texte', () => {
   for (let i = 0; i < 5000; i++) m.find(`Meldung Nummer ${i}: Neue Entwicklungen in der Wirtschaft und Kultur des Landes`);
   const dt = performance.now() - t0;
   assert.ok(dt < 500, `${dt.toFixed(0)} ms`);
+});
+
+const L = require('../extension/lib/learn.js');
+
+test('Nie-ausblenden-Liste', () => {
+  const m = compile(['*krise'], { allow: ['Wohnungskrise', 'Midlife*'] });
+  assert.equal(m.find('Die Wohnungskrise verschärft sich'), null);
+  assert.equal(m.find('Midlife-Krise mit 40'), 'Krise', 'Bindestrich: "Krise" ist eigenes Wort');
+  assert.equal(compile(['*krise'], { allow: ['Midlife-Krise'] }).find('Midlife-Krise mit 40'), null);
+  assert.equal(m.find('Wohnungskrise und Klimakrise'), 'Klimakrise', 'andere Krise trifft weiterhin');
+});
+
+test('Lernfilter: unterscheidet nach Bewertungen', () => {
+  const ratings = [
+    ['Klimakrise: Gletscher schmelzen immer schneller', 'b'],
+    ['UNO warnt vor Folgen der Klimakrise für Küsten', 'b'],
+    ['Hitzerekord: Klimakrise verschärft Dürre in Europa', 'b'],
+    ['CO2-Ausstoß steigt trotz Klimakrise weiter', 'b'],
+    ['Klimagipfel endet ohne Einigung zur Klimakrise', 'b'],
+    ['Wohnungskrise: Mieten in Wien steigen weiter', 'o'],
+    ['Neue Wohnbauförderung gegen die Wohnungskrise', 'o'],
+    ['Wohnungskrise trifft junge Familien besonders', 'o'],
+    ['Gemeindebau: Stadt baut 5000 neue Wohnungen', 'o'],
+    ['Mietpreisbremse soll Wohnungskrise lindern', 'o'],
+  ].map(([text, label]) => ({ text, label }));
+  const model = L.build(ratings);
+  assert.ok(L.ready(model));
+  const bad = L.score(model, 'Klimakrise bedroht Alpen-Gletscher');
+  const good = L.score(model, 'Wohnungskrise: Was die neue Förderung bringt');
+  assert.ok(bad.p > 0.8, `Klima ${bad.p}`);
+  assert.ok(good.p < 0.2, `Wohnen ${good.p}`);
+  const top = L.topFeatures(model, 5);
+  assert.ok(top.b.some((x) => x.word === 'klimakrise'));
+  assert.ok(top.o.some((x) => x.word === 'wohnungskrise'));
+});
+
+test('Lernfilter: ohne genug Bewertungen keine Entscheidung', () => {
+  const m = L.build([{ text: 'Klimakrise', label: 'b' }, { text: 'Wohnen', label: 'o' }]);
+  assert.equal(L.score(m, 'Klimakrise'), null);
 });

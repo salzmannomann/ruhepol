@@ -1,6 +1,6 @@
 {
   "name": "schlagwortfilter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Chrome-Erweiterung (MV3), die Inhalte mit bestimmten Schlagwörtern ausblendet – auch wenn das Wort nur als Schrift im Bild steht (OCR mit tesseract.js, komplett lokal).",
   "scripts": {
@@ -10,7 +10,8 @@
     "test:unit": "node --test test/match.test.mjs",
     "test:e2e": "node test/e2e.mjs",
     "test:orf": "node test/orf.mjs",
-    "test": "npm run test:unit && npm run test:e2e"
+    "test": "npm run test:unit && npm run test:e2e && npm run test:lernen",
+    "test:lernen": "node test/lernen.mjs"
   },
   "dependencies": {
     "tesseract.js": "^7.0.0"

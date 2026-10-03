@@ -6,7 +6,7 @@
  */
 'use strict';
 
-importScripts('lib/presets.js', 'lib/settings.js');
+importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js');
 
 const OCR_TIMEOUT_MS = 10000;
 const MAX_PARALLEL = 2;
@@ -240,6 +240,216 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   }
 });
 
+/* ---------------- Lernfilter: Bewertungen und Modell (chrome.storage.local) ---------------- */
+
+const MAX_RATINGS = 3000;
+const RATING_TEXT_MAX = 1500;
+let learnChain = Promise.resolve();
+
+function serialLearn(fn) {
+  // Alle Änderungen nacheinander, damit sich gleichzeitige Bewertungen nicht überschreiben.
+  const p = learnChain.then(fn);
+  learnChain = p.catch(() => {});
+  return p;
+}
+
+async function getRatings() {
+  const r = await chrome.storage.local.get('ratings');
+  return Array.isArray(r.ratings) ? r.ratings : [];
+}
+
+async function saveRatings(ratings, model, fromSync) {
+  await chrome.storage.local.set({ ratings, model: model || SFLearn.build(ratings) });
+  if (!fromSync) schedulePush();
+}
+
+function addRating(text, label, host) {
+  return serialLearn(async () => {
+    text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, RATING_TEXT_MAX);
+    if (!text || (label !== 'b' && label !== 'o')) return { ok: false };
+    let ratings = await getRatings();
+    // Gleicher Text erneut bewertet: alte Bewertung ersetzen.
+    ratings = ratings.filter((r) => r.text !== text);
+    ratings.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: Date.now(), label, host: host || '', text });
+    if (ratings.length > MAX_RATINGS) ratings = ratings.slice(-MAX_RATINGS);
+    await saveRatings(ratings);
+    return { ok: true, n: ratings.length };
+  });
+}
+
+function deleteRating(id) {
+  return serialLearn(async () => {
+    const ratings = (await getRatings()).filter((r) => r.id !== id);
+    const { syncDeleted = [] } = await chrome.storage.local.get('syncDeleted');
+    await chrome.storage.local.set({ syncDeleted: syncDeleted.concat(id).slice(-MAX_TOMBSTONES) });
+    await saveRatings(ratings);
+    return { ok: true };
+  });
+}
+
+function resetLearning() {
+  return serialLearn(async () => {
+    await chrome.storage.local.set({ ratings: [], model: SFLearn.emptyModel(), syncResetTs: Date.now(), syncDeleted: [] });
+    schedulePush();
+    return { ok: true };
+  });
+}
+
+/* ---------------- Bewertungen über chrome.storage.sync abgleichen ----------------
+ * Damit das Gelernte auf allen Rechnern mit demselben Chrome-Konto gleich ist, werden die
+ * neuesten Bewertungen (gekürzt) in chrome.storage.sync gespiegelt. Dessen Platz ist klein
+ * (100 KB, 8 KB je Eintrag), daher: Text auf SYNC_TEXT_MAX Zeichen gekürzt, aufgeteilt auf
+ * Einträge "ratings0", "ratings1", ...; zusammen höchstens SYNC_BUDGET Bytes.
+ * Gelöschte Bewertungen werden als Liste von IDs mitgeschickt, "Zurücksetzen" als Zeitstempel.
+ */
+
+const SYNC_TEXT_MAX = 280;
+const SYNC_BUDGET = 70 * 1024;
+const SYNC_CHUNK = 7000;
+const SYNC_PREFIX = 'ratings';
+const MAX_TOMBSTONES = 300;
+let pushTimer = null;
+
+function schedulePush() {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => serialLearn(pushSync).catch(() => {}), 4000);
+}
+
+async function readSync() {
+  const all = await chrome.storage.sync.get(null);
+  const chunks = Object.keys(all)
+    .filter((k) => k.startsWith(SYNC_PREFIX) && /^\d+$/.test(k.slice(SYNC_PREFIX.length)))
+    .sort((a, b) => Number(a.slice(SYNC_PREFIX.length)) - Number(b.slice(SYNC_PREFIX.length)));
+  const list = [];
+  for (const k of chunks) for (const r of all[k] || []) list.push({ id: r[0], ts: r[1], label: r[2], host: r[3], text: r[4] });
+  return { list, keys: chunks, deleted: all.ratingsDeleted || [], resetTs: all.ratingsReset || 0 };
+}
+
+async function pushSync() {
+  const ratings = await getRatings();
+  const local = await chrome.storage.local.get(['syncDeleted', 'syncResetTs']);
+  const remote = await readSync();
+  // Neueste zuerst einpacken, bis das Budget erreicht ist.
+  const packed = [];
+  let size = 0;
+  for (let i = ratings.length - 1; i >= 0; i--) {
+    const r = ratings[i];
+    const row = [r.id, r.ts, r.label, r.host, r.text.slice(0, SYNC_TEXT_MAX)];
+    const len = JSON.stringify(row).length + 1;
+    if (size + len > SYNC_BUDGET) break;
+    size += len;
+    packed.unshift(row);
+  }
+  const chunks = [];
+  let cur = [], curLen = 2;
+  for (const row of packed) {
+    const len = JSON.stringify(row).length + 1;
+    if (curLen + len > SYNC_CHUNK && cur.length) { chunks.push(cur); cur = []; curLen = 2; }
+    cur.push(row); curLen += len;
+  }
+  if (cur.length) chunks.push(cur);
+  const data = {
+    ratingsDeleted: [...new Set((remote.deleted || []).concat(local.syncDeleted || []))].slice(-MAX_TOMBSTONES),
+    ratingsReset: Math.max(remote.resetTs || 0, local.syncResetTs || 0),
+  };
+  chunks.forEach((c, i) => { data[SYNC_PREFIX + i] = c; });
+  const stale = remote.keys.filter((k) => !(k in data));
+  try {
+    await chrome.storage.sync.set(data);
+    if (stale.length) await chrome.storage.sync.remove(stale);
+  } catch (e) {
+    console.warn('Schlagwortfilter: Sync fehlgeschlagen', e);
+  }
+}
+
+/** Bewertungen anderer Geräte übernehmen. */
+function pullSync() {
+  return serialLearn(async () => {
+    const remote = await readSync();
+    const local = await chrome.storage.local.get(['syncDeleted', 'syncResetTs']);
+    const resetTs = Math.max(remote.resetTs || 0, local.syncResetTs || 0);
+    const deleted = new Set((remote.deleted || []).concat(local.syncDeleted || []));
+    const current = await getRatings();
+    const byId = new Map();
+    for (const r of current) byId.set(r.id, r);
+    let changed = false;
+    for (const r of remote.list) {
+      if (!r || !r.id || byId.has(r.id) || (r.label !== 'b' && r.label !== 'o')) continue;
+      byId.set(r.id, { id: r.id, ts: r.ts, label: r.label, host: r.host || '', text: String(r.text || '') });
+      changed = true;
+    }
+    let merged = [...byId.values()].filter((r) => r.ts >= resetTs && !deleted.has(r.id));
+    if (merged.length !== byId.size) changed = true;
+    if (!changed) return;
+    merged.sort((a, b) => a.ts - b.ts);
+    if (merged.length > MAX_RATINGS) merged = merged.slice(-MAX_RATINGS);
+    await chrome.storage.local.set({ syncResetTs: resetTs, syncDeleted: [...deleted].slice(-MAX_TOMBSTONES) });
+    await saveRatings(merged, null, true);
+  });
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync') return;
+  if (Object.keys(changes).some((k) => k.startsWith(SYNC_PREFIX))) pullSync().catch(() => {});
+});
+
+function importRatings(list) {
+  return serialLearn(async () => {
+    const clean = (Array.isArray(list) ? list : [])
+      .filter((r) => r && typeof r.text === 'string' && (r.label === 'b' || r.label === 'o'))
+      .map((r, i) => ({
+        id: String(r.id || Date.now().toString(36) + i),
+        ts: Number(r.ts) || Date.now(),
+        label: r.label,
+        host: String(r.host || ''),
+        text: r.text.slice(0, RATING_TEXT_MAX),
+      }));
+    const byText = new Map();
+    for (const r of (await getRatings()).concat(clean)) byText.set(r.text, r);
+    const ratings = [...byText.values()].sort((a, b) => a.ts - b.ts).slice(-MAX_RATINGS);
+    await saveRatings(ratings);
+    return { ok: true, n: ratings.length };
+  });
+}
+
+async function learnInfo() {
+  const ratings = await getRatings();
+  const r = await chrome.storage.local.get('model');
+  const model = r.model || SFLearn.build(ratings);
+  return {
+    total: ratings.length,
+    b: model.docs.b,
+    o: model.docs.o,
+    ready: SFLearn.ready(model),
+    minEach: SFLearn.MIN_EACH,
+    minTotal: SFLearn.MIN_TOTAL,
+    top: SFLearn.topFeatures(model, 15),
+    recent: ratings.slice(-40).reverse(),
+  };
+}
+
+/* ---------------- Rechtsklickmenü ---------------- */
+
+function createMenus() {
+  chrome.contextMenus.removeAll(() => {
+    const contexts = ['page', 'link', 'image', 'selection'];
+    chrome.contextMenus.create({ id: 'sf-block', title: 'Will ich nicht sehen – ausblenden und merken', contexts });
+    chrome.contextMenus.create({ id: 'sf-ok', title: 'Will ich sehen – nicht mehr ausblenden', contexts });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab || tab.id < 0) return;
+  const action = info.menuItemId === 'sf-block' ? 'block' : info.menuItemId === 'sf-ok' ? 'ok' : null;
+  if (!action) return;
+  chrome.tabs.sendMessage(tab.id, { type: 'ctx', action }, { frameId: info.frameId || 0 }).catch(() => {});
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  createMenus();
+  pullSync().then(schedulePush).catch(() => {});
+});
+
 /* ---------------- Nachrichten ---------------- */
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -258,6 +468,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'cacheClear':
       cacheClear().then((n) => sendResponse({ removed: n }));
       return true;
+    case 'train':
+      addRating(msg.text, msg.label, sender.tab ? safeHost(sender.tab.url) : '').then(sendResponse);
+      return true;
+    case 'learnInfo':
+      learnInfo().then(sendResponse);
+      return true;
+    case 'deleteRating':
+      deleteRating(msg.id).then(sendResponse);
+      return true;
+    case 'resetLearning':
+      resetLearning().then(sendResponse);
+      return true;
+    case 'exportRatings':
+      getRatings().then((ratings) => sendResponse({ ratings }));
+      return true;
+    case 'importRatings':
+      importRatings(msg.ratings).then(sendResponse);
+      return true;
     case 'cacheSize':
       cacheSize().then((n) => sendResponse({ n }));
       return true;
@@ -266,7 +494,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+function safeHost(url) {
+  try { return new URL(url).hostname; } catch (_) { return ''; }
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
+  createMenus();
+  pullSync().then(schedulePush).catch(() => {});
   // Fehlende Einstellungen mit Standardwerten auffüllen.
   // Nur fehlende Schlüssel schreiben, damit nichts Vorhandenes überschrieben wird.
   const raw = await chrome.storage.sync.get(SFSettings.KEYS);

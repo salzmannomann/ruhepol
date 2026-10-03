@@ -233,7 +233,7 @@ async function main() {
       const opt = await ctx.newPage();
       await opt.goto(`chrome-extension://${extId}/options.html`);
       await opt.waitForSelector('input[name="preset"][value="ki"]');
-      assert.equal(await opt.locator('input[name="preset"]').count(), 10);
+      assert.equal(await opt.locator('input[name="preset"]').count(), 15);
       await opt.check('input[name="preset"][value="ki"]');
       await opt.click('#save');
       await opt.waitForSelector('#status.ok');

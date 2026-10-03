@@ -66,10 +66,18 @@
       name: 'Verbrechen',
       terms: [
         'Mord', 'Morde', 'Mordes', 'Mordfall*', 'Mordprozess*', 'Mordversuch*', 'Mordanklage*', 'ermordet*',
-        'Mörder*', 'Totschlag', 'Tötung*', 'getötet', 'Leiche', 'Leichen', 'Leichnam', 'Femizid*',
-        'Vergewaltig*', 'Missbrauch*', 'Kindesmissbrauch*', 'sexuelle* Übergriff*', 'Messerstecherei*',
+        'Mörder*', 'Totschlag', 'Tötung*', 'getötet', 'Leiche', 'Leichen', 'Leichnam', 'Messerstecherei*',
         'Raubüberfall*', 'Überfall', 'Einbrecher*', 'Entführung*', 'entführt', 'Menschenhandel',
-        'Kinderpornograf*', 'Kinderpornograph*', 'Stalking', 'häusliche* Gewalt',
+      ],
+    },
+    {
+      id: 'missbrauch',
+      name: 'Missbrauch und sexuelle Gewalt',
+      terms: [
+        'Missbrauch*', 'missbraucht', 'Kindesmissbrauch*', 'Vergewaltig*', 'sexuelle* Übergriff*',
+        'sexuelle* Gewalt', 'sexualisierte* Gewalt', 'sexuelle* Belästigung', 'Femizid*', 'häusliche* Gewalt',
+        'Gewalt gegen Frauen', 'Kinderpornograf*', 'Kinderpornograph*', 'Missbrauchsdarstellung*', 'Grooming',
+        'Stalking', 'Kinderschänder*', 'Pädophil*', 'Zwangsprostitution', 'K.-o.-Tropfen', 'Ko-Tropfen',
       ],
     },
     {
@@ -91,6 +99,43 @@
       terms: [
         'Tod', 'Todes', 'Todesfall*', 'tödlich*', 'gestorben', 'verstorben*', 'stirbt', 'starb',
         'Trauer*', 'Nachruf*', 'Begräbnis*', 'Beerdigung*', 'Suizid*', 'Selbstmord*', 'Sterbehilfe',
+      ],
+    },
+    {
+      id: 'psyche',
+      name: 'Psychische Belastung',
+      terms: [
+        'Depression*', 'depressiv*', 'Angststörung*', 'Panikattacke*', 'Essstörung*', 'Magersucht',
+        'magersüchtig*', 'Anorexie', 'Bulimie', 'Selbstverletz*', 'Burnout', 'Psychose*',
+        'psychotisch*', 'Trauma', 'Traumata', 'traumatisiert*', 'PTBS', 'posttraumatisch*', 'Zwangsstörung*',
+        'Einsamkeit', 'Psychiatrie*', 'Nervenzusammenbruch',
+      ],
+    },
+    {
+      id: 'sucht',
+      name: 'Drogen und Sucht',
+      terms: [
+        'Drogen*', 'Drogentod*', 'Drogentote*', 'Überdosis', 'Heroin', 'Kokain', 'Crystal Meth', 'Fentanyl',
+        'Opioid*', 'Sucht', 'süchtig*', 'Alkoholsucht', 'Alkoholiker*', 'Spielsucht', 'Glücksspielsucht',
+        'Komasaufen', 'Entzug*', 'Rauschgift*',
+      ],
+    },
+    {
+      id: 'diskriminierung',
+      name: 'Hass und Diskriminierung',
+      terms: [
+        'Rassismus', 'rassistisch*', 'Antisemitismus', 'antisemitisch*', 'Hassverbrechen', 'Hasskriminalität',
+        'Hassrede', 'Hasspostings', 'Hetze', 'Homophobie', 'homophob*', 'Transfeindlich*', 'Queerfeindlich*',
+        'Sexismus', 'sexistisch*', 'Frauenfeindlich*', 'Misogynie', 'Diskriminierung*', 'diskriminiert',
+        'Fremdenfeindlich*', 'Islamfeindlich*', 'Mobbing', 'Cybermobbing', 'Shitstorm*',
+      ],
+    },
+    {
+      id: 'tierleid',
+      name: 'Tierleid',
+      terms: [
+        'Tierquälerei', 'Tierquäler*', 'Tierversuch*', 'Massentierhaltung', 'Tiertransport*', 'Schlachthof*',
+        'Wilderei', 'Wilderer', 'gekeult', 'Keulung*', 'Tierleid', 'verendet', 'Tiermisshandlung*',
       ],
     },
     {

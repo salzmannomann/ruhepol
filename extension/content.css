@@ -17,35 +17,83 @@ html.sf-active .sf-blurred {
   user-select: none !important;
 }
 
-html.sf-active .sf-placeholder {
+html.sf-active .sf-placeholder,
+html.sf-active .sf-placeholder *,
+html.sf-active .sf-feedback,
+html.sf-active .sf-feedback *,
+.sf-toast {
   all: initial;
-  display: block !important;
   box-sizing: border-box !important;
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  color: #444 !important;
+}
+
+html.sf-active .sf-placeholder {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px 12px !important;
   margin: 6px 0 !important;
-  padding: 10px 14px !important;
+  padding: 8px 12px !important;
   border: 1px dashed #9a9a9a !important;
   border-radius: 6px !important;
   background: #f3f3f3 !important;
-  color: #444 !important;
-  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   list-style: none !important;
 }
+html.sf-active .sf-placeholder:hover { background: #e9e9e9 !important; }
+html.sf-active .sf-ph-text { cursor: pointer !important; }
+html.sf-active .sf-ph-text:focus { outline: 2px solid #6b8afd !important; border-radius: 3px !important; }
+html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !important; flex-wrap: wrap !important; font-size: 12.5px !important; }
 
-html.sf-active .sf-placeholder:hover,
-html.sf-active .sf-placeholder:focus {
-  background: #e6e6e6 !important;
-  outline: 2px solid #6b8afd !important;
+html.sf-active .sf-feedback {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px 10px !important;
+  margin: 4px 0 !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  background: #eef1ff !important;
+  border: 1px solid #c5cdfa !important;
+  font-size: 13px !important;
+}
+
+html.sf-active .sf-btn {
+  display: inline-block !important;
+  padding: 3px 9px !important;
+  border: 1px solid #b9b9b9 !important;
+  border-radius: 5px !important;
+  background: #fff !important;
+  font-size: 12.5px !important;
+  cursor: pointer !important;
+}
+html.sf-active .sf-btn:hover { background: #f0f3ff !important; border-color: #6b8afd !important; }
+html.sf-active .sf-btn:focus-visible { outline: 2px solid #6b8afd !important; }
+
+.sf-toast {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  left: 50% !important;
+  bottom: 24px !important;
+  transform: translateX(-50%) !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  background: #222 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  pointer-events: none !important;
 }
 
 @media (prefers-color-scheme: dark) {
-  html.sf-active .sf-placeholder {
-    background: #2a2a2a !important;
-    color: #ddd !important;
-    border-color: #666 !important;
-  }
-  html.sf-active .sf-placeholder:hover,
-  html.sf-active .sf-placeholder:focus {
-    background: #353535 !important;
-  }
+  html.sf-active .sf-placeholder,
+  html.sf-active .sf-placeholder *,
+  html.sf-active .sf-feedback,
+  html.sf-active .sf-feedback * { color: #ddd !important; }
+  html.sf-active .sf-placeholder { background: #2a2a2a !important; border-color: #666 !important; }
+  html.sf-active .sf-placeholder:hover { background: #333 !important; }
+  html.sf-active .sf-feedback { background: #262a3d !important; border-color: #46507e !important; }
+  html.sf-active .sf-btn { background: #1e1e1e !important; border-color: #555 !important; }
+  html.sf-active .sf-btn:hover { background: #2b3050 !important; }
 }

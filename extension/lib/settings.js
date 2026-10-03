@@ -10,6 +10,8 @@
   const DEFAULTS = Object.freeze({
     enabled: true,
     keywords: [],
+    // "Nie ausblenden": diese Wörter lösen nie einen Treffer aus (z. B. Wohnungskrise)
+    allow: [],
     // aktivierte Vorschlagslisten (IDs aus lib/presets.js); Standard: alle
     presets: P ? P.ALL_IDS.slice() : [],
     // 'all'  = auf allen Seiten außer denen in siteList
@@ -23,6 +25,11 @@
     ocr: true,
     partial: false,
     fuzzy: false,
+    // Lernfilter: aus Bewertungen lernen
+    learn: true,
+    // gelernte Inhalte auch ohne Schlagwort ausblenden, ab dieser Sicherheit
+    learnHide: true,
+    learnThreshold: 0.9,
     // Verhalten bei OCR-Fehler/Timeout: 'show' (scharf stellen) | 'blur' (unscharf lassen) | 'hide'
     onError: 'show',
   });
@@ -36,6 +43,14 @@
     if (Array.isArray(raw.keywords)) {
       s.keywords = raw.keywords.map((k) => String(k).trim()).filter(Boolean);
     }
+    if (Array.isArray(raw.allow)) {
+      s.allow = raw.allow.map((k) => String(k).trim()).filter(Boolean);
+    }
+    for (const k of ['learn', 'learnHide']) {
+      if (typeof raw[k] === 'boolean') s[k] = raw[k];
+    }
+    const thr = Number(raw.learnThreshold);
+    if (Number.isFinite(thr) && thr >= 0.5 && thr <= 0.99) s.learnThreshold = thr;
     if (Array.isArray(raw.presets) && P) {
       s.presets = P.ALL_IDS.filter((id) => raw.presets.includes(id));
     }

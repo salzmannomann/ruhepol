@@ -10,6 +10,7 @@
 
   const { compile } = globalThis.SFMatch;
   const S = globalThis.SFSettings;
+  const L = globalThis.SFLearn;
 
   const ATTRS = ['alt', 'title', 'aria-label'];
   const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'OPTION', 'TEMPLATE', 'SVG', 'CODE', 'PRE', 'HEAD', 'TITLE', 'META', 'LINK']);
@@ -17,6 +18,9 @@
   const IDLE_BUDGET_MS = 8;
   const OBSERVER_THROTTLE_MS = 100;
   const OCR_MARGIN = '600px';
+  const LEARN_KEEP = 0.2; // Schlagwort-Treffer zeigen, wenn das Modell sicher "will ich sehen" sagt
+  const LEARN_CANDIDATES = 'article, li, figure, h1, h2, h3, h4';
+  const OWN_CLASSES = ['sf-placeholder', 'sf-feedback', 'sf-toast'];
 
   let settings = null;
   let matcher = null;
@@ -32,11 +36,28 @@
   let mutationTimer = null;
   const mutationBuffer = [];
 
+  let model = null; // Lernmodell (aus chrome.storage.local)
+  let clearedBlocks = new WeakSet(); // vom Lernfilter freigegeben
+  let scoredBlocks = new WeakSet(); // vom Lernfilter schon bewertet
+  const learnCandidates = new Set();
+  let learnHandle = null;
+  let lastCtxTarget = null;
+
   /* ---------------- Start / Einstellungen ---------------- */
 
   async function init() {
-    settings = await S.load();
+    const [s, local] = await Promise.all([S.load(), chrome.storage.local.get('model')]);
+    settings = s;
+    model = local.model || null;
     apply();
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes.model) return;
+      const wasHiding = learningHides();
+      model = changes.model.newValue || null;
+      // Modell ist erstmals einsatzbereit (oder nicht mehr): neu starten, sonst nur weiterverwenden.
+      if (learningHides() !== wasHiding) apply();
+    });
+    document.addEventListener('contextmenu', (e) => { lastCtxTarget = e.target; }, true);
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'sync') return;
       if (!S.KEYS.some((k) => k in changes)) return;
@@ -47,6 +68,7 @@
     });
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg && msg.type === 'getFrameCount') sendResponse({ n: hitBlocks.size });
+      if (msg && msg.type === 'ctx') onContextAction(msg.action);
       return false;
     });
   }
@@ -55,12 +77,14 @@
     teardown();
     const host = location.hostname || (window.top !== window ? safeTopHost() : '');
     const keywords = S.allKeywords(settings);
-    const shouldRun = S.isActiveOn(settings, host) && keywords.length > 0;
+    const shouldRun = S.isActiveOn(settings, host) && (keywords.length > 0 || learningHides());
     if (!shouldRun) {
       reportCount();
       return;
     }
-    matcher = compile(keywords, { partial: settings.partial, fuzzy: settings.fuzzy });
+    matcher = compile(keywords, { partial: settings.partial, fuzzy: settings.fuzzy, allow: settings.allow });
+    clearedBlocks = new WeakSet();
+    scoredBlocks = new WeakSet();
     active = true;
     generation++;
     document.documentElement.classList.add('sf-active');
@@ -86,6 +110,14 @@
     reportCount();
   }
 
+  function learningActive() {
+    return !!settings && settings.learn && L.ready(model);
+  }
+
+  function learningHides() {
+    return learningActive() && settings.learnHide;
+  }
+
   function safeTopHost() {
     try { return window.top.location.hostname; } catch (_) { return ''; }
   }
@@ -101,12 +133,14 @@
     pendingRoots.clear();
     activeWalker = null;
     ocrWaiting.clear();
+    learnCandidates.clear();
     if (idleHandle) cancelIdle(idleHandle);
-    idleHandle = null;
+    if (learnHandle) cancelIdle(learnHandle);
+    idleHandle = learnHandle = null;
     document.removeEventListener('load', onLoadCapture, true);
     document.removeEventListener('error', onErrorCapture, true);
     document.documentElement.classList.remove('sf-active');
-    for (const el of document.querySelectorAll('.sf-placeholder')) el.remove();
+    for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback, .sf-toast')) el.remove();
     for (const el of document.querySelectorAll('[data-sf-hit]')) {
       el.classList.remove('sf-hidden', 'sf-blurred', 'sf-hidden-ph');
       delete el.dataset.sfHit;
@@ -157,7 +191,7 @@
       if (budget() <= 1) break;
     }
     if (pendingRoots.size || activeWalker) idleHandle = requestIdle(work);
-    else flushOcr();
+    else { flushOcr(); scheduleLearn(); }
     reportCount();
   }
 
@@ -196,11 +230,11 @@
         }
       }
     }
-    if (!pendingRoots.size) flushOcr();
+    if (!pendingRoots.size) { flushOcr(); scheduleLearn(); }
   }
 
   function isOwn(n) {
-    return n.classList && n.classList.contains('sf-placeholder');
+    return !!n.classList && OWN_CLASSES.some((c) => n.classList.contains(c));
   }
 
   /* ---------------- Text ---------------- */
@@ -231,7 +265,7 @@
 
   function skipElement(el) {
     if (SKIP_TAGS.has(el.tagName.toUpperCase()) || isOwn(el)) return true;
-    return !!el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder, [contenteditable=""], [contenteditable="true"]');
+    return !!el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-feedback, .sf-toast, [contenteditable=""], [contenteditable="true"]');
   }
 
   function checkText(el, text) {
@@ -247,6 +281,7 @@
       processImage(el);
       return;
     }
+    if (learnHandleable() && el.matches(LEARN_CANDIDATES)) learnCandidates.add(el);
     for (const a of ATTRS) {
       const v = el.getAttribute(a);
       if (v) {
@@ -357,9 +392,19 @@
     if (gen !== generation || !active) return;
     if (img.dataset.sfSrc !== src || img.dataset.sf !== 'pending') return; // Bild hat inzwischen gewechselt
     if (res && res.ok) {
+      img.__sfOcr = res.text;
       const kw = matcher.find(res.text);
       if (kw) hitImage(img, kw);
-      else img.dataset.sf = 'ok';
+      else {
+        img.dataset.sf = 'ok';
+        // Der Bildtext kann für den Lernfilter den Ausschlag geben.
+        if (learnHandleable()) {
+          const block = findBlock(img);
+          scoredBlocks.delete(block);
+          learnCandidates.add(block);
+          scheduleLearn();
+        }
+      }
     } else {
       onOcrError(img);
     }
@@ -462,9 +507,158 @@
     return best;
   }
 
-  function hit(el, kw) {
-    const block = findBlock(el);
+  /* ---------------- Lernfilter ---------------- */
+
+  function learnHandleable() {
+    return active && learningHides();
+  }
+
+  function scheduleLearn() {
+    if (learnCandidates.size && !learnHandle && active) learnHandle = requestIdle(learnWork);
+  }
+
+  /** Text eines Blocks inkl. alt-Texten und OCR-Text der Bilder (für Lernfilter und Bewertungen). */
+  function blockText(block) {
+    const parts = [block.textContent || ''];
+    const imgs = block.tagName === 'IMG' ? [block] : block.querySelectorAll('img');
+    for (const img of imgs) {
+      parts.push(img.getAttribute('alt') || '', img.getAttribute('title') || '', img.__sfOcr || '');
+    }
+    return parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 3000);
+  }
+
+  /** Inhalte ohne Schlagwort, die das Modell mit hoher Sicherheit als unerwünscht einstuft. */
+  function learnWork(deadline) {
+    learnHandle = null;
+    if (!learnHandleable()) { learnCandidates.clear(); return; }
+    const start = performance.now();
+    const budget = () => (deadline.didTimeout ? IDLE_BUDGET_MS - (performance.now() - start) : deadline.timeRemaining());
+    for (const el of learnCandidates) {
+      learnCandidates.delete(el);
+      if (!el.isConnected || el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder')) continue;
+      const heading = /^H[1-6]$/.test(el.tagName);
+      const block = heading ? findBlock(el) : el;
+      if (scoredBlocks.has(block) || clearedBlocks.has(block)) continue;
+      if (!heading && !blockOk(block)) continue;
+      scoredBlocks.add(block);
+      const text = blockText(block);
+      if (text.length >= 25) {
+        const s = L.score(model, text);
+        if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
+          hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true });
+        }
+      }
+      if (budget() <= 1) break;
+    }
+    if (learnCandidates.size) learnHandle = requestIdle(learnWork);
+    reportCount();
+  }
+
+  function train(block, label) {
+    const text = blockText(block);
+    if (!text) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'train', label, text }).catch(() => {});
+    } catch (_) { /* Erweiterung neu geladen */ }
+  }
+
+  function toast(text) {
+    const t = document.createElement('div');
+    t.className = 'sf-toast';
+    t.textContent = text;
+    (document.body || document.documentElement).appendChild(t);
+    setTimeout(() => t.remove(), 2600);
+  }
+
+  /** Rechtsklickmenü: "Will ich nicht sehen" / "Will ich sehen". */
+  function onContextAction(action) {
+    const target = lastCtxTarget;
+    if (!target || !target.isConnected) return;
+    const el = target.nodeType === 1 ? target : target.parentElement;
+    if (!el) return;
+    const ph = el.closest('.sf-placeholder');
+    const hidden = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
+    if (action === 'block') {
+      if (hidden) {
+        train(hidden, 'b');
+        toast('Gemerkt: will ich nicht sehen');
+        return;
+      }
+      const block = findBlock(el.closest('.sf-feedback') ? el.closest('.sf-feedback').__sfBlock : el);
+      if (!block || block === document.body || block === document.documentElement) {
+        toast('Hier wurde kein einzelner Inhaltsblock erkannt.');
+        return;
+      }
+      train(block, 'b');
+      if (!active) { toast('Gemerkt: will ich nicht sehen'); return; }
+      delete block.dataset.sfRevealed;
+      clearedBlocks.delete(block);
+      hit(block, 'von dir ausgeblendet', { block, force: true });
+      toast('Ausgeblendet und gemerkt');
+    } else if (action === 'ok') {
+      if (hidden) {
+        train(hidden, 'o');
+        reveal(hidden, ph, { feedback: false });
+      } else {
+        const block = findBlock(el);
+        train(block, 'o');
+        clearedBlocks.add(block);
+      }
+      toast('Gemerkt: will ich sehen');
+    }
+  }
+
+  /** Nach dem Aufdecken kurz nachfragen, ob das Ausblenden richtig war. */
+  function showFeedback(block, kw) {
+    if (!block.parentNode) return;
+    const bar = document.createElement('div');
+    bar.className = 'sf-feedback';
+    bar.__sfBlock = block;
+    const label = document.createElement('span');
+    label.textContent = `Ausgeblendet wegen „${kw}“. War das richtig?`;
+    const yes = button('Ja, ausblenden', () => {
+      train(block, 'b');
+      bar.remove();
+      delete block.dataset.sfRevealed;
+      for (const img of block.querySelectorAll('img')) delete img.dataset.sfRevealed;
+      hit(block, kw, { block, force: true });
+    });
+    const no = button('Nein, will ich sehen', () => {
+      train(block, 'o');
+      clearedBlocks.add(block);
+      bar.textContent = 'Gemerkt.';
+      setTimeout(() => bar.remove(), 1200);
+    });
+    bar.append(label, yes, no);
+    block.parentNode.insertBefore(bar, block);
+    setTimeout(() => bar.remove(), 20000);
+  }
+
+  function button(text, onClick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sf-btn';
+    b.textContent = text;
+    b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); onClick(); });
+    return b;
+  }
+
+  /* ---------------- Ausblenden ---------------- */
+
+  function hit(el, kw, opts) {
+    opts = opts || {};
+    const block = opts.block || findBlock(el);
+    if (!opts.force && clearedBlocks.has(block)) return;
     if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return;
+    // Lernfilter: Schlagwort trifft, aber laut Bewertungen will der Nutzer das sehen.
+    if (!opts.force && learningActive()) {
+      const s = L.score(model, blockText(block));
+      if (s && s.known >= 2 && s.p < LEARN_KEEP) {
+        clearedBlocks.add(block);
+        block.dataset.sfLearnOk = String(Math.round(s.p * 100));
+        return;
+      }
+    }
     block.dataset.sfHit = kw;
     // Bereits markierte Treffer im Inneren zählen nicht doppelt.
     for (const inner of hitBlocks) if (block.contains(inner)) unhide(inner);
@@ -474,16 +668,35 @@
       block.classList.add('sf-hidden');
     } else if (settings.display === 'blur') {
       block.classList.add('sf-blurred');
-      block.title = `Ausgeblendet (${kw}) – klicken zum Anzeigen`;
+      block.title = `Ausgeblendet (${kw}) – klicken zum Anzeigen (Rechtsklick: bewerten)`;
       block.addEventListener('click', onBlurClick, true);
     } else {
       const ph = document.createElement(block.tagName === 'LI' ? 'li' : 'div');
       ph.className = 'sf-placeholder';
-      ph.setAttribute('role', 'button');
-      ph.tabIndex = 0;
-      ph.textContent = `Ausgeblendet (${kw}) – klicken zum Anzeigen`;
+      ph.__sfBlock = block;
+      const label = document.createElement('span');
+      label.className = 'sf-ph-text';
+      label.setAttribute('role', 'button');
+      label.tabIndex = 0;
+      label.title = 'Klicken zum Anzeigen';
+      label.textContent = `Ausgeblendet (${kw})`;
+      const actions = document.createElement('span');
+      actions.className = 'sf-ph-actions';
+      const keep = button('Passt so', () => {
+        train(block, 'b');
+        actions.textContent = '✓ gemerkt';
+      });
+      keep.title = 'Richtig ausgeblendet – merken';
+      const want = button('Will ich sehen', () => {
+        train(block, 'o');
+        reveal(block, ph, { feedback: false });
+        toast('Gemerkt: will ich sehen');
+      });
+      want.title = 'Falsch ausgeblendet – anzeigen und merken';
+      actions.append(button('Anzeigen', () => reveal(block, ph)), keep, want);
+      ph.append(label, actions);
       ph.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); reveal(block, ph); });
-      ph.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); reveal(block, ph); } });
+      label.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); reveal(block, ph); } });
       block.classList.add('sf-hidden-ph');
       block.parentNode && block.parentNode.insertBefore(ph, block);
       block.__sfPlaceholder = ph;
@@ -506,13 +719,15 @@
     reveal(block, null);
   }
 
-  function reveal(block, ph) {
+  function reveal(block, ph, opts) {
+    const kw = block.dataset.sfHit;
     unhide(block);
     if (ph) ph.remove();
     block.removeAttribute('title');
     block.dataset.sfRevealed = '1';
     for (const img of block.querySelectorAll('img')) img.dataset.sfRevealed = '1';
     if (block.tagName === 'IMG') block.dataset.sfRevealed = '1';
+    if (kw && !(opts && opts.feedback === false)) showFeedback(block, kw);
     scheduleReport();
   }
 

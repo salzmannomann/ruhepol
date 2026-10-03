@@ -3,7 +3,8 @@
 Chrome-Erweiterung (Manifest V3), die Inhalte mit bestimmten Schlagwörtern ausblendet –
 auch wenn das Wort nur als Schrift **im Bild** steht. Die Texterkennung (OCR) läuft mit
 [tesseract.js](https://github.com/naptha/tesseract.js) komplett lokal in der Erweiterung:
-keine externen Server, keine CDNs, keine Datenübertragung.
+keine externen Server, keine CDNs. Einstellungen und Bewertungen werden höchstens über die
+Chrome-Synchronisierung des eigenen Google-Kontos abgeglichen.
 
 ## Installation
 
@@ -29,6 +30,12 @@ Voraussetzung zum Bauen: [Node.js](https://nodejs.org/) ab Version 18.
 
 Nach Änderungen am Code auf `chrome://extensions` beim Schlagwortfilter auf den
 Neu-laden-Pfeil klicken und offene Tabs neu laden.
+
+> **Update von 1.0.0 auf 1.1.0:** Ab 1.1.0 hat die Erweiterung eine feste Kennung (`key` im
+> Manifest), damit die Synchronisierung zwischen Rechnern funktioniert. Chrome behandelt sie
+> deshalb wie eine neue Erweiterung. Vorher in den Einstellungen unter „Sichern“ exportieren,
+> dann die alte Version entfernen, die neue laden und die Datei wieder importieren.
+> Die feste Kennung ist `ebmkpjpbmmjemfepkgbchdbafmmkaknp`.
 
 ## Bedienung
 
@@ -58,13 +65,24 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
   Bindestriche trennen Wörter: „Ukraine-Krieg“ enthält das Wort „Krieg“.
 - **Auch Teilwörter finden**: Jeder Begriff gilt als Wortteil, „ball“ findet dann auch
   „Fußballspiel“. Das erzeugt deutlich mehr Fehltreffer, Platzhalter sind meist besser.
+- **Nie ausblenden**: Begriffe, die nie einen Treffer auslösen, in derselben Schreibweise.
+  Mit `Wohnungskrise` bleibt „Die Wohnungskrise verschärft sich“ sichtbar. „Wohnungskrise
+  und Klimakrise“ wird über „Klimakrise“ trotzdem ausgeblendet.
 - **Unscharfer Abgleich**: fängt OCR-Lesefehler ab. Bei Wörtern ab 6 Zeichen reicht eine
   Abweichung von einem Buchstaben (Levenshtein-Distanz 1). Standardmäßig aus.
 - **Vorschlagslisten**: fertige Listen zu vorwiegend negativen Themen, einzeln an- und
   abwählbar. Standardmäßig sind alle aktiv:
   Künstliche Intelligenz · Klimawandel · Krieg und Militär · Terror und Gewalt ·
-  Verbrechen · Unglücke und Katastrophen · Tod, Trauer, Suizid · Pandemie und Krankheit ·
-  Wirtschaftskrise · Krisen und Skandale allgemein.
+  Verbrechen · Missbrauch und sexuelle Gewalt · Unglücke und Katastrophen ·
+  Tod, Trauer, Suizid · Psychische Belastung · Drogen und Sucht · Hass und Diskriminierung ·
+  Tierleid · Pandemie und Krankheit · Wirtschaftskrise · Krisen und Skandale allgemein.
+  Die Kategorien lehnen sich an die Themenbereiche der NEON-Typologie für Inhaltswarnungen
+  an, einer systematischen Übersichtsarbeit über Content- und Trigger-Warnungen
+  ([Charles et al., PLOS ONE 2022](https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0266722)).
+  Dazu kommen die Themen, die laut [Reuters Institute Digital News Report](https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2023/dnr-executive-summary)
+  am häufigsten zum Meiden von Nachrichten führen (Krieg, Klima, Krisen).
+  Wer schon Version 1.0.0 benutzt hat, findet die fünf neuen Kategorien (Missbrauch,
+  Psychische Belastung, Sucht, Hass, Tierleid) zunächst abgehakt.
   Mit „Begriffe anzeigen“ sieht man den Inhalt. „In eigene Liste kopieren“ übernimmt die
   Begriffe zum Anpassen; die Vorschlagsliste dann abhaken. Die Listen stehen in
   `extension/lib/presets.js`. Begriffe mit vielen Fehltreffern sind bewusst weggelassen,
@@ -79,11 +97,69 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
 - **Bilder**: OCR ein/aus, Mindestbildgröße (Standard 120 × 80 px) und das Verhalten,
   wenn ein Bild nicht gelesen werden kann (Fehler oder Zeitüberschreitung nach 10 s).
   Standard ist „scharf stellen“, alternativ „unscharf lassen“ oder „ausblenden“.
+- **Lernfilter**: siehe unten.
 - **Cache leeren**: löscht die gespeicherten OCR-Ergebnisse.
 - **Exportieren/Importieren**: speichert alle Einstellungen als JSON-Datei bzw. lädt sie.
 
-Die Einstellungen liegen in `chrome.storage.sync` und werden mit dem Google-Konto
-synchronisiert, wenn die Chrome-Synchronisierung eingeschaltet ist.
+### Lernfilter: bewerten und lernen lassen
+
+Schlagwörter allein unterscheiden nicht, ob „Krise“ eine Klimakrise oder eine
+Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
+
+**Bewerten:**
+- **Am Platzhalter:**
+  - **Passt so** – war richtig ausgeblendet.
+  - **Will ich sehen** – war falsch; zeigt den Inhalt und merkt sich das.
+  - **Anzeigen** – nur anzeigen, ohne zu bewerten. Danach fragt eine kleine Leiste:
+    „War das richtig?“
+- **Rechtsklick auf einen Artikel oder ein Bild:**
+  - **„Will ich nicht sehen – ausblenden und merken“** blendet auch Inhalte ohne Schlagwort
+    sofort aus.
+  - **„Will ich sehen – nicht mehr ausblenden“**.
+- **Darstellung „unscharf“:** Nach dem Aufdecken erscheint dieselbe Leiste.
+- **Darstellung „komplett ausblenden“:** Hier gibt es nichts anzuklicken. Bewerten geht nur
+  per Rechtsklick auf sichtbare Inhalte.
+
+**Was passiert:**
+- Gelernt wird der Text des Blocks, also Überschrift, Vorspann, alt-Texte und der per OCR
+  gelesene Bildtext. Ein kleiner Naive-Bayes-Klassifikator, wie bei Spamfiltern, merkt sich,
+  welche Wörter und Wortpaare bei dir für „weg“ oder „passt“ sprechen.
+- **Startbedingung:** Ab 10 Bewertungen, davon mindestens 3 je Richtung, entscheidet das
+  Modell mit:
+  - **Schlagwort trifft, aber das Modell ist sich sicher, dass du es sehen willst:** Der
+    Inhalt bleibt sichtbar.
+  - **Kein Schlagwort, aber das Modell ist sich sehr sicher, dass du es nicht willst:** Der
+    Inhalt wird ausgeblendet, der Platzhalter zeigt „Ausgeblendet (gelernt, 93 %)“. Die
+    Schwelle ist einstellbar (80/90/95 %) und auch abschaltbar.
+- **Übersicht in den Einstellungen:** Status, die stärksten Wörter je Richtung, die letzten
+  Bewertungen (einzeln löschbar) und „Gelerntes zurücksetzen“.
+
+**Grenzen:** Das Modell lernt Wörter, keine Bedeutung. „Flut“ und „Hochwasser“ sind für es
+verschiedene Dinge, bis beide bewertet wurden. Bilder ohne Schrift beurteilt es nur über
+den Text drumherum.
+
+### Synchronisieren zwischen Rechnern
+
+- **Einstellungen** liegen in `chrome.storage.sync`.
+- **Bewertungen:** Die neuesten (Text auf 280 Zeichen gekürzt, je nach Länge einige hundert)
+  werden zusätzlich dort gespiegelt. Gelernt wird auf jedem Rechner lokal aus den
+  zusammengeführten Bewertungen. Gelöschte Bewertungen und „Zurücksetzen“ werden mit
+  abgeglichen.
+- **Voraussetzungen:**
+  - Auf jedem Rechner (Windows, Mac, Linux) ist die Erweiterung aus diesem Ordner geladen,
+    dank fester Kennung überall dieselbe.
+  - Chrome ist mit demselben Google-Konto angemeldet.
+  - Die Synchronisierung ist eingeschaltet (`chrome://settings/syncSetup` →
+    „Synchronisierung verwalten“ → **Erweiterungen** an).
+- **Andere Browser:** Bei Edge, Brave und anderen Chromium-Browsern läuft der Abgleich über
+  deren eigenes Konto. Der Austausch zwischen verschiedenen Browsern geht nur per
+  Export/Import.
+
+**iPhone/iPad:** Chrome auf iOS unterstützt keine Erweiterungen. Möglich wäre nur eine
+Safari-Erweiterung. Die muss mit Xcode auf einem Mac als App gebaut werden, und Safari kennt
+kein Offscreen Document, die OCR müsste also umgebaut werden. Einstellungen und Bewertungen
+lassen sich dort nicht über Chrome synchronisieren, sondern nur per Export/Import (oder
+später über iCloud).
 
 ## So funktioniert es
 
@@ -148,7 +224,7 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
 ```bash
 npm install
 npm run setup        # vendor/ und Sprachdaten
-npm test             # Unit-Tests (Abgleich, Listen) + Playwright-Test mit lokaler Testseite
+npm test             # Unit-Tests (Abgleich, Listen, Lernmodell) + Playwright-Tests (Testseite, Lernfilter)
 npm run test:orf     # Praxistest gegen https://orf.at (braucht Internet; HEADED=1 für sichtbares Fenster)
 ```
 
@@ -183,6 +259,7 @@ extension/
   options.html/js    Einstellungsseite
   lib/match.js       Abgleich (Normalisierung, Platzhalter, Levenshtein)
   lib/presets.js     Vorschlagslisten
+  lib/learn.js       Lernfilter (Naive Bayes)
   lib/settings.js    Einstellungen und Seitenregeln
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole
