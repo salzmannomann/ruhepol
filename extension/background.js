@@ -555,31 +555,66 @@ async function semStatus() {
 
 function createMenus() {
   chrome.contextMenus.removeAll(() => {
-    const contexts = ['page', 'link', 'image', 'selection'];
-    chrome.contextMenus.create({ id: 'sf-add', title: '„%s“ zu den Schlagwörtern hinzufügen', contexts: ['selection'] });
-    chrome.contextMenus.create({ id: 'sf-block', title: 'Will ich nicht sehen – unscharf stellen und merken', contexts });
-    chrome.contextMenus.create({ id: 'sf-ok', title: 'Will ich sehen – nicht mehr ausblenden', contexts });
-    chrome.contextMenus.create({ id: 'sf-zone', title: 'Diesen Bereich auf dieser Seite immer sperren …', contexts });
+    const all = ['page', 'link', 'image', 'video', 'selection'];
+    const sel = ['selection'];
+    const add = (o) => chrome.contextMenus.create(o, () => void chrome.runtime.lastError);
+    add({ id: 'sf-block', title: '👎  Künftig ausblenden', contexts: all });
+    add({ id: 'sf-ok', title: '👍  Künftig anzeigen', contexts: all });
+    add({ id: 'sf-sep1', type: 'separator', contexts: sel });
+    add({ id: 'sf-add', title: '„%s“ als Schlagwort ausblenden', contexts: sel });
+    add({ id: 'sf-allow', title: '„%s“ nie ausblenden', contexts: sel });
+    add({ id: 'sf-sep2', type: 'separator', contexts: all });
+    add({ id: 'sf-zone', title: 'Ganzen Bereich auf dieser Seite sperren …', contexts: all });
+    add({ id: 'sf-site', title: 'Auf dieser Seite ein/aus', contexts: all });
+    add({ id: 'sf-options', title: 'Einstellungen …', contexts: all });
   });
 }
 
-/** Markierten Text als Schlagwort aufnehmen. Liefert {added, term}. */
-async function addKeyword(text) {
-  const term = String(text || '').replace(/\s+/g, ' ').trim().replace(/^[„“"'»«]+|[„“"'»«.,;:!?]+$/g, '').slice(0, 80);
+function cleanTerm(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim().replace(/^[„“"'»«]+|[„“"'»«.,;:!?]+$/g, '').slice(0, 80);
+}
+
+/** Markierten Text in eine Liste (keywords oder allow) aufnehmen. Liefert {added, term}. */
+async function addToList(key, text) {
+  const term = cleanTerm(text);
   if (!term) return { added: false, term };
   const s = await SFSettings.load();
-  if (s.keywords.some((k) => k.toLowerCase() === term.toLowerCase())) return { added: false, term };
-  await SFSettings.save({ keywords: s.keywords.concat(term) });
+  if (s[key].some((k) => k.toLowerCase() === term.toLowerCase())) return { added: false, term };
+  await SFSettings.save({ [key]: s[key].concat(term) });
   return { added: true, term };
 }
 
+function addKeyword(text) { return addToList('keywords', text); }
+function addAllow(text) { return addToList('allow', text); }
+
+/** Ruhepol für die Domain eines Tabs umschalten. Liefert {host, active} oder null. */
+async function toggleSite(url) {
+  const host = safeHost(url);
+  if (!host) return null;
+  const s = await SFSettings.load();
+  const active = !SFSettings.isActiveOn(Object.assign({}, s, { enabled: true }), host);
+  await SFSettings.save({ siteList: SFSettings.toggleHost(s, host, active) });
+  return { host: SFSettings.normalizeHost(host), active };
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'sf-options') { chrome.runtime.openOptionsPage(); return; }
   if (!tab || tab.id < 0) return;
   const frame = { frameId: info.frameId || 0 };
+  const toast = (text) => chrome.tabs.sendMessage(tab.id, { type: 'toast', text }, frame).catch(() => {});
   if (info.menuItemId === 'sf-add') {
     const r = await addKeyword(info.selectionText);
-    const text = r.added ? `„${r.term}“ ist jetzt ein Schlagwort` : `„${r.term}“ ist schon ein Schlagwort`;
-    chrome.tabs.sendMessage(tab.id, { type: 'toast', text }, frame).catch(() => {});
+    toast(r.added ? `„${r.term}“ wird künftig ausgeblendet` : `„${r.term}“ ist schon ein Schlagwort`);
+    return;
+  }
+  if (info.menuItemId === 'sf-allow') {
+    const r = await addAllow(info.selectionText);
+    toast(r.added ? `„${r.term}“ wird nie ausgeblendet` : `„${r.term}“ steht schon auf „Nie ausblenden“`);
+    return;
+  }
+  if (info.menuItemId === 'sf-site') {
+    const r = await toggleSite(tab.url);
+    if (r) toast(r.active ? `Ruhepol ist auf ${r.host} wieder an` : `Ruhepol ist auf ${r.host} aus`);
     return;
   }
   const action = { 'sf-block': 'block', 'sf-ok': 'ok', 'sf-zone': 'zone' }[info.menuItemId] || null;

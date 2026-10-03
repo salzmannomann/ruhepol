@@ -200,10 +200,30 @@ async function main() {
       assert.ok(!(await page.evaluate(() => document.querySelector('#l-klima').classList.contains('sf-blurred'))), 'bleibt sichtbar');
     });
 
+    await step('Markierten Text „nie ausblenden“ → Treffer verschwindet', async () => {
+      const before = await page.evaluate(() => document.querySelector('#l-wohnen').dataset.sfHit || '');
+      const r = await sw.evaluate(() => addAllow('„Wohnungskrise:“'));
+      assert.deepEqual(r, { added: true, term: 'Wohnungskrise' });
+      const allow = await sw.evaluate(async () => (await chrome.storage.sync.get('allow')).allow);
+      assert.deepEqual(allow, ['Wohnungskrise']);
+      await page.waitForTimeout(800);
+      assert.ok(await visible(page, '#l-wohnen'), `Wohnungskrise noch ausgeblendet (vorher: ${before})`);
+      await sw.evaluate(() => SFSettings.save({ allow: [] }));
+    });
+
+    await step('Menü „Auf dieser Seite ein/aus“ schaltet die Domain um', async () => {
+      const off = await sw.evaluate((u) => toggleSite(u), srv.base + '/lernen.html');
+      assert.deepEqual(off, { host: '127.0.0.1', active: false });
+      await page.waitForFunction(() => !document.documentElement.classList.contains('sf-active'), null, { timeout: 5000 });
+      const on = await sw.evaluate((u) => toggleSite(u), srv.base + '/lernen.html');
+      assert.deepEqual(on, { host: '127.0.0.1', active: true });
+      await page.waitForFunction(() => document.documentElement.classList.contains('sf-active'), null, { timeout: 5000 });
+    });
+
     await step('Kontextmenü ist registriert', async () => {
       // contextMenus hat keine Leseschnittstelle; erneutes Anlegen mit gleicher ID muss scheitern.
       const err = await sw.evaluate(() => new Promise((res) => {
-        chrome.contextMenus.create({ id: 'sf-block', title: 'x' }, () => res(chrome.runtime.lastError ? chrome.runtime.lastError.message : ''));
+        chrome.contextMenus.create({ id: 'sf-allow', title: 'x' }, () => res(chrome.runtime.lastError ? chrome.runtime.lastError.message : ''));
       }));
       assert.match(err, /duplicate|Cannot create item with duplicate id/i);
     });
