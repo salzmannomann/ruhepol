@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ruhepol – Kennenlernen</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    main { max-width: 620px; margin: 0 auto; padding: 40px 16px 60px; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .lead { color: var(--muted); margin: 6px 0 18px; }
+    .card { background: var(--card); border-radius: 14px; padding: 22px 22px 18px; }
+    .progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin: 0 0 18px; }
+    .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+    .count { color: var(--muted); font-size: 12.5px; margin-bottom: 8px; }
+    .headline { font-size: 21px; font-weight: 600; line-height: 1.3; min-height: 3.2em; margin: 0 0 18px; }
+    .answers { display: flex; flex-wrap: wrap; gap: 10px; }
+    .answers button { padding: 10px 16px; }
+    .minor { display: flex; gap: 16px; margin-top: 14px; }
+    .link { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; font-size: 13px; }
+    .link:disabled { visibility: hidden; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+    .topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 12px 0; }
+    .topic { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 9px 12px; font-weight: 600; cursor: pointer; }
+    .topic:has(input:checked) { border-color: var(--accent); }
+    .check { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; }
+    [hidden] { display: none !important; }
+    .check input { margin-top: 3px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 class="brand"><img src="icons/icon.svg" alt="" width="30" height="30">Ruhepol kennenlernen</h1>
+
+  <section class="step active" id="intro">
+    <p class="lead">Damit Ruhepol nur das unscharf stellt, was dich belastet: Du siehst 20 kurze, erfundene Schlagzeilen, ohne Bilder, und sagst jeweils, ob du so etwas lieber nicht sehen möchtest. Das dauert etwa eine Minute.</p>
+    <p class="hint">Daraus wählt Ruhepol die passenden Themenlisten aus. Am Ende kannst du alles noch ändern. Alles bleibt auf diesem Rechner.</p>
+    <div class="row">
+      <button class="primary" id="start">Los geht’s</button>
+      <button id="skip">Überspringen (alle Themen bleiben an)</button>
+    </div>
+  </section>
+
+  <section class="step" id="ask">
+    <div class="progress"><div id="bar"></div></div>
+    <div class="card">
+      <div class="count" id="count"></div>
+      <p class="headline" id="headline"></p>
+      <div class="answers">
+        <button class="primary" id="ansYes">Möchte ich nicht sehen</button>
+        <button id="ansNo">Ist okay für mich</button>
+      </div>
+      <div class="minor">
+        <button class="link" id="back">Zurück</button>
+        <button class="link" id="dunno">Weiß nicht</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="summary">
+    <p class="lead">Diese Themen stellt Ruhepol unscharf. Du kannst die Auswahl hier noch anpassen und später jederzeit in den Einstellungen ändern.</p>
+    <div class="topics" id="topics"></div>
+    <label class="check" id="levelRow" hidden>
+      <input type="checkbox" id="levelStark">
+      <span>Auch Grenzfälle eher ausblenden<br><span class="hint">Du hast die meisten Grenzfälle als belastend eingestuft. Stellt den Bedeutungs-Filter (KI, falls eingeschaltet) auf „stark“.</span></span>
+    </label>
+    <div class="row">
+      <button class="primary" id="apply">Übernehmen</button>
+      <button id="again">Noch einmal</button>
+    </div>
+  </section>
+
+  <section class="step" id="done">
+    <p class="lead" id="doneText">Gespeichert. Ruhepol arbeitet ab jetzt mit deiner Auswahl.</p>
+    <p class="hint">Wenn etwas unscharf ist, das du sehen willst (oder umgekehrt): Rechtsklick auf die Stelle, oder nach dem Aufdecken 👍/👎. Daraus lernt Ruhepol weiter.</p>
+    <div class="row">
+      <button id="openOptions">Einstellungen öffnen</button>
+      <button class="primary" id="close">Fertig</button>
+    </div>
+  </section>
+</main>
+<script src="lib/presets.js"></script>
+<script src="lib/settings.js"></script>
+<script src="lib/onboarding.js"></script>
+<script src="kennenlernen.js"></script>
+</body>
+</html>

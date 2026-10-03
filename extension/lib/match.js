@@ -6,6 +6,10 @@
  * - Optional Teilwort-Treffer ("ball" findet "Fußballspiel").
  * - Optional unscharfer Abgleich für OCR-Fehler: Levenshtein-Distanz 1 bei Wörtern
  *   ab 6 Zeichen.
+ * - Platzhalter je Wort: "Wort*" (Wortanfang), "*wort" (Wortende), "*wort*" (Wortteil).
+ * - "Nie ausblenden"-Liste (opts.allow): passende Wörter werden vor dem Abgleich entfernt.
+ *   "Wohnungskrise" in der Liste schützt also „Wohnungskrise“, aber ein Text mit
+ *   „Wohnungskrise und Klimakrise“ trifft weiterhin über „Klimakrise“.
  *
  * Läuft als klassisches Skript (Content-Script, Service Worker, Extension-Seiten)
  * und als CommonJS-Modul (Tests).
@@ -13,17 +17,20 @@
 (function (root) {
   'use strict';
 
-  const FUZZY_MIN_LEN = 6;
+  const FUZZY_MIN_LEN = 8; // kürzere Wörter: "Gruppen" → "Truppen", "leicht" → "Leiche"
+  const PARTIAL_MIN_LEN = 4; // "KI" als Wortteil träfe "Mai", "Kaiser", "Skifahren"
+  const WILDCARD_MIN_LEN = 3; // kürzere Platzhalter-Kerne ("*e") würden fast alles treffen
 
   function normalize(str) {
     if (!str) return '';
     return String(str)
+      .normalize('NFC') // zerlegte Umlaute ("o" + Trema) erst zusammensetzen
       .toLowerCase()
       .replace(/ä/g, 'ae')
       .replace(/ö/g, 'oe')
       .replace(/ü/g, 'ue')
       .replace(/ß/g, 'ss')
-      .normalize('NFD')
+      .normalize('NFKD')
       .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, ' ')
       .trim();
@@ -32,6 +39,44 @@
   function tokenize(str) {
     const n = normalize(str);
     return n ? n.split(' ') : [];
+  }
+
+  /**
+   * Wie tokenize, merkt sich aber, welche Wörter im Original nur durch einen Bindestrich
+   * getrennt waren ("Fuß-ball", "Fuß- ball" aus OCR). Nur diese dürfen zu einem Wort
+   * zusammengesetzt werden – sonst ergäbe "über Fall" ein "Überfall".
+   */
+  function tokenizeJoins(str) {
+    const toks = [];
+    const joins = new Set(); // Index i: toks[i] und toks[i + 1] dürfen zusammengesetzt werden
+    const chunks = String(str || '').split(/[-\u00ad\u2010\u2011]/);
+    chunks.forEach((chunk, ci) => {
+      const t = tokenize(chunk);
+      if (ci > 0 && t.length && toks.length && /[\p{L}\p{N}]$/u.test(chunks[ci - 1])) joins.add(toks.length - 1);
+      for (const x of t) toks.push(x);
+    });
+    return { toks, joins };
+  }
+
+  /**
+   * Zerlegt einen Suchbegriff in Wort-Muster: {t: normalisiertes Wort, pre: Wortanfang genügt,
+   * suf: Wortende genügt}. Platzhalter "*" am Anfang/Ende eines Wortes.
+   */
+  function parseTerm(label) {
+    const out = [];
+    for (const part of String(label).trim().split(/\s+/)) {
+      if (!part) continue;
+      const lead = part.startsWith('*');
+      const trail = part.length > 1 && part.endsWith('*');
+      const toks = tokenize(part);
+      if (!toks.length) continue;
+      const pats = toks.map((t) => ({ t, pre: false, suf: false }));
+      if (lead && pats[0].t.length >= WILDCARD_MIN_LEN) pats[0].suf = true;
+      const last = pats[pats.length - 1];
+      if (trail && last.t.length >= WILDCARD_MIN_LEN) last.pre = true;
+      out.push(...pats);
+    }
+    return out;
   }
 
   /** Levenshtein-Distanz mit frühem Abbruch, sobald sie > max ist. */
@@ -75,93 +120,192 @@
   /**
    * Erstellt einen Matcher.
    * @param {string[]} keywords
-   * @param {{partial?: boolean, fuzzy?: boolean}} opts
+   * @param {{partial?: boolean, fuzzy?: boolean, allow?: string[]}} opts
    * @returns {{find(text: string): (string|null), empty: boolean}}
    */
   function compile(keywords, opts) {
     opts = opts || {};
     const partial = !!opts.partial;
     const fuzzy = !!opts.fuzzy;
+    const allowList = [];
+    for (const raw of opts.allow || []) {
+      const pats = parseTerm(raw);
+      if (pats.length) allowList.push(pats);
+    }
     const entries = [];
     const seen = new Set();
     for (const raw of keywords || []) {
-      const label = String(raw).trim();
-      const tokens = tokenize(label);
-      if (!tokens.length) continue;
-      const key = tokens.join(' ');
+      const label = String(raw).trim().replace(/\*/g, '');
+      const pats = parseTerm(raw);
+      if (!pats.length) continue;
+      const key = pats.map((p) => (p.suf ? '*' : '') + p.t + (p.pre ? '*' : '')).join(' ');
       if (seen.has(key)) continue;
       seen.add(key);
-      entries.push({ label, tokens, joined: key, compact: tokens.join('') });
+      const tokens = pats.map((p) => p.t);
+      const plain = pats.every((p) => !p.pre && !p.suf);
+      entries.push({ label, pats, tokens, plain, joined: tokens.join(' '), compact: tokens.join('') });
     }
 
-    // Schneller Pfad: einwortige Begriffe, exakter Ganzwort-Abgleich über ein Set.
-    const singleExact = new Map();
-    for (const e of entries) if (e.tokens.length === 1) singleExact.set(e.tokens[0], e.label);
-
-    function tokenEq(textTok, kwTok) {
-      if (textTok === kwTok) return true;
-      return fuzzy && kwTok.length >= FUZZY_MIN_LEN && withinDistance(textTok, kwTok, 1);
+    // Index nach dem ersten Wort-Muster, damit auch lange Listen (Vorschlagslisten mit
+    // Hunderten Begriffen) pro Textknoten nur wenige Kandidaten prüfen müssen.
+    const byExact = new Map(); // erstes Wort exakt
+    const byPrefix = new Map(); // erstes Wort mit "Wort*": Schlüssel = erste 3 Zeichen
+    const loose = []; // erstes Wort mit "*wort" oder "*wort*"
+    for (const e of entries) {
+      const p = e.pats[0];
+      if (p.suf) loose.push(e);
+      else if (p.pre) push(byPrefix, p.t.slice(0, WILDCARD_MIN_LEN), e);
+      else push(byExact, p.t, e);
+    }
+    function push(map, key, e) {
+      const list = map.get(key);
+      if (list) list.push(e); else map.set(key, [e]);
+    }
+    function candidates(tok) {
+      const a = byExact.get(tok);
+      const b = byPrefix.get(tok.slice(0, WILDCARD_MIN_LEN));
+      if (!a && !b) return loose;
+      return [].concat(a || [], b || [], loose);
     }
 
-    function tokenContains(textTok, kwTok) {
-      if (textTok.includes(kwTok)) return true;
-      return fuzzy && kwTok.length >= FUZZY_MIN_LEN && fuzzyContains(textTok, kwTok);
+    function tokenEq(textTok, p) {
+      const k = p.t;
+      if (p.pre && p.suf) return textTok.includes(k);
+      if (p.pre) return textTok.startsWith(k);
+      if (p.suf) return textTok.endsWith(k);
+      if (textTok === k) return true;
+      return fuzzy && k.length >= FUZZY_MIN_LEN && textTok[0] === k[0] && withinDistance(textTok, k, 1);
     }
 
-    function find(text) {
-      if (!entries.length || !text) return null;
-      const toks = tokenize(text);
-      if (!toks.length) return null;
-
-      if (!partial) {
-        for (const t of toks) {
-          const hit = singleExact.get(t);
-          if (hit) return hit;
-        }
-      }
-
-      const joined = toks.join(' ');
-      for (const e of entries) {
-        const k = e.tokens;
-        if (partial) {
-          if (joined.includes(e.joined)) return e.label;
-          // Silbentrennung/Zeilenumbruch aus OCR ("Fuß- ball") abfangen.
-          if (joined.replace(/ /g, '').includes(e.compact)) return e.label;
-          if (fuzzy) {
-            if (k.length === 1) {
-              for (const t of toks) if (tokenContains(t, k[0])) return e.label;
-            } else if (matchSequence(toks, k, tokenEq)) {
-              return e.label;
-            }
-          }
-        } else {
-          if (matchSequence(toks, k, tokenEq)) return e.label;
-          // Zwei aufeinanderfolgende Token ergeben zusammen das Wort ("Fuß-ball").
-          if (k.length === 1) {
-            for (let i = 0; i + 1 < toks.length; i++) {
-              if (tokenEq(toks[i] + toks[i + 1], k[0])) return e.label;
-            }
-          }
-        }
-      }
-      return null;
+    function tokenContains(textTok, p) {
+      if (textTok.includes(p.t)) return true;
+      return fuzzy && p.t.length >= FUZZY_MIN_LEN && fuzzyContains(textTok, p.t);
     }
 
-    function matchSequence(toks, k, eq) {
-      for (let i = 0; i + k.length <= toks.length; i++) {
-        let ok = true;
-        for (let j = 0; j < k.length; j++) {
-          if (!eq(toks[i + j], k[j])) { ok = false; break; }
-        }
-        if (ok) return true;
-      }
+    function seqAt(toks, i, k) {
+      if (i + k.length > toks.length) return false;
+      for (let j = 0; j < k.length; j++) if (!tokenEq(toks[i + j], k[j])) return false;
+      return true;
+    }
+
+    function matchSequence(toks, k) {
+      for (let i = 0; i + k.length <= toks.length; i++) if (seqAt(toks, i, k)) return true;
       return false;
     }
 
-    return { find, empty: entries.length === 0 };
+    /** Anzeigename: bei Platzhaltern das tatsächlich gefundene Wort ("Klimakrise" statt "krise"). */
+    function shown(e, words) {
+      if (e.plain) return e.label;
+      const w = words.join(' ');
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }
+
+    /** Sammelt Treffer (verschiedene Wörter) bis `limit`; false = genug gefunden. */
+    function collector(limit) {
+      const seen = new Set();
+      const out = [];
+      return {
+        out,
+        add(e, label) {
+          // Nach Wort zählen: "Krise" passt auf "Krise*" und "*krise", ist aber ein Treffer.
+          const key = normalize(label);
+          if (!seen.has(key)) { seen.add(key); out.push(label); }
+          return out.length < limit;
+        },
+      };
+    }
+
+    function scanIndexed(toks, joins, c) {
+      for (let i = 0; i < toks.length; i++) {
+        for (const e of candidates(toks[i])) {
+          if (seqAt(toks, i, e.pats) && !c.add(e, shown(e, toks.slice(i, i + e.pats.length)))) return;
+        }
+      }
+      // Zwei per Bindestrich getrennte Wörter ergeben zusammen den Begriff ("Fuß-ball", OCR-Trennung).
+      for (const i of joins) {
+        const w = toks[i] + toks[i + 1];
+        for (const e of candidates(w)) {
+          if (e.pats.length === 1 && tokenEq(w, e.pats[0]) && !c.add(e, shown(e, [w]))) return;
+        }
+      }
+    }
+
+    function allowEq(textTok, p) {
+      if (p.pre && p.suf) return textTok.includes(p.t);
+      if (p.pre) return textTok.startsWith(p.t);
+      if (p.suf) return textTok.endsWith(p.t);
+      return textTok === p.t;
+    }
+
+    /** Entfernt Wörter/Wortfolgen der "Nie ausblenden"-Liste. */
+    function stripAllowed(toks, joins) {
+      const drop = new Uint8Array(toks.length);
+      let any = false;
+      for (const pats of allowList) {
+        for (let i = 0; i + pats.length <= toks.length; i++) {
+          let ok = true;
+          for (let j = 0; j < pats.length; j++) if (!allowEq(toks[i + j], pats[j])) { ok = false; break; }
+          if (ok) { for (let j = 0; j < pats.length; j++) drop[i + j] = 1; any = true; }
+        }
+      }
+      if (!any) return { toks, joins };
+      const out = [];
+      const outJoins = new Set();
+      toks.forEach((t, i) => {
+        if (drop[i]) return;
+        if (joins.has(i) && !drop[i + 1]) outJoins.add(out.length);
+        out.push(t);
+      });
+      return { toks: out, joins: outJoins };
+    }
+
+    function entryHits(e, toks, joins, joined, compact) {
+      const k = e.pats;
+      if (partial && e.compact.length < PARTIAL_MIN_LEN) return matchSequence(toks, k); // kurze Begriffe nur als Wort
+      if (partial) {
+        if (joined.includes(e.joined)) return true;
+        // Silbentrennung/Zeilenumbruch aus OCR ("Fuß- ball") abfangen.
+        if (compact.includes(e.compact)) return true;
+        if (k.length === 1) return toks.some((t) => tokenContains(t, k[0]));
+        return matchSequence(toks, k);
+      }
+      if (matchSequence(toks, k)) return true;
+      if (k.length === 1) for (const i of joins) if (tokenEq(toks[i] + toks[i + 1], k[0])) return true;
+      return false;
+    }
+
+    function scan(text, limit) {
+      const c = collector(limit);
+      if (!entries.length || !text) return c.out;
+      let { toks, joins } = tokenizeJoins(text);
+      if (allowList.length) ({ toks, joins } = stripAllowed(toks, joins));
+      if (!toks.length) return c.out;
+      if (!partial && !fuzzy) {
+        scanIndexed(toks, joins, c);
+        return c.out;
+      }
+      const joined = toks.join(' ');
+      const compact = joined.replace(/ /g, '');
+      for (const e of entries) {
+        if (entryHits(e, toks, joins, joined, compact) && !c.add(e, e.label)) break;
+      }
+      return c.out;
+    }
+
+    /** Erster Treffer (Anzeigename) oder null. */
+    function find(text) {
+      return scan(text, 1)[0] || null;
+    }
+
+    /** Alle verschiedenen getroffenen Begriffe (höchstens `limit`). */
+    function findAll(text, limit) {
+      return scan(text, limit || 50);
+    }
+
+    return { find, findAll, empty: entries.length === 0 };
   }
 
-  const api = { normalize, tokenize, withinDistance, compile, FUZZY_MIN_LEN };
+  const api = { normalize, tokenize, parseTerm, withinDistance, compile, FUZZY_MIN_LEN };
   root.SFMatch = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -30,8 +30,27 @@
       <article id="t-lazy"><img id="img-lazy" data-src="{{IMG}}/ocr-nachgeladen.png" width="320" height="180" alt=""><h3>Lokales</h3></article>
       <article id="t-icon"><img id="img-icon" src="{{IMG}}/ocr-treffer.png" width="32" height="18" alt=""><h3>Kleines Symbol</h3></article>
       <article id="t-teaser"><img id="img-teaser" src="{{IMG}}/ocr-kontrolle.png?teaser" alt="" width="320" height="180"><h3>Fußball: Rekordtransfer fix</h3></article>
+      <article id="t-rasen"><img id="img-rasen" src="{{IMG}}/rasen.png" width="320" height="180" alt=""><h3>Training am Nachmittag</h3></article>
       <div id="later"></div>
     </section>
+    <!-- Aufbau wie bei orf.at: Ressort mit Überschrift, darin div-Meldungen ohne article/li -->
+    <div class="ticker" id="ticker" style="grid-column: 1 / -1">
+      <div class="ticker-ressort" id="ressort">
+        <h2>Inland</h2>
+        <div class="ticker-story" id="t-orf1">
+          <h3 class="ticker-story-headline"><a href="#s1">Hochwasser: Pegel steigen weiter</a></h3>
+          <div class="ticker-story-content"><p>Die Feuerwehr ist im Einsatz.</p><p><a href="#mehr">Mehr dazu</a></p></div>
+        </div>
+        <div class="ticker-story" id="t-orf2">
+          <h3 class="ticker-story-headline"><a href="#s2">Sperre am Arlberg</a></h3>
+          <div class="ticker-story-content"><p>Eine Lawine hat die Passstraße verschüttet.</p></div>
+        </div>
+        <div class="ticker-story" id="t-orf3">
+          <h3 class="ticker-story-headline"><a href="#s3">Neue Bahnstrecke eröffnet</a></h3>
+          <div class="ticker-story-content"><p>Die Fahrzeit sinkt um 20 Minuten.</p></div>
+        </div>
+      </div>
+    </div>
   </main>
   <script>
     // Nachgeladener Inhalt (wie lazy loading / Endlos-Scrollen)

@@ -1,0 +1,9 @@
+{
+  "model_type": "bert",
+  "architectures": [
+    "BertModel"
+  ],
+  "hidden_size": 16,
+  "vocab_size": 58,
+  "max_position_embeddings": 512
+}

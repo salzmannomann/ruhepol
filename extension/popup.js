@@ -23,9 +23,10 @@
     $('site').disabled = !host || !settings.enabled;
     $('site').checked = !!host && S.isActiveOn(Object.assign({}, settings, { enabled: true }), host);
     const n = settings.keywords.length;
-    $('kwInfo').textContent = n === 1 ? '1 Schlagwort' : `${n} Schlagwörter`;
+    const p = settings.presets.length;
+    $('kwInfo').textContent = (n === 1 ? '1 eigenes Schlagwort' : `${n} eigene Schlagwörter`) + (p ? ` + ${p} Listen` : '');
     const warn = $('warn');
-    if (!settings.keywords.length) {
+    if (!S.allKeywords(settings).length) {
       warn.hidden = false;
       warn.textContent = 'Noch keine Schlagwörter eingetragen.';
     } else {
@@ -56,7 +57,16 @@
     chrome.runtime.openOptionsPage();
   });
 
+  async function refreshLearn() {
+    const info = await chrome.runtime.sendMessage({ type: 'learnInfo' });
+    if (!info || !settings.learn) { $('learnInfo').textContent = ''; return; }
+    $('learnInfo').textContent = info.ready
+      ? `Lernfilter aktiv (${info.total} Bewertungen)`
+      : `Lernfilter: ${info.total} von ${info.minTotal} Bewertungen – Rechtsklick auf Artikel zum Bewerten`;
+  }
+
   render();
   refreshCount();
+  refreshLearn();
   setInterval(refreshCount, 1000);
 })();
