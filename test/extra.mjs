@@ -179,7 +179,7 @@ async function main() {
 
     await step('Einstellungsseite listet den Bereich; Entfernen hebt die Sperre auf', async () => {
       const opt = await ctx.newPage();
-      await opt.goto(`chrome-extension://${extId}/options.html`);
+      await opt.goto(`chrome-extension://${extId}/options.html#seiten`);
       await opt.waitForFunction(() => /Sport/.test(document.getElementById('zones').textContent));
       await opt.click('#zones button');
       await opt.waitForFunction(() => /Keine/.test(document.getElementById('zones').textContent));

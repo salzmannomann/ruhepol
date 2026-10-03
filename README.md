@@ -65,6 +65,19 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
 
 ### Einstellungen
 
+Die Einstellungsseite ist in fünf Bereiche gegliedert und speichert jede Änderung sofort
+(Textfelder kurz nach dem letzten Tastendruck):
+
+| Bereich | Inhalt |
+|---|---|
+| **Themen** | Vorschlagslisten als Kacheln mit Schalter, eigene Schlagwörter, „Nie ausblenden“ |
+| **Erkennung** | Lernfilter (Status, stärkste Wörter, letzte Bewertungen), Bedeutungs-Filter (KI), Schrift in Bildern |
+| **Darstellung** | unscharf / Platzhalter / ausblenden, Aufdecken durch Gedrückthalten |
+| **Seiten** | alle außer … / nur auf …, gesperrte Bereiche |
+| **Erweitert** | Teilwort- und unscharfer Abgleich, Mindestbildgröße, Verhalten bei Bildfehlern, Cache, Export/Import, Gelerntes zurücksetzen |
+
+Die einzelnen Optionen:
+
 - **Schlagwörter**: ein Begriff pro Zeile. Groß-/Kleinschreibung ist egal, Umlaute werden
   gleich behandelt (`ä` = `ae`, `ö` = `oe`, `ü` = `ue`, `ß` = `ss`). Mehrere Wörter in
   einer Zeile müssen als Wortfolge vorkommen.

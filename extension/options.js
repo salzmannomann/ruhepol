@@ -12,17 +12,21 @@
   function buildPresets() {
     const box = $('presets');
     for (const p of P.PRESETS) {
-      const wrap = document.createElement('div');
-      wrap.className = 'preset';
+      const card = document.createElement('div');
+      card.className = 'topic';
       const label = document.createElement('label');
-      label.className = 'check';
+      const name = document.createElement('span');
+      name.textContent = p.name;
+      const count = document.createElement('small');
+      count.textContent = `${p.terms.length} Begriffe`;
+      name.append(count);
       const cb = document.createElement('input');
       cb.type = 'checkbox';
+      cb.className = 'switch-sm';
       cb.value = p.id;
       cb.name = 'preset';
-      const span = document.createElement('span');
-      span.textContent = `${p.name} (${p.terms.length} Begriffe)`;
-      label.append(cb, span);
+      cb.setAttribute('aria-label', p.name);
+      label.append(name, cb);
       const det = document.createElement('details');
       const sum = document.createElement('summary');
       sum.textContent = 'Begriffe anzeigen';
@@ -36,14 +40,27 @@
         const have = new Set(lines($('keywords').value).map((l) => l.toLowerCase()));
         const add = p.terms.filter((t) => !have.has(t.toLowerCase()));
         $('keywords').value = lines($('keywords').value).concat(add).join('\n');
-        status(`${add.length} Begriffe übernommen – Speichern nicht vergessen.`, 'ok');
+        save(`${add.length} Begriffe in die eigene Liste übernommen`);
       });
       terms.append(document.createElement('br'), copy);
       det.append(sum, terms);
-      wrap.append(label, det);
-      box.append(wrap);
+      card.append(label, det);
+      box.append(card);
     }
   }
+
+  /* Navigation: Bereich aus der Adresse (#themen …), Standard „Themen“. */
+  const PAGES = ['themen', 'erkennung', 'darstellung', 'seiten', 'erweitert'];
+  function showPage() {
+    const id = PAGES.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'themen';
+    for (const pg of PAGES) document.getElementById('page-' + pg).classList.toggle('active', pg === id);
+    for (const a of document.querySelectorAll('nav a[data-page]')) {
+      if (a.dataset.page === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    }
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', showPage);
+  showPage();
 
   let currentZones = [];
 
@@ -125,7 +142,7 @@
     el.textContent = text;
     el.className = kind || '';
     clearTimeout(statusTimer);
-    if (kind === 'ok') statusTimer = setTimeout(() => { el.textContent = ''; }, 2500);
+    statusTimer = setTimeout(() => { el.className = ''; }, kind === 'err' ? 6000 : 1800);
   }
 
   async function refreshLearn() {
@@ -196,17 +213,41 @@
     $('cacheInfo').textContent = n === 1 ? '1 Bild im Cache' : `${n} Bilder im Cache`;
   }
 
-  async function save() {
-    try {
-      const s = await S.save(read());
-      fill(s);
-      status('Gespeichert.', 'ok');
-    } catch (e) {
-      status('Speichern fehlgeschlagen: ' + (e && e.message ? e.message : e), 'err');
-    }
+  /*
+   * Sofort speichern: Schalter, Auswahlfelder und Optionen sofort, Textfelder kurz nach dem
+   * letzten Tastendruck. Die Felder werden dabei nicht neu befüllt, damit beim Tippen nichts springt.
+   */
+  let saveTimer = null;
+  let saving = Promise.resolve();
+
+  function save(message) {
+    clearTimeout(saveTimer);
+    saving = saving.then(async () => {
+      try {
+        await S.save(read());
+        status(message || 'Gespeichert ✓', 'ok');
+      } catch (e) {
+        status('Speichern fehlgeschlagen: ' + (e && e.message ? e.message : e), 'err');
+      }
+    });
+    return saving;
   }
 
-  $('save').addEventListener('click', save);
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => save(), 600);
+  }
+
+  const form = document.querySelector('main');
+  form.addEventListener('change', (e) => {
+    if (e.target.id === 'importFile') return;
+    if (e.target.matches('textarea, input[type="number"]')) save();
+    else if (e.target.matches('input, select')) save();
+  });
+  form.addEventListener('input', (e) => {
+    if (e.target.matches('textarea, input[type="number"]')) saveSoon();
+  });
+  window.addEventListener('beforeunload', () => { if (saveTimer) save(); });
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); }
   });
@@ -257,9 +298,11 @@
 
   $('presetsAll').addEventListener('click', () => {
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = true;
+    save('Alle Listen aktiv');
   });
   $('presetsNone').addEventListener('click', () => {
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = false;
+    save('Alle Listen aus');
   });
 
   $('resetLearn').addEventListener('click', async () => {
@@ -269,7 +312,7 @@
     refreshLearn();
   });
   chrome.storage.onChanged.addListener((changes, area) => {
-    // Bereiche werden meist auf der Seite angelegt; Liste aktuell halten, damit „Speichern“ sie nicht überschreibt.
+    // Bereiche werden meist auf der Seite angelegt; Liste aktuell halten, damit das Speichern sie nicht überschreibt.
     if (area === 'sync' && changes.zones) renderZones(S.sanitize({ zones: changes.zones.newValue || [] }).zones);
     if (area === 'local' && changes.model) refreshLearn();
   });

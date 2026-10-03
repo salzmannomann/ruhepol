@@ -249,8 +249,7 @@ async function main() {
       await opt.waitForSelector('input[name="preset"][value="ki"]');
       assert.equal(await opt.locator('input[name="preset"]').count(), 15);
       await opt.check('input[name="preset"][value="ki"]');
-      await opt.click('#save');
-      await opt.waitForSelector('#status.ok');
+      await opt.waitForSelector('#status.ok'); // speichert sofort, ohne Knopf
       await opt.close();
       const presets = await sw.evaluate(async () => (await chrome.storage.sync.get('presets')).presets);
       assert.deepEqual(presets, ['ki']);
@@ -260,6 +259,26 @@ async function main() {
       });
       await hidden(page, '#t-ki');
       assert.ok(await isVisible(page, '#t-kino'));
+    });
+
+    await step('Einstellungsseite: Navigation und automatisches Speichern beim Tippen', async () => {
+      const opt = await ctx.newPage();
+      await opt.goto(`chrome-extension://${extId}/options.html`);
+      assert.ok(await opt.isVisible('#page-themen'), 'Themen nicht Startseite');
+      assert.ok(!(await opt.isVisible('#page-erweitert')));
+      await opt.fill('#allow', 'Wohnungskrise\nMidlife-Krise');
+      await opt.waitForSelector('#status.ok', { timeout: 3000 });
+      const allow = await sw.evaluate(async () => (await chrome.storage.sync.get('allow')).allow);
+      assert.deepEqual(allow, ['Wohnungskrise', 'Midlife-Krise']);
+      await opt.click('nav a[data-page="erweitert"]');
+      await opt.waitForSelector('#page-erweitert', { state: 'visible', timeout: 3000 });
+      assert.ok(!(await opt.isVisible('#page-themen')));
+      await opt.check('#fuzzy');
+      await opt.waitForFunction(async () => true);
+      await new Promise((r) => setTimeout(r, 400));
+      assert.equal(await sw.evaluate(async () => (await chrome.storage.sync.get('fuzzy')).fuzzy), true);
+      await sw.evaluate(() => SFSettings.save({ allow: [], fuzzy: false }));
+      await opt.close();
     });
 
     await step('Keine Skriptfehler auf der Seite', () => assert.deepEqual(consoleErrors, []));
