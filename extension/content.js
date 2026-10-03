@@ -503,13 +503,13 @@
     return parts.filter(Boolean).join(' \n ');
   }
 
-  const ocrWaiting = new Set();
+  const ocrWaiting = new Map(); // Bild -> Zeitpunkt, seit dem es auf OCR wartet
 
   function onIntersect(entries) {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       io.unobserve(e.target);
-      ocrWaiting.add(e.target);
+      if (!ocrWaiting.has(e.target)) ocrWaiting.set(e.target, performance.now());
     }
     flushOcr();
   }
@@ -518,13 +518,22 @@
    * OCR erst starten, wenn der Textscan durch ist: Steht das Schlagwort schon im Teaser-Text,
    * ist der Block bereits ausgeblendet und das Bild muss nicht gelesen werden.
    */
+  const OCR_MAX_WAIT_MS = 1500;
+  let ocrWaitTimer = null;
+
   function flushOcr() {
-    if (pendingRoots.size || activeWalker || mutationTimer) return; // work()/flushMutations() rufen erneut auf
-    for (const img of ocrWaiting) {
+    // Normalerweise erst nach dem Textscan; auf Seiten, die sich ständig ändern (Ticker,
+    // Werbung), aber spätestens nach OCR_MAX_WAIT_MS, damit Bilder nicht ewig unscharf bleiben.
+    const busy = pendingRoots.size || activeWalker || mutationTimer;
+    const now = performance.now();
+    for (const [img, since] of ocrWaiting) {
+      if (busy && now - since < OCR_MAX_WAIT_MS) continue;
       ocrWaiting.delete(img);
       if (!img.isConnected || img.closest('[data-sf-hit], [data-sf-revealed]')) continue;
       runOcr(img);
     }
+    clearTimeout(ocrWaitTimer);
+    ocrWaitTimer = ocrWaiting.size ? setTimeout(flushOcr, OCR_MAX_WAIT_MS) : null;
   }
 
   async function runOcr(img) {
