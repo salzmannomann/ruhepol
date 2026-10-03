@@ -19,13 +19,17 @@
    * Je Modell: Text-Präfix (e5 erwartet "query: ") und Schwellen für die Stufen
    * vorsichtig / mittel / stark. floor = Mindestähnlichkeit zum Unerwünschten,
    * margin = Mindestabstand zum Erwünschten/Neutralen.
-   * Die e5-Werte sind Startwerte und werden mit echten Teasern nachjustiert.
+   *
+   * e5-Werte kalibriert mit test/kalibrierung.mjs (32 deutsche/englische Schlagzeilen, alle
+   * Vorschlagslisten aktiv): Unbedenkliche liegen beim Abstand Thema − neutral bei ≤ −0,004,
+   * belastende meist bei +0,015 … +0,054. Ergebnis: vorsichtig 6/16, mittel 12/16,
+   * stark 13/16 belastende erkannt, jeweils 0/16 Fehltreffer.
    */
   const MODELS = {
     'Xenova/multilingual-e5-small': {
       prefix: 'query: ',
-      floor: { vorsichtig: 0.86, mittel: 0.84, stark: 0.82 },
-      margin: { vorsichtig: 0.05, mittel: 0.035, stark: 0.02 },
+      floor: { vorsichtig: 0.82, mittel: 0.8, stark: 0.78 },
+      margin: { vorsichtig: 0.03, mittel: 0.015, stark: 0.005 },
     },
     // Winziges Testmodell (test/make_tiny_model.py), nur für automatische Tests.
     'test/tiny': {
