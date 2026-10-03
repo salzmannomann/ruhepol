@@ -45,6 +45,35 @@
     }
   }
 
+  let currentZones = [];
+
+  function renderZones(zones) {
+    currentZones = zones.slice();
+    const ul = $('zones');
+    ul.textContent = '';
+    for (const z of currentZones) {
+      const li = document.createElement('li');
+      const host = document.createElement('span');
+      host.className = 'lbl';
+      host.textContent = z.host;
+      const txt = document.createElement('span');
+      txt.className = 'txt';
+      txt.textContent = z.label ? `„${z.label}“ (${z.sel})` : z.sel;
+      txt.title = z.sel;
+      const del = document.createElement('button');
+      del.textContent = '×';
+      del.title = 'Bereich nicht mehr sperren';
+      del.addEventListener('click', async () => {
+        const s = await S.save({ zones: currentZones.filter((x) => x !== z) });
+        renderZones(s.zones);
+        status('Bereich entfernt.', 'ok');
+      });
+      li.append(host, txt, del);
+      ul.append(li);
+    }
+    if (!currentZones.length) ul.innerHTML = '<li>Keine.</li>';
+  }
+
   function fill(s) {
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = s.presets.includes(cb.value);
     $('keywords').value = s.keywords.join('\n');
@@ -61,6 +90,8 @@
     $('partial').checked = s.partial;
     $('fuzzy').checked = s.fuzzy;
     $('onError').value = s.onError;
+    $('revealHold').checked = s.revealHold;
+    renderZones(s.zones);
   }
 
   function read() {
@@ -80,6 +111,8 @@
       partial: $('partial').checked,
       fuzzy: $('fuzzy').checked,
       onError: $('onError').value,
+      revealHold: $('revealHold').checked,
+      zones: currentZones,
     };
   }
 
@@ -218,6 +251,8 @@
     refreshLearn();
   });
   chrome.storage.onChanged.addListener((changes, area) => {
+    // Bereiche werden meist auf der Seite angelegt; Liste aktuell halten, damit „Speichern“ sie nicht überschreibt.
+    if (area === 'sync' && changes.zones) renderZones(S.sanitize({ zones: changes.zones.newValue || [] }).zones);
     if (area === 'local' && changes.model) refreshLearn();
   });
 

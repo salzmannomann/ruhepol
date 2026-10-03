@@ -30,6 +30,10 @@
     // gelernte Inhalte auch ohne Schlagwort ausblenden, ab dieser Sicherheit
     learnHide: true,
     learnThreshold: 0.9,
+    // Aufdecken nur durch Gedrückthalten (1 s), schützt vor reflexhaftem Klicken
+    revealHold: false,
+    // Gesperrte Bereiche: [{host, sel (CSS-Selektor), head (erste Überschrift, optional)}]
+    zones: [],
     // Verhalten bei OCR-Fehler/Timeout: 'show' (scharf stellen) | 'blur' (unscharf lassen) | 'hide'
     onError: 'show',
   });
@@ -46,7 +50,19 @@
     if (Array.isArray(raw.allow)) {
       s.allow = raw.allow.map((k) => String(k).trim()).filter(Boolean);
     }
-    for (const k of ['learn', 'learnHide']) {
+    if (Array.isArray(raw.zones)) {
+      s.zones = raw.zones
+        .filter((z) => z && typeof z.sel === 'string' && z.sel.trim() && z.sel.length <= 300)
+        .map((z) => ({
+          host: normalizeHost(z.host),
+          sel: z.sel.trim(),
+          head: String(z.head || '').slice(0, 80),
+          label: String(z.label || z.head || '').slice(0, 80),
+        }))
+        .filter((z) => z.host)
+        .slice(0, 200);
+    }
+    for (const k of ['learn', 'learnHide', 'revealHold']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

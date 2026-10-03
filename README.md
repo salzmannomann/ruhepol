@@ -90,6 +90,17 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
   (Bombenstimmung).
 - **Seiten**: „Auf allen Seiten filtern, außer …“ oder „Nur auf diesen Seiten filtern …“,
   dazu eine Domain pro Zeile.
+- **Gesperrte Bereiche**: ganze Rubriken einer Seite immer unscharf stellen, wie bei
+  Adblock, aber für Inhalte:
+  1. Rechtsklick auf einen Beitrag → **„Diesen Bereich auf dieser Seite immer sperren …“**.
+  2. Die Erweiterung markiert die Rubrik um den Beitrag (blau gestrichelt).
+  3. Mit **Größer** und **Kleiner** anpassen, dann **Sperren** (Esc bricht ab).
+
+  Gespeichert wird je Domain ein CSS-Selektor: die id des Bereichs oder Tag und Klassen.
+  Teilen sich mehrere Rubriken dieselben Klassen, wird zusätzlich die Überschrift der Rubrik
+  gespeichert, z. B. „Sport“. Neu geladene Inhalte werden mit erfasst. Ein Klick auf einen
+  gesperrten Bereich bietet „Nur anzeigen“ und „Nicht mehr sperren“. Alle Regeln stehen
+  in den Einstellungen unter „Seiten“ und lassen sich dort löschen.
 - **Darstellung bei Treffer**:
   - **unscharf** (Standard): Text und Bilder des Blocks werden unscharf, ohne Hinweis auf
     das Schlagwort und ohne Knöpfe. Ein Klick auf den unscharfen Block öffnet eine kleine
@@ -98,6 +109,10 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
     **×** (schließen).
   - Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten
   - komplett ausblenden
+- **Aufdecken nur durch Gedrückthalten** (optional): „Nur anzeigen“, „Will ich sehen“
+  und „Anzeigen“ reagieren erst nach 1 Sekunde Gedrückthalten (Maus, Touch, Enter oder
+  Leertaste). Ein Balken im Knopf zeigt den Fortschritt, ein kurzer Klick nur einen
+  Hinweis. Schützt vor dem reflexhaften Klick.
 
   Das gefundene Schlagwort wird in keiner Darstellung angezeigt.
 - **Bilder**: OCR ein/aus, Mindestbildgröße (Standard 120 × 80 px) und das Verhalten,
@@ -203,6 +218,15 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    Einträge, die ältesten werden zuerst gelöscht). Weil der Text gespeichert wird und nicht
    nur „Treffer ja/nein“, braucht eine geänderte Schlagwortliste keinen neuen OCR-Lauf.
 7. Bei einem Treffer wird der Block ausgeblendet, sonst wird das Bild wieder scharf.
+8. **CSS-Hintergrundbilder** (`background-image`) und **Video-Vorschaubilder**
+   (`<video poster>`) werden genauso per OCR geprüft und währenddessen unscharf gestellt.
+   Erfasst werden Elemente wie `div`, `a`, `span`, `figure`, `li`, `article`, `section`.
+   Die Prüfung läuft in einer eigenen Warteschlange nur in echter Leerlaufzeit, weil das
+   Auslesen der Stile sonst das Laden bremsen würde. Seitenhintergründe in Fenstergröße
+   werden ausgelassen.
+9. **Shadow-DOM**: Offene Shadow-Roots (Web-Komponenten) werden gefunden, beobachtet und
+   mit eigenen Regeln versehen, sodass Text, Bilder und Nachgeladenes darin genauso
+   gefiltert werden.
 
 ## Grenzen
 
@@ -211,8 +235,14 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
   aus dem Cache.
 - **Speicher**: Die beiden OCR-Worker belegen zusammen grob 100–200 MB, solange sie
   arbeiten. Nach 5 Minuten ohne Arbeit werden sie beendet.
-- **Nicht erfasst**: CSS-Hintergrundbilder, `<canvas>`, Videos, Text in Shadow-DOM, in
-  `<svg>` gezeichnete Schrift und Bilder in geschlossenen Shadow-Roots.
+- **Nicht erfasst**: `<canvas>`, laufende Videos (nur das Vorschaubild), in `<svg>`
+  gezeichnete Schrift, geschlossene Shadow-Roots sowie Hintergrundbilder auf
+  Pseudo-Elementen (`::before`/`::after`).
+- **Hintergrundbilder kurz sichtbar**: Anders als `<img>` werden CSS-Hintergrundbilder
+  erst im Leerlauf erkannt und können daher kurz scharf zu sehen sein, bevor sie unscharf
+  werden.
+- **Gesperrte Bereiche**: Baut eine Seite ihr Layout um (neue Klassen oder ids), passt die
+  Regel nicht mehr. Dann den Bereich einfach neu sperren.
 - **OCR-Fehler**: Stark stilisierte, sehr kleine, gedrehte oder schräge Schrift wird oft
   nicht oder falsch erkannt. Der unscharfe Abgleich hilft bei einzelnen Buchstabenfehlern.
 - **Fehltreffer**: Wortlisten sind nie perfekt. „Tote“ trifft auch „Die Toten Hosen“,
@@ -232,7 +262,8 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
 ```bash
 npm install
 npm run setup        # vendor/ und Sprachdaten
-npm test             # Unit-Tests (Abgleich, Listen, Lernmodell) + Playwright-Tests (Testseite, Lernfilter)
+npm test             # Unit-Tests (Abgleich, Listen, Lernmodell) + Playwright-Tests
+                     # (Testseite, Lernfilter, Hintergrundbilder/Shadow-DOM/Gedrückthalten/Bereiche)
 npm run test:orf     # Praxistest gegen https://orf.at (braucht Internet; HEADED=1 für sichtbares Fenster)
 ```
 
