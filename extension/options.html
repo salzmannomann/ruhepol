@@ -23,20 +23,63 @@
     .preset summary { cursor: pointer; color: var(--muted); font-size: 12.5px; margin-left: 26px; }
     .preset .terms { margin: 6px 0 4px 26px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
     .preset .terms button { margin-top: 6px; font-size: 12px; padding: 3px 8px; }
+    .learn-status { margin: 8px 0; padding: 8px 10px; border-radius: 6px; background: var(--bg); font-size: 13px; }
+    .learn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+    @media (max-width: 520px) { .learn-grid { grid-template-columns: 1fr; } }
+    .learn-grid h3 { font-size: 13px; margin: 0 0 4px; }
+    .words { margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--muted); }
+    .recent { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12.5px; }
+    .recent li { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line); }
+    .recent .lbl { flex: none; width: 88px; font-weight: 600; }
+    .recent .lbl.b { color: var(--err); }
+    .recent .lbl.o { color: var(--ok); }
+    .recent .txt { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .recent button { flex: none; padding: 0 6px; font-size: 12px; }
     code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 3px; }
   </style>
 </head>
 <body>
 <main>
   <h1>Schlagwortfilter – Einstellungen</h1>
-  <p class="hint">Alles bleibt auf diesem Rechner: Die Texterkennung läuft lokal in der Erweiterung, es werden keine Daten an Server geschickt.</p>
+  <p class="hint">Die Texterkennung läuft lokal in der Erweiterung, es werden keine Daten an fremde Server geschickt. Einstellungen und Bewertungen werden nur über die Chrome-Synchronisierung deines Google-Kontos zwischen deinen Rechnern abgeglichen (falls eingeschaltet).</p>
 
   <section>
     <h2>Schlagwörter</h2>
     <textarea id="keywords" rows="10" placeholder="Ein Begriff pro Zeile, z. B.&#10;Fußball&#10;Formel 1"></textarea>
     <p class="hint">Ein Begriff pro Zeile. Groß-/Kleinschreibung ist egal, Umlaute werden gleich behandelt (ä = ae, ß = ss). Mehrere Wörter in einer Zeile müssen als Wortfolge vorkommen.</p>
+    <h2 style="margin-top:14px">Nie ausblenden</h2>
+    <textarea id="allow" rows="4" placeholder="Wohnungskrise&#10;Midlife-Krise"></textarea>
+    <p class="hint">Diese Begriffe lösen nie einen Treffer aus, gleiche Schreibweise wie oben. Mit „Wohnungskrise“ bleibt „Die Wohnungskrise verschärft sich“ sichtbar. Ein Text mit „Wohnungskrise und Klimakrise“ wird über „Klimakrise“ trotzdem ausgeblendet.</p>
     <label class="check"><input type="checkbox" id="partial"><span>Auch Teilwörter finden<br><span class="hint">„ball“ findet dann auch „Fußballspiel“.</span></span></label>
     <label class="check"><input type="checkbox" id="fuzzy"><span>Unscharfer Abgleich (für OCR-Lesefehler)<br><span class="hint">Bei Wörtern ab 6 Zeichen reicht eine Abweichung von einem Buchstaben („Bürgermeisler“ → „Bürgermeister“). Kann mehr Fehltreffer erzeugen.</span></span></label>
+  </section>
+
+  <section>
+    <h2>Lernfilter</h2>
+    <p class="hint">Bewerte Inhalte mit den Knöpfen am Platzhalter („Passt so“ / „Will ich sehen“) oder per Rechtsklick auf einen Artikel („Will ich nicht sehen“ / „Will ich sehen“). Daraus lernt die Erweiterung, was dich stört. Das Lernen passiert lokal; die neuesten Bewertungen werden über die Chrome-Synchronisierung mit deinen anderen Rechnern abgeglichen.</p>
+    <div id="learnStatus" class="learn-status"></div>
+    <label class="check"><input type="checkbox" id="learn"><span>Lernfilter verwenden<br><span class="hint">Schlagwort-Treffer bleiben sichtbar, wenn deine Bewertungen klar dafür sprechen.</span></span></label>
+    <label class="check"><input type="checkbox" id="learnHide"><span>Auch ohne Schlagwort ausblenden, wenn ziemlich sicher<br><span class="hint">Platzhalter zeigt dann z. B. „Ausgeblendet (gelernt, 93 %)“.</span></span></label>
+    <div class="row" style="margin:4px 0 0 26px">
+      <label>Sicherheit ab:
+        <select id="learnThreshold">
+          <option value="0.8">80 % (blendet mehr aus)</option>
+          <option value="0.9">90 % (empfohlen)</option>
+          <option value="0.95">95 % (vorsichtig)</option>
+        </select>
+      </label>
+    </div>
+    <div class="learn-grid">
+      <div><h3>Spricht für ausblenden</h3><ol id="topB" class="words"></ol></div>
+      <div><h3>Spricht für anzeigen</h3><ol id="topO" class="words"></ol></div>
+    </div>
+    <details>
+      <summary>Letzte Bewertungen</summary>
+      <ul id="recent" class="recent"></ul>
+    </details>
+    <div class="row" style="margin-top:10px">
+      <button id="resetLearn">Gelerntes zurücksetzen</button>
+    </div>
   </section>
 
   <section>
@@ -101,6 +144,7 @@
     <span id="status"></span>
   </div>
 </main>
+<script src="lib/match.js"></script>
 <script src="lib/presets.js"></script>
 <script src="lib/settings.js"></script>
 <script src="options.js"></script>

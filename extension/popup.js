@@ -57,7 +57,16 @@
     chrome.runtime.openOptionsPage();
   });
 
+  async function refreshLearn() {
+    const info = await chrome.runtime.sendMessage({ type: 'learnInfo' });
+    if (!info || !settings.learn) { $('learnInfo').textContent = ''; return; }
+    $('learnInfo').textContent = info.ready
+      ? `Lernfilter aktiv (${info.total} Bewertungen)`
+      : `Lernfilter: ${info.total} von ${info.minTotal} Bewertungen – Rechtsklick auf Artikel zum Bewerten`;
+  }
+
   render();
   refreshCount();
+  refreshLearn();
   setInterval(refreshCount, 1000);
 })();

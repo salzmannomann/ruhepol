@@ -7,6 +7,9 @@
  * - Optional unscharfer Abgleich für OCR-Fehler: Levenshtein-Distanz 1 bei Wörtern
  *   ab 6 Zeichen.
  * - Platzhalter je Wort: "Wort*" (Wortanfang), "*wort" (Wortende), "*wort*" (Wortteil).
+ * - "Nie ausblenden"-Liste (opts.allow): passende Wörter werden vor dem Abgleich entfernt.
+ *   "Wohnungskrise" in der Liste schützt also „Wohnungskrise“, aber ein Text mit
+ *   „Wohnungskrise und Klimakrise“ trifft weiterhin über „Klimakrise“.
  *
  * Läuft als klassisches Skript (Content-Script, Service Worker, Extension-Seiten)
  * und als CommonJS-Modul (Tests).
@@ -98,13 +101,18 @@
   /**
    * Erstellt einen Matcher.
    * @param {string[]} keywords
-   * @param {{partial?: boolean, fuzzy?: boolean}} opts
+   * @param {{partial?: boolean, fuzzy?: boolean, allow?: string[]}} opts
    * @returns {{find(text: string): (string|null), empty: boolean}}
    */
   function compile(keywords, opts) {
     opts = opts || {};
     const partial = !!opts.partial;
     const fuzzy = !!opts.fuzzy;
+    const allowList = [];
+    for (const raw of opts.allow || []) {
+      const pats = parseTerm(raw);
+      if (pats.length) allowList.push(pats);
+    }
     const entries = [];
     const seen = new Set();
     for (const raw of keywords || []) {
@@ -166,21 +174,50 @@
       return false;
     }
 
+    /** Anzeigename: bei Platzhaltern das tatsächlich gefundene Wort ("Klimakrise" statt "krise"). */
+    function shown(e, words) {
+      if (e.plain) return e.label;
+      const w = words.join(' ');
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }
+
     function findIndexed(toks) {
       for (let i = 0; i < toks.length; i++) {
-        for (const e of candidates(toks[i])) if (seqAt(toks, i, e.pats)) return e.label;
+        for (const e of candidates(toks[i])) if (seqAt(toks, i, e.pats)) return shown(e, toks.slice(i, i + e.pats.length));
       }
       // Zwei aufeinanderfolgende Wörter ergeben zusammen den Begriff ("Fuß-ball", OCR-Trennung).
       for (let i = 0; i + 1 < toks.length; i++) {
         const c = toks[i] + toks[i + 1];
-        for (const e of candidates(c)) if (e.pats.length === 1 && tokenEq(c, e.pats[0])) return e.label;
+        for (const e of candidates(c)) if (e.pats.length === 1 && tokenEq(c, e.pats[0])) return shown(e, [c]);
       }
       return null;
     }
 
+    function allowEq(textTok, p) {
+      if (p.pre && p.suf) return textTok.includes(p.t);
+      if (p.pre) return textTok.startsWith(p.t);
+      if (p.suf) return textTok.endsWith(p.t);
+      return textTok === p.t;
+    }
+
+    /** Entfernt Wörter/Wortfolgen der "Nie ausblenden"-Liste. */
+    function stripAllowed(toks) {
+      const drop = new Uint8Array(toks.length);
+      let any = false;
+      for (const pats of allowList) {
+        for (let i = 0; i + pats.length <= toks.length; i++) {
+          let ok = true;
+          for (let j = 0; j < pats.length; j++) if (!allowEq(toks[i + j], pats[j])) { ok = false; break; }
+          if (ok) { for (let j = 0; j < pats.length; j++) drop[i + j] = 1; any = true; }
+        }
+      }
+      return any ? toks.filter((_, i) => !drop[i]) : toks;
+    }
+
     function find(text) {
       if (!entries.length || !text) return null;
-      const toks = tokenize(text);
+      let toks = tokenize(text);
+      if (allowList.length) toks = stripAllowed(toks);
       if (!toks.length) return null;
 
       if (!partial && !fuzzy) return findIndexed(toks);
