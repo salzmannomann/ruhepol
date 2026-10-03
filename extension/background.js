@@ -455,9 +455,14 @@ async function semModelId() {
 }
 
 async function semInstalled(model) {
+  // Konfiguration und die (große) Modelldatei müssen da sein; von der Modelldatei nur den
+  // Anfang anfragen und den Rest gleich verwerfen.
   try {
-    const res = await fetch(chrome.runtime.getURL(`vendor/models/${model}/config.json`));
-    return res.ok;
+    const cfg = await fetch(chrome.runtime.getURL(`vendor/models/${model}/config.json`));
+    if (!cfg.ok) return false;
+    const onnx = await fetch(chrome.runtime.getURL(`vendor/models/${model}/onnx/model_quantized.onnx`));
+    if (onnx.body) onnx.body.cancel().catch(() => {});
+    return onnx.ok;
   } catch (_) {
     return false;
   }

@@ -182,7 +182,7 @@
     if (!st) return;
     const name = st.model.split('/').pop();
     if (!st.installed) {
-      el.textContent = `Sprachmodell (${name}) ist nicht installiert. Im Projektordner „npm run fetch-model“ ausführen und die Erweiterung neu laden.`;
+      el.textContent = `Sprachmodell (${name}) ist nicht installiert. Die Datei „model_quantized.onnx“ von Hugging Face in den Ordner „vendor/models/${st.model}/onnx/“ der Erweiterung legen (oder im Projektordner „npm run fetch-model“ ausführen) und die Erweiterung neu laden.`;
       $('semantic').disabled = !$('semantic').checked;
     } else {
       el.textContent = `Sprachmodell ${name} ist installiert.` + (st.indexed ? ` ${st.indexed} Bewertungen eingerechnet.` : '');
