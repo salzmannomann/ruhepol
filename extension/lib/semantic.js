@@ -20,19 +20,21 @@
    * vorsichtig / mittel / stark. floor = Mindestähnlichkeit zum Unerwünschten,
    * margin = Mindestabstand zum Erwünschten/Neutralen.
    *
-   * e5-Werte kalibriert mit test/kalibrierung.mjs (32 deutsche/englische Schlagzeilen, alle
-   * Vorschlagslisten aktiv): Unbedenkliche liegen beim Abstand Thema − neutral bei ≤ −0,004,
-   * belastende meist bei +0,015 … +0,054. Ergebnis: vorsichtig 6/16, mittel 12/16,
-   * stark 13/16 belastende erkannt, jeweils 0/16 Fehltreffer.
+   * e5-Werte kalibriert mit test/kalibrierung.mjs und echten Schlagzeilen von orf.at
+   * (Sport, Wien, Science; 129 Texte, alle Vorschlagslisten aktiv). Die Ähnlichkeiten liegen
+   * eng beieinander (0,78 … 0,87), entscheidend ist der Abstand Thema − neutral.
+   * Ergebnis: vorsichtig 19/31, mittel 25/31, stark 27/31 belastende erkannt bei 1, 3 bzw.
+   * 11 Fehltreffern unter 98 unbedenklichen.
    */
   const MODELS = {
     'Xenova/multilingual-e5-small': {
       prefix: 'query: ',
-      floor: { vorsichtig: 0.82, mittel: 0.8, stark: 0.78 },
-      margin: { vorsichtig: 0.03, mittel: 0.015, stark: 0.005 },
-      // Gegenprüfung von Schlagwort-Treffern: harmlos, wenn Erwünschtes/Neutrales um so viel
-      // näher liegt (gemessen: doppeldeutige Sportmeldungen ≥ +0,011, echte ≤ −0,021).
-      veto: 0.005,
+      floor: { vorsichtig: 0.83, mittel: 0.83, stark: 0.82 },
+      margin: { vorsichtig: 0.035, mittel: 0.025, stark: 0.02 },
+      // Gegenprüfung von Schlagwort-Treffern (nur gegen die Themenbeschreibungen): harmlos,
+      // wenn Neutrales um so viel näher liegt. Gemessen: Sportmeldungen mit „Krieg“ oder
+      // „Kosovo“ +0,032/+0,033, echte Meldungen (Flut, Drohnenangriff) ≤ +0,010.
+      veto: 0.015,
     },
     // Winziges Testmodell (test/make_tiny_model.py), nur für automatische Tests.
     'test/tiny': {
@@ -54,6 +56,20 @@
     'Wissenschaft und Technik: Forschung, Entdeckung, neues Smartphone.',
     'Lokales: neue Radwege, Bahnstrecke eröffnet, Stadtfest, Schule.',
     'Wohnen und Alltag: Wohnungen, Mieten, Familie, Einkaufen.',
+    'Fußball: Teamchef, Länderspiel, Tor, Remis, Trainer, Spieler und Tabelle.',
+    'Wintersport: Skirennen, Abfahrt, Weltcup, Comeback, Training im Ausland.',
+    'Motorsport, Tennis, Golf und Radsport: Rennen, Turnier, Bestzeit, Sieg.',
+    'Natur und Tiere: Schmetterlinge, Vögel, Pflanzen, Garten, Haustiere.',
+    'Gesundheit und Bewegung: Kinder, Schritte, Ernährung, Sport, Fitness.',
+    'Geschichte: Archiv, Zeitgeschichte, Erinnerung, Biografie, Jubiläum.',
+    'Politik und Verwaltung: Gemeinderat, Partei, Wahl, Gesetz, Budget.',
+    'Gesellschaft und Studien: Umfrage, Statistik, Ländervergleich, Entwicklung.',
+    'Weltraum und Physik: Planeten, Mond, Teilchen, Universum.',
+    'Bildnachweis: Foto, Bild, Fotograf, Agentur, Copyright.',
+    'Unternehmen und Verkehr: Firma, Kauf, Bahnhof, Handel, Verkauf.',
+    'Europa und Gesellschaft: Debatte, Ideen, Zukunft, Zusammenarbeit.',
+    'Sportpolitik: Verband, Einspruch, Streit, Urteil, Lizenz, Wechsel.',
+    'Bildung: Universität, Studium, Forschungsprojekt, Preis, Auszeichnung.',
   ];
 
   /*

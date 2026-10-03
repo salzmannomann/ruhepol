@@ -186,6 +186,28 @@
 
   const ALL_IDS = PRESETS.map((p) => p.id);
 
+  /*
+   * Beispiel-Schlagzeilen je Thema: zusätzliche Bezugspunkte für den Bedeutungs-Filter.
+   * Das Sprachmodell vergleicht Sätze mit Sätzen genauer als Sätze mit Wortlisten.
+   */
+  const EXAMPLES = {
+    ki: ['Neues KI-Modell schreibt Texte und ersetzt Arbeitsplätze', 'Chatbot erzeugt gefälschte Bilder von Politikern'],
+    klima: ['Hitzewelle und Dürre: Rekordtemperaturen in Europa', 'Gletscher schmelzen, Meeresspiegel steigt weiter'],
+    krieg: ['Armee startet Offensive, Raketen schlagen in Stadt ein', 'Kämpfe an der Front: Soldaten getötet, Zivilisten fliehen'],
+    terror: ['Anschlag auf Konzert: Attentäter tötet mehrere Menschen', 'Amoklauf an Schule, Polizei im Großeinsatz'],
+    verbrechen: ['Mann nach Messerangriff festgenommen', 'Überfall auf Pensionistin: Täter flüchtig'],
+    missbrauch: ['Lehrer wegen sexuellen Missbrauchs von Kindern angeklagt', 'Frau von Ex-Partner geschlagen und vergewaltigt'],
+    unglueck: ['Gebäude eingestürzt: Bewohner unter Trümmern verschüttet', 'Schwerer Unfall auf der Autobahn fordert Verletzte'],
+    tod: ['Bekannte Sängerin ist tot', 'Trauer um verstorbenen Bürgermeister'],
+    psyche: ['Immer mehr Jugendliche leiden an Depressionen', 'Burnout und Einsamkeit nehmen stark zu'],
+    sucht: ['Drogentote: Zahl der Überdosen steigt', 'Spielsucht ruiniert Familien'],
+    diskriminierung: ['Rassistischer Angriff auf Familie in der U-Bahn', 'Hasspostings gegen Minderheit im Netz'],
+    tierleid: ['Hunde in verwahrloster Wohnung gefunden', 'Massentierhaltung: Schweine leiden in engen Ställen'],
+    krankheit: ['Krebs: Zahl der Neuerkrankungen steigt', 'Virus breitet sich aus, Spitäler überlastet'],
+    wirtschaft: ['Firma insolvent: Hunderte verlieren ihren Job', 'Inflation steigt, Preise für Lebensmittel explodieren'],
+    krise: ['Regierungskrise eskaliert nach Korruptionsskandal', 'Notstand ausgerufen, Lage spitzt sich zu'],
+  };
+
   function termsFor(ids) {
     const set = new Set(ids || []);
     const out = [];
@@ -198,6 +220,13 @@
     return PRESETS.filter((p) => set.has(p.id) && p.about).map((p) => p.about);
   }
 
-  root.SFPresets = { PRESETS, ALL_IDS, termsFor, aboutFor };
+  function examplesFor(ids) {
+    const set = new Set(ids || []);
+    const out = [];
+    for (const p of PRESETS) if (set.has(p.id) && EXAMPLES[p.id]) out.push(...EXAMPLES[p.id]);
+    return out;
+  }
+
+  root.SFPresets = { PRESETS, ALL_IDS, termsFor, aboutFor, examplesFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFPresets;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

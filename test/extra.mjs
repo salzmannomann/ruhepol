@@ -33,6 +33,10 @@ async function main() {
       await page.waitForFunction(() => document.querySelector('#bg-ok').dataset.sfBg === 'ok', null, { timeout: 20000 });
       assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#bg-ok')).filter), 'none');
     });
+    await step('Agenturfoto mit Schlagwortliste als alt-Text: Liste zählt nicht als Bildhinweis', async () => {
+      await page.waitForFunction(() => document.querySelector('#tags-pic').dataset.sf === 'ok', null, { timeout: 20000 });
+      assert.ok(await visible(page, '#x-tags'));
+    });
     await step('Video-Vorschaubild (poster) mit Schrift → Beitrag ausgeblendet', () => hidden(page, '#x-video'));
 
     await step('Shadow-DOM: Text-Treffer ausgeblendet, Rest sichtbar', async () => {

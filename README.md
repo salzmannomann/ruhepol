@@ -218,12 +218,16 @@ beieinander, auch ohne gemeinsame Wörter und auch auf Englisch.
 
 Ein Teaser wird unscharf, wenn er deutlich näher liegt an
 - deinen Bewertungen „ausblenden“ (Mittel der 3 nächsten) oder
-- den Themen-Beschreibungen der aktivierten Vorschlagslisten und deinen eigenen
-  Schlagwörtern
+- den Themen-Beschreibungen und je zwei Beispiel-Schlagzeilen der aktivierten
+  Vorschlagslisten und deinen eigenen Schlagwörtern
 
 als an
 - deinen Bewertungen „will ich sehen“ oder
-- neutralen Vergleichstexten (Kultur, Sport, Wetter, Wohnen …).
+- neutralen Vergleichstexten (Kultur, Fußball, Wintersport, Natur und Tiere, Geschichte,
+  Politik, Studien, Weltraum, Bildnachweise …).
+
+Texte mit weniger als vier Wörtern (Rubriknamen, Bildnachweise wie „Reuters/…“) prüft das
+Modell nicht, weil es sie zufällig in die Nähe von allem rückt.
 
 Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 
@@ -242,7 +246,20 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 
 **Stand:** Die ganze Kette ist mit einem winzigen Testmodell automatisch getestet
 (`test/make_tiny_model.py`, `test/semantik.mjs`). Die Schwellen für das echte Modell sind
-Startwerte und werden mit echten Teasern nachjustiert (`extension/lib/semantic.js`).
+mit echten Schlagzeilen von sport.orf.at, wien.orf.at und science.orf.at kalibriert
+(`npm run kalibrieren`, `extension/lib/semantic.js`):
+
+| Stufe | belastende erkannt | Fehltreffer |
+|---|---|---|
+| vorsichtig | 16/20 | 0/22 |
+| mittel | 16/20 | 0/22 |
+| stark | 18/20 | 1/22 |
+
+Auf den echten Startseiten wurden auf sport.orf.at vorher 5 harmlose Meldungen unscharf
+(z. B. „Wildcard für Hirscher bei Comeback fix“), jetzt keine. Auf science.orf.at blieben
+von 8 Fehltreffern („Schmetterlinge: Muster auf Flügeln verwirren Angreifer“,
+„Vorschulkinder schaffen 18.000 Schritte“ …) keine übrig; erkannt werden weiterhin
+„Hitzetote im Sommer“, „Niedrigste Abflussmengen“, „Vier Beschuldigte nach Hauseinsturz“.
 
 ### KI-Gegenprüfung von Schlagwort-Treffern
 
@@ -252,10 +269,13 @@ an neutralen Themen (Sport, Kultur, Alltag …) als an den gesperrten Themen und
 „ausblenden“-Bewertungen, wird er wieder scharf.
 
 Gemessen:
-- **wieder gezeigt:** „Pleite gegen Salzburg“, „Drama in der Nachspielzeit“, „Rapid-Krise“,
-  „Explosion der Preise für Konzertkarten“
-- **unscharf geblieben (alle 8 echten Meldungen):** z. B. „Schüsse in Wiener Lokal“,
-  „Firmenpleite“, „Drama im Mittelmeer“
+- **wieder gezeigt:** „Trotz Iran-Krieges: Saisonfinale soll in Abu Dhabi steigen“,
+  „ÖFB-Team will Vorsprung im Kosovo ausbauen“
+- **unscharf geblieben:** „Drohnen treffen Kraftwerk, Millionen ohne Strom“, „Flut in
+  Kärnten“, „Schüsse vor Synagoge“, „Künstlerin Ingrid Wiener verstorben“
+
+Die Schwelle ist bewusst streng: Lieber bleibt eine doppeldeutige Sportmeldung unscharf, als
+dass eine echte Meldung aufgedeckt wird.
 
 Bis zur Prüfung bleibt der Treffer unscharf. Die eigenen Schlagwörter zählen dabei bewusst
 nicht als Themen-Anker, sonst wäre ein Treffer auf „Museum“ immer „nah an Museum“.
@@ -331,6 +351,8 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
 2. **Vorauswahl**: Zuerst werden alt-Text, Titel und Bildunterschrift geprüft, noch bevor
    das Bild geladen ist. Steht das Schlagwort schon dort oder im Teaser-Text daneben, wird
    der Block sofort ausgeblendet und das Bild gar nicht erst per OCR gelesen.
+   Schlagwortlisten von Agenturfotos („Geld, Münzen, Eurokrise, Finanzkrise, …“, ab sechs
+   kurzen Einträgen) zählen nicht: Sie beschreiben das Symbolbild, nicht die Meldung.
 3. Bilder unter der Mindestgröße (Symbole, Logos) werden sofort wieder scharf.
 4. Sonst lädt der Service Worker das Bild per `fetch`. Dank `host_permissions` gibt es
    dabei keine CORS-Probleme mit fremden Bild-Domains. Das Bild geht an ein Offscreen
