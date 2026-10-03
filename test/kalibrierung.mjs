@@ -98,6 +98,40 @@ try {
   console.log(`\nGegenprüfung: harmlose aufgedeckt ${veto.slice(0, VETO_JA.length).filter(Boolean).length}/${VETO_JA.length}, `
     + `belastende fälschlich aufgedeckt ${veto.slice(VETO_JA.length).filter(Boolean).length}/${VETO_NEIN.length}`);
 
+  // Echte Teaser (orf.at, derStandard): Schlagwörter + Bedeutungs-Filter zusammen, je Stufe.
+  // A wurde zum Abstimmen verwendet, B erst danach gesammelt und nur zur Prüfung.
+  {
+    const { readFileSync } = await import('node:fs');
+    const { createRequire } = await import('node:module');
+    const require = createRequire(import.meta.url);
+    const P = require('../extension/lib/presets.js');
+    const M = require('../extension/lib/match.js');
+    const m = M.compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
+    const data = JSON.parse(readFileSync(join(here, 'fixtures', 'real-headlines.json'))).daten.filter((x) => x.y !== 'X');
+    console.log('\nEchte Teaser (Schlagwörter + KI; in Klammern KI allein):');
+    for (const set of ['A', 'B']) {
+      const lab = data.filter((x) => x.set === set);
+      const nB = lab.filter((x) => x.y === 'B').length, nU = lab.length - nB;
+      const kw = lab.map((x) => !!m.find(x.t));
+      const out = [];
+      for (const lv of ['vorsichtig', 'mittel', 'stark']) {
+        await setSettings(sw, { semanticLevel: lv });
+        const r = [];
+        for (let i = 0; i < lab.length; i += 32) r.push(...(await sw.evaluate((t) => semScore(t), lab.slice(i, i + 32).map((x) => x.t))).results);
+        let tp = 0, fp = 0, ktp = 0, kfp = 0;
+        lab.forEach((x, i) => {
+          if ((kw[i] || r[i].hide) && x.y === 'B') tp++;
+          if ((kw[i] || r[i].hide) && x.y === 'U') fp++;
+          if (r[i].hide && x.y === 'B') ktp++;
+          if (r[i].hide && x.y === 'U') kfp++;
+        });
+        out.push(`${lv} ${tp}/${nB} erkannt, ${fp}/${nU} Fehltreffer (${ktp}, ${kfp})`);
+      }
+      console.log(`  ${set}: ${out.join(' | ')}`);
+    }
+    await setSettings(sw, { semanticLevel: 'mittel' });
+  }
+
   // Gute Nachrichten trotz gesperrtem Thema
   const GUT = [
     'Solarstrom deckt erstmals die Hälfte des Strombedarfs', 'Ozonloch schließt sich schneller als erwartet',

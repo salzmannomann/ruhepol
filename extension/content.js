@@ -179,7 +179,9 @@
       reportCount();
       return;
     }
-    const opts = { partial: settings.partial, fuzzy: settings.fuzzy, allow: settings.allow };
+    // Eingebaute Ausnahmen gelten nur, wenn Vorschlagslisten aktiv sind (eigene Wörter bleiben unberührt).
+    const allow = settings.presets.length ? settings.allow.concat(globalThis.SFPresets.ALLOW) : settings.allow;
+    const opts = { partial: settings.partial, fuzzy: settings.fuzzy, allow };
     matcher = compile(keywords, opts);
     // Für Artikel-Absätze: Treffer aus milden Listen getrennt zählen (siehe checkText).
     const P = globalThis.SFPresets;
