@@ -110,6 +110,8 @@
     $('revealHold').checked = s.revealHold;
     $('semantic').checked = s.semantic;
     $('semanticLevel').value = s.semanticLevel;
+    $('positiveShow').checked = s.positiveShow;
+    $('positiveLevel').value = s.positiveLevel;
     renderZones(s.zones);
   }
 
@@ -133,6 +135,8 @@
       revealHold: $('revealHold').checked,
       semantic: $('semantic').checked,
       semanticLevel: $('semanticLevel').value,
+      positiveShow: $('positiveShow').checked,
+      positiveLevel: $('positiveLevel').value,
       zones: currentZones,
     };
   }

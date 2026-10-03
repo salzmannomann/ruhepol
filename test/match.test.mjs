@@ -198,3 +198,13 @@ test('Bedeutungs-Filter: Vektoren kompakt speichern', () => {
   const back = SEM.unpack(SEM.pack(v));
   assert.ok(SEM.cosine(v, back) > 0.999);
 });
+
+test('Ton: gute Nachricht im selben Thema erkennen, Themen ohne gute Seite nie', () => {
+  const krieg = { topic: 'krieg', pos: norm([1, 0, 0, 0]), neg: norm([0, 1, 0, 0]) };
+  const tod = { topic: 'tod', pos: null, neg: norm([0, 0, 1, 0]) };
+  assert.equal(SEM.tone(norm([0.9, 0.2, 0, 0]), [krieg, tod], 'test/tiny', 'mittel').positive, true);
+  assert.equal(SEM.tone(norm([0.2, 0.9, 0, 0]), [krieg, tod], 'test/tiny', 'mittel').positive, false);
+  const t = SEM.tone(norm([0.3, 0, 0.9, 0]), [krieg, tod], 'test/tiny', 'stark');
+  assert.equal(t.topic, 'tod');
+  assert.equal(t.positive, false);
+});

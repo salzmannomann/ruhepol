@@ -172,6 +172,21 @@
       </section>
 
       <section>
+        <h2>Gute Nachrichten trotzdem zeigen</h2>
+        <p class="hint">Auch bei gesperrten Themen werden eindeutig positive Meldungen angezeigt – etwa „Waffenstillstand hält“, „Impfstoff wirkt“ oder „Arbeitslosigkeit sinkt“. Treffer bleiben zuerst unscharf und werden erst nach der Prüfung scharf, Negatives blitzt also nie auf. Braucht das Sprachmodell (siehe oben). Meldungen zu Tod/Suizid und Missbrauch bleiben immer unscharf, ebenso selbst gesperrte Inhalte und Bereiche.</p>
+        <label class="check"><input type="checkbox" id="positiveShow"><span>Positive Meldungen zu gesperrten Themen anzeigen</span></label>
+        <div class="row" style="margin:2px 0 0 28px">
+          <label>Empfindlichkeit
+            <select id="positiveLevel">
+              <option value="vorsichtig">vorsichtig (nur sehr eindeutig positive)</option>
+              <option value="mittel">mittel (empfohlen)</option>
+              <option value="stark">stark (zeigt mehr)</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section>
         <h2>Schrift in Bildern</h2>
         <label class="check"><input type="checkbox" id="ocr"><span>Schrift in Bildern lesen (OCR)<br><span class="hint">Bilder bleiben bis zur Prüfung unscharf. Alt-Text, Titel und Bildunterschrift werden immer geprüft.</span></span></label>
       </section>
