@@ -273,3 +273,16 @@ test('Vorschlagslisten: Alltagswörter lösen nichts aus', () => {
   for (const t of ['Polizei sucht Zeugen', 'Firma sucht Mitarbeiter', 'Film von David Lynch']) assert.equal(m.find(t), null, t);
   assert.ok(m.find('Spielsucht ruiniert Familien'));
 });
+
+test('Krieg-Liste: Drohnen- und Raketenangriffe ohne Ortsnamen, zivile Drohnen/Raketen nicht', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(['krieg']));
+  for (const t of ['Brücke in Kyjiw erneut von Drohne getroffen', 'Nordkorea feuerte ballistische Rakete ab',
+    'Zwei Tanker von Geschossen getroffen', 'Neue Drohnenattacken auf Raffinerie', 'Russland setzt Marschflugkörper ein']) {
+    assert.ok(m.find(t), t);
+  }
+  for (const t of ['Drohnenshow begeistert beim Donauinselfest', 'Paket per Drohne geliefert', 'Rakete startet zur ISS',
+    'Ukraine gewinnt Länderspiel gegen Island', 'Konzert in Kyjiw ausverkauft']) {
+    assert.equal(m.find(t), null, t);
+  }
+});

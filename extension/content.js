@@ -72,6 +72,59 @@
   let shadowSheet = null;
   let zoneRules = []; // Bereichsregeln für diese Seite
 
+  /* ---------------- Bewusst geöffnete Artikel ---------------- */
+
+  // Automatische Gründe; was die Person selbst gesperrt hat (👎, Bereiche), gilt weiter.
+  const AUTO_WHY = new Set(['text', 'bildtext', 'ocr', 'ki', 'gelernt']);
+  let trustedPage = false;
+  let articleRoot = null;
+
+  /** Klick (auch Mittelklick, Strg-Klick, „In neuem Tab öffnen“) auf einen sichtbaren Link merken. */
+  function onLinkIntent(ev) {
+    if (!active || !settings || !settings.trustOpened) return;
+    if (ev.type === 'click' && ev.button !== 0) return;
+    if (ev.type === 'auxclick' && ev.button !== 1) return;
+    const path = ev.composedPath ? ev.composedPath() : [ev.target];
+    let a = path.find((n) => n && n.tagName === 'A' && n.href);
+    if (!a) {
+      // Teaser-Karten, bei denen die Überschrift nicht im Link steht (z. B. derStandard: ein Link
+      // liegt über der ganzen Karte bzw. die Karte navigiert per Skript): Hauptlink der Karte.
+      const t = path.find((n) => n && n.nodeType === 1);
+      const card = t && t.closest && t.closest('article, li');
+      a = card && card.querySelector('a[href]');
+    }
+    if (!a || !/^https?:/i.test(a.href)) return;
+    if (a.closest('[data-sf-hit], .sf-placeholder')) return; // unscharf/ausgeblendet: nicht bewusst gewählt
+    try { chrome.runtime.sendMessage({ type: 'trustLink', url: a.href }).catch(() => {}); } catch (_) { /* neu geladen */ }
+  }
+
+  /** Artikelbereich: Container der Hauptüberschrift (article/main) bzw. Vorfahr mit Fließtext. */
+  function trustArea() {
+    if (articleRoot && articleRoot.isConnected) return articleRoot;
+    const h1 = [...document.getElementsByTagName('h1')].find((h) => h.textContent.trim().length > 10);
+    if (!h1) return null;
+    let root = h1.closest('article, main, [role="main"]');
+    if (!root) {
+      for (let cur = h1.parentElement, i = 0; cur && cur !== document.body && i < 6; cur = cur.parentElement, i++) {
+        if (cur.getElementsByTagName('p').length >= 3) { root = cur; break; }
+      }
+    }
+    articleRoot = root;
+    return root;
+  }
+
+  /** Liegt der Block im Artikel selbst (nicht in Teaser-Leisten, Navigation, Fußzeile)? */
+  function inTrustedArea(block) {
+    if (!trustedPage || !settings.trustOpened || !block) return false;
+    const root = trustArea();
+    if (!root || !root.contains(block)) return false;
+    if (block.closest('aside, nav, footer, [role="complementary"]')) return false;
+    // Teaser-Karten im Artikel („Mehr zum Thema“): verlinkte Überschrift
+    if (block !== root && block.matches('article, li, section, div') &&
+        block.querySelector('a h2, a h3, a h4, h2 a, h3 a, h4 a')) return false;
+    return true;
+  }
+
   /* ---------------- Start / Einstellungen ---------------- */
 
   async function init() {
@@ -80,6 +133,14 @@
     const [s, local] = await Promise.all([S.load(), chrome.storage.local.get('model')]);
     settings = s;
     model = local.model || null;
+    // Über einen sichtbaren Teaser geöffnet? Vor dem ersten Ausblenden klären (nur Hauptseite).
+    if (settings.trustOpened && window === window.top) {
+      try {
+        const r = await withTimeout(chrome.runtime.sendMessage({ type: 'isTrusted', url: location.href }), 400);
+        trustedPage = !!(r && r.trusted);
+      } catch (_) { /* dann normal filtern */ }
+    }
+    for (const type of ['click', 'auxclick', 'contextmenu']) document.addEventListener(type, onLinkIntent, true);
     apply();
     // Sprachmodell und Bezugstexte schon laden, während die Seite noch aufbaut.
     if (active && semanticOn()) chrome.runtime.sendMessage({ type: 'semWarm' }).catch(() => {});
@@ -458,6 +519,8 @@
     // Im aufgedeckten Block nachgeladen: gleich mit aufdecken (sonst bliebe es per CSS unscharf).
     if (img.closest('[data-sf-revealed]')) { img.dataset.sfRevealed = '1'; return; }
     if (img.closest('[data-sf-hit]')) return;
+    // Bewusst geöffneter Artikel: Fotos im Artikel gar nicht erst prüfen.
+    if (trustedPage && inTrustedArea(findBlock(img))) { img.dataset.sf = 'ok'; return; }
     // Vorauswahl: Bildhinweise (alt, title, aria-label, figcaption) sofort prüfen, noch bevor
     // das Bild geladen ist. Bei Treffer wird der Block gleich ausgeblendet; OCR entfällt dann,
     // und ausgeblendete Lazy-Bilder werden oft gar nicht erst geladen.
@@ -805,6 +868,7 @@
       const block = heading ? findBlock(el) : el;
       if (scoredBlocks.has(block) || clearedBlocks.has(block)) continue;
       if (!heading && !blockOk(block)) continue;
+      if (trustedPage && inTrustedArea(block)) continue; // bewusst geöffneter Artikel
       scoredBlocks.add(block);
       const text = blockText(block);
       if (text.length >= 25) {
@@ -1444,6 +1508,8 @@
     if (block === document.body || block === document.documentElement || block.tagName === 'MAIN') return false;
     if (!opts.force && clearedBlocks.has(block)) return false;
     if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return false;
+    // Bewusst geöffneter Artikel: automatische Treffer im Artikeltext nicht ausblenden.
+    if (AUTO_WHY.has(opts.why) && inTrustedArea(block)) return false;
     // Lernfilter: Schlagwort trifft, aber laut Bewertungen will der Nutzer das sehen.
     if (!opts.force && learningActive()) {
       const s = L.score(model, blockText(block));

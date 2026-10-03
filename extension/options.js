@@ -114,6 +114,7 @@
     $('fuzzy').checked = s.fuzzy;
     $('onError').value = s.onError;
     $('revealHold').checked = s.revealHold;
+    $('trustOpened').checked = s.trustOpened;
     $('semantic').checked = s.semantic;
     $('semanticLevel').value = s.semanticLevel;
     $('semanticVeto').checked = s.semanticVeto;
@@ -148,6 +149,7 @@
       fuzzy: $('fuzzy').checked,
       onError: $('onError').value,
       revealHold: $('revealHold').checked,
+      trustOpened: $('trustOpened').checked,
       semantic: $('semantic').checked,
       semanticLevel: $('semanticLevel').value,
       semanticVeto: $('semanticVeto').checked,
