@@ -30,6 +30,10 @@
     // gelernte Inhalte auch ohne Schlagwort ausblenden, ab dieser Sicherheit
     learnHide: true,
     learnThreshold: 0.9,
+    // Bedeutungs-Filter (Stufe 2, lokales Sprachmodell): aus, bis das Modell installiert ist
+    semantic: false,
+    // 'vorsichtig' | 'mittel' | 'stark'
+    semanticLevel: 'mittel',
     // Aufdecken nur durch Gedrückthalten (2 s), schützt vor reflexhaftem Klicken
     revealHold: true,
     // Gesperrte Bereiche: [{host, sel (CSS-Selektor), head (erste Überschrift, optional)}]
@@ -62,7 +66,8 @@
         .filter((z) => z.host)
         .slice(0, 200);
     }
-    for (const k of ['learn', 'learnHide', 'revealHold']) {
+    if (['vorsichtig', 'mittel', 'stark'].includes(raw.semanticLevel)) s.semanticLevel = raw.semanticLevel;
+    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

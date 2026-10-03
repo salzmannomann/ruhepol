@@ -6,7 +6,7 @@
  */
 'use strict';
 
-importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js');
+importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js', 'lib/semantic.js');
 
 const OCR_TIMEOUT_MS = 10000;
 const MAX_PARALLEL = 2;
@@ -260,6 +260,7 @@ async function getRatings() {
 
 async function saveRatings(ratings, model, fromSync) {
   await chrome.storage.local.set({ ratings, model: model || SFLearn.build(ratings) });
+  semRef = null; // Bedeutungs-Filter: Bezugspunkte beim nächsten Mal neu zusammenstellen
   if (!fromSync) schedulePush();
 }
 
@@ -428,6 +429,123 @@ async function learnInfo() {
   };
 }
 
+/* ---------------- Bedeutungs-Filter (Stufe 2) ----------------
+ * Texte werden im Offscreen Document von einem lokalen Sprachmodell in Vektoren umgerechnet.
+ * Bezugspunkte: Vektoren der Bewertungen (gespeichert in chrome.storage.local "semIndex"),
+ * der Themen-Beschreibungen aktivierter Vorschlagslisten und eigener Schlagwörter sowie
+ * neutrale Vergleichstexte. Entscheidung: lib/semantic.js.
+ */
+
+const SEM_BATCH = 16;
+const SEM_CACHE_MAX = 3000;
+const semCache = new Map(); // "model|text" -> Float32Array
+let semRef = null;
+let semChain = Promise.resolve();
+
+function serialSem(fn) {
+  const p = semChain.then(fn);
+  semChain = p.catch(() => {});
+  return p;
+}
+
+async function semModelId() {
+  // Für Tests kann ein anderes Modell gesetzt werden (chrome.storage.local "semModel").
+  const r = await chrome.storage.local.get('semModel');
+  return r.semModel || SFSemantic.DEFAULT_MODEL;
+}
+
+async function semInstalled(model) {
+  try {
+    const res = await fetch(chrome.runtime.getURL(`vendor/models/${model}/config.json`));
+    return res.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Texte in Vektoren umrechnen (mit Zwischenspeicher, in Paketen). */
+async function embedTexts(model, texts) {
+  const cfg = SFSemantic.modelConfig(model);
+  const out = new Array(texts.length);
+  const todo = [];
+  texts.forEach((t, i) => {
+    const hit = semCache.get(model + '|' + t);
+    if (hit) out[i] = hit; else todo.push(i);
+  });
+  for (let k = 0; k < todo.length; k += SEM_BATCH) {
+    const idx = todo.slice(k, k + SEM_BATCH);
+    await ensureOffscreen();
+    const r = await chrome.runtime.sendMessage({
+      target: 'offscreen', type: 'embed', model, prefix: cfg.prefix, texts: idx.map((i) => texts[i]),
+    });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Sprachmodell nicht verfügbar');
+    idx.forEach((i, j) => {
+      const v = Float32Array.from(r.vectors[j]);
+      out[i] = v;
+      semCache.set(model + '|' + texts[i], v);
+    });
+  }
+  while (semCache.size > SEM_CACHE_MAX) semCache.delete(semCache.keys().next().value);
+  return out;
+}
+
+function anchorTexts(settings) {
+  const own = settings.keywords
+    .map((k) => k.replace(/\*/g, '').trim())
+    .filter((k) => k.length >= 4);
+  return SFPresets.aboutFor(settings.presets).concat(own);
+}
+
+/** Bezugspunkte zusammenstellen; Bewertungs-Vektoren werden dauerhaft gespeichert. */
+async function semReference(settings, model) {
+  const anchors = anchorTexts(settings);
+  const key = JSON.stringify([model, anchors]);
+  if (semRef && semRef.key === key) return semRef;
+  const ratings = await getRatings();
+  const stored = (await chrome.storage.local.get('semIndex')).semIndex;
+  const vecs = stored && stored.model === model ? stored.vecs : {};
+  const missing = ratings.filter((r) => !vecs[r.id]);
+  if (missing.length) {
+    const v = await embedTexts(model, missing.map((r) => r.text.slice(0, 600)));
+    missing.forEach((r, i) => { vecs[r.id] = SFSemantic.pack(v[i]); });
+  }
+  const ids = new Set(ratings.map((r) => r.id));
+  for (const id of Object.keys(vecs)) if (!ids.has(id)) delete vecs[id];
+  await chrome.storage.local.set({ semIndex: { model, vecs } });
+  const b = [], o = [];
+  for (const r of ratings) (r.label === 'b' ? b : o).push(SFSemantic.unpack(vecs[r.id]));
+  semRef = {
+    key,
+    b,
+    o,
+    anchors: anchors.length ? await embedTexts(model, anchors) : [],
+    neutral: await embedTexts(model, SFSemantic.NEUTRAL),
+  };
+  return semRef;
+}
+
+function semScore(texts) {
+  return serialSem(async () => {
+    const settings = await SFSettings.load();
+    if (!settings.semantic) return { ok: false, error: 'aus' };
+    const model = await semModelId();
+    if (!(await semInstalled(model))) return { ok: false, error: 'Modell nicht installiert' };
+    const ref = await semReference(settings, model);
+    const vecs = await embedTexts(model, texts.map((t) => String(t).slice(0, 600)));
+    return { ok: true, results: vecs.map((v) => SFSemantic.decide(v, ref, model, settings.semanticLevel)) };
+  }).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
+}
+
+async function semStatus() {
+  const model = await semModelId();
+  const stored = (await chrome.storage.local.get('semIndex')).semIndex;
+  return {
+    model,
+    installed: await semInstalled(model),
+    indexed: stored && stored.model === model ? Object.keys(stored.vecs).length : 0,
+  };
+}
+
 /* ---------------- Rechtsklickmenü ---------------- */
 
 function createMenus() {
@@ -504,6 +622,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'importRatings':
       importRatings(msg.ratings).then(sendResponse);
+      return true;
+    case 'semScore':
+      semScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
+      return true;
+    case 'semStatus':
+      semStatus().then(sendResponse);
       return true;
     case 'cacheSize':
       cacheSize().then((n) => sendResponse({ n }));

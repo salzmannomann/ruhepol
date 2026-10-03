@@ -174,3 +174,27 @@ test('Lernfilter: ohne genug Bewertungen keine Entscheidung', () => {
   const m = L.build([{ text: 'Klimakrise', label: 'b' }, { text: 'Wohnen', label: 'o' }]);
   assert.equal(L.score(m, 'Klimakrise'), null);
 });
+
+const SEM = require('../extension/lib/semantic.js');
+
+function norm(v) { const n = Math.hypot(...v); return v.map((x) => x / n); }
+
+test('Bedeutungs-Filter: Entscheidung nach Abstand zu Unerwünschtem und Neutralem', () => {
+  const klima = norm([1, 0.1, 0, 0]);
+  const wohnen = norm([0, 1, 0.1, 0]);
+  const kultur = norm([0, 0, 0.1, 1]);
+  const ref = { b: [], o: [wohnen], anchors: [klima], neutral: [kultur] };
+  assert.equal(SEM.decide(norm([0.95, 0.1, 0, 0.05]), ref, 'test/tiny', 'mittel').hide, true);
+  assert.equal(SEM.decide(norm([0.1, 0.95, 0, 0]), ref, 'test/tiny', 'mittel').hide, false);
+  assert.equal(SEM.decide(norm([0.05, 0, 0, 1]), ref, 'test/tiny', 'mittel').hide, false);
+  // Grenzfall: halb Klima, halb Kultur → nur bei „stark“
+  const mixed = norm([0.7, 0, 0, 0.6]);
+  assert.equal(SEM.decide(mixed, ref, 'test/tiny', 'vorsichtig').hide, false);
+  assert.equal(SEM.decide(mixed, ref, 'test/tiny', 'stark').hide, true);
+});
+
+test('Bedeutungs-Filter: Vektoren kompakt speichern', () => {
+  const v = norm([0.3, -0.5, 0.1, 0.8, -0.05]);
+  const back = SEM.unpack(SEM.pack(v));
+  assert.ok(SEM.cosine(v, back) > 0.999);
+});
