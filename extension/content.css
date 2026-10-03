@@ -79,6 +79,11 @@ html.sf-active .sf-btn {
   font-size: 12.5px !important;
   cursor: pointer !important;
 }
+html.sf-active .sf-chips { display: inline-flex !important; flex-wrap: wrap !important; gap: 5px !important; }
+html.sf-active .sf-btn.sf-chip { border-radius: 999px !important; }
+html.sf-active .sf-btn.sf-chip.sf-on { background: #3d5afe !important; border-color: #3d5afe !important; color: #fff !important; }
+html.sf-active .sf-btn.sf-primary { font-weight: 600 !important; }
+html.sf-active .sf-btn:disabled { opacity: 0.45 !important; cursor: default !important; }
 html.sf-active .sf-btn:hover { background: #f0f3ff !important; border-color: #6b8afd !important; }
 html.sf-active .sf-btn:focus-visible { outline: 2px solid #6b8afd !important; }
 

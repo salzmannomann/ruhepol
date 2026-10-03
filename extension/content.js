@@ -69,6 +69,7 @@
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg && msg.type === 'getFrameCount') sendResponse({ n: hitBlocks.size });
       if (msg && msg.type === 'ctx') onContextAction(msg.action);
+      if (msg && msg.type === 'toast' && msg.text) toast(String(msg.text));
       return false;
     });
   }
@@ -140,7 +141,7 @@
     document.removeEventListener('load', onLoadCapture, true);
     document.removeEventListener('error', onErrorCapture, true);
     document.documentElement.classList.remove('sf-active');
-    for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback, .sf-toast')) el.remove();
+    for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback')) el.remove();
     for (const el of document.querySelectorAll('[data-sf-hit]')) {
       el.classList.remove('sf-hidden', 'sf-blurred', 'sf-hidden-ph');
       delete el.dataset.sfHit;
@@ -519,7 +520,18 @@
 
   /** Text eines Blocks inkl. alt-Texten und OCR-Text der Bilder (für Lernfilter und Bewertungen). */
   function blockText(block) {
-    const parts = [block.textContent || ''];
+    // Textknoten einzeln mit Leerzeichen verbinden (textContent klebt "Überschrift" und
+    // "Absatz" sonst zu einem Wort zusammen).
+    const parts = [];
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement && SKIP_TAGS.has(n.parentElement.tagName.toUpperCase())
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    let total = 0;
+    for (let n; (n = walker.nextNode()) && total < 3000;) {
+      parts.push(n.nodeValue);
+      total += n.nodeValue.length;
+    }
     const imgs = block.tagName === 'IMG' ? [block] : block.querySelectorAll('img');
     for (const img of imgs) {
       parts.push(img.getAttribute('alt') || '', img.getAttribute('title') || '', img.__sfOcr || '');
@@ -581,7 +593,7 @@
     if (action === 'block') {
       if (hidden) {
         train(hidden, 'b');
-        toast('Gemerkt: will ich nicht sehen');
+        suggestBar(hidden);
         return;
       }
       const block = findBlock(el.closest('.sf-feedback') ? el.closest('.sf-feedback').__sfBlock : el);
@@ -590,11 +602,12 @@
         return;
       }
       train(block, 'b');
-      if (!active) { toast('Gemerkt: will ich nicht sehen'); return; }
-      delete block.dataset.sfRevealed;
-      clearedBlocks.delete(block);
-      hit(block, 'von dir ausgeblendet', { block, force: true });
-      toast('Ausgeblendet und gemerkt');
+      if (active) {
+        delete block.dataset.sfRevealed;
+        clearedBlocks.delete(block);
+        hit(block, 'von dir ausgeblendet', { block, force: true });
+      }
+      suggestBar(block);
     } else if (action === 'ok') {
       if (hidden) {
         train(hidden, 'o');
@@ -606,6 +619,79 @@
       }
       toast('Gemerkt: will ich sehen');
     }
+  }
+
+  /**
+   * Markante Begriffe eines Blocks als Schlagwort-Vorschläge: längere Wörter, bevorzugt
+   * großgeschrieben (Hauptwörter), häufig, und solche, die das Lernmodell schon mit
+   * "ausblenden" verbindet. Füllwörter und bereits bekannte Schlagwörter fallen weg.
+   */
+  function suggestTerms(block, max) {
+    const text = blockText(block);
+    const words = text.match(/[\p{L}][\p{L}\p{N}]{4,}/gu) || [];
+    const stats = new Map();
+    for (const w of words) {
+      const n = globalThis.SFMatch.normalize(w);
+      if (!n || L.STOPWORDS.has(n) || n.length < 5) continue;
+      const cur = stats.get(n) || { word: w, count: 0, cap: false };
+      cur.count++;
+      if (/^\p{Lu}/u.test(w) && !cur.cap) { cur.cap = true; cur.word = w; }
+      stats.set(n, cur);
+    }
+    const out = [];
+    for (const [n, st] of stats) {
+      if (matcher && matcher.find(st.word)) continue; // schon abgedeckt
+      const f = model && model.f && model.f[n];
+      const learned = f && model.docs.b && model.docs.o
+        ? Math.log((f[0] + 1) / (model.docs.b + 2)) - Math.log((f[1] + 1) / (model.docs.o + 2)) : 0;
+      const score = st.count * 1.5 + (st.cap ? 2 : 0) + Math.min(st.word.length, 14) / 7 + Math.max(0, learned);
+      out.push({ word: st.word, score });
+    }
+    out.sort((a, b) => b.score - a.score);
+    // Hauptwörter (großgeschrieben) bevorzugen; kleingeschriebene nur, wenn sonst zu wenig da ist.
+    const caps = out.filter((x) => /^\p{Lu}/u.test(x.word));
+    const list = caps.length >= 3 ? caps : out;
+    return list.slice(0, max).map((x) => x.word);
+  }
+
+  /** Nach "Will ich nicht sehen": Begriffe aus dem Artikel als Schlagwörter anbieten. */
+  function suggestBar(block) {
+    const terms = suggestTerms(block, 8);
+    if (!terms.length) { toast('Gemerkt: will ich nicht sehen'); return; }
+    const bar = overlayBar(block);
+    bar.classList.add('sf-suggest');
+    const label = document.createElement('span');
+    label.textContent = 'Gemerkt. Auch als Schlagwort künftig unscharf stellen:';
+    const chips = document.createElement('span');
+    chips.className = 'sf-chips';
+    const chosen = new Set();
+    for (const t of terms) {
+      const chip = button(t, () => {
+        if (chosen.has(t)) { chosen.delete(t); chip.classList.remove('sf-on'); }
+        else { chosen.add(t); chip.classList.add('sf-on'); }
+        chip.setAttribute('aria-pressed', String(chosen.has(t)));
+        add.disabled = !chosen.size;
+      });
+      chip.classList.add('sf-chip');
+      chip.setAttribute('aria-pressed', 'false');
+      chips.append(chip);
+    }
+    const add = button('Hinzufügen', async () => {
+      const list = [...chosen];
+      if (!list.length) return;
+      closeBar(block);
+      const s = await S.load();
+      const have = new Set(s.keywords.map((k) => k.toLowerCase()));
+      const fresh = list.filter((t) => !have.has(t.toLowerCase()));
+      await S.save({ keywords: s.keywords.concat(fresh) });
+      toast(fresh.length === 1 ? `„${fresh[0]}“ ist jetzt ein Schlagwort` : `${fresh.length} Schlagwörter hinzugefügt`);
+    });
+    add.classList.add('sf-primary');
+    add.disabled = true;
+    const close = button('×', () => closeBar(block));
+    close.title = 'Schließen';
+    bar.append(label, chips, add, close);
+    setTimeout(() => { if (block.__sfBar === bar && !chosen.size) closeBar(block); }, 30000);
   }
 
   /** Nach dem Aufdecken kurz nachfragen, ob das Ausblenden richtig war. */
@@ -734,7 +820,8 @@
     bar.className = 'sf-feedback sf-overlay';
     bar.__sfBlock = block;
     block.__sfBar = bar;
-    const r = block.getBoundingClientRect();
+    let r = block.getBoundingClientRect();
+    if (!r.width && !r.height && block.__sfPlaceholder) r = block.__sfPlaceholder.getBoundingClientRect();
     bar.style.setProperty('top', `${Math.max(0, r.top + window.scrollY + 6)}px`, 'important');
     bar.style.setProperty('left', `${Math.max(0, r.left + window.scrollX + 6)}px`, 'important');
     bar.style.setProperty('max-width', `${Math.max(220, r.width - 12)}px`, 'important');

@@ -111,6 +111,29 @@ async function main() {
       assert.match(last.text, /Museum/);
     });
 
+    await step('Danach Schlagwort-Vorschläge aus dem Artikel: „Museum“ übernehmen', async () => {
+      await page.waitForSelector('.sf-overlay.sf-suggest');
+      const chips = await page.locator('.sf-suggest .sf-chip').allTextContents();
+      assert.ok(chips.includes('Museum'), JSON.stringify(chips));
+      assert.ok(!chips.some((c) => /^neues$/i.test(c)), 'Füllwort vorgeschlagen');
+      await page.click('.sf-suggest .sf-chip:text-is("Museum")');
+      await page.click('.sf-suggest button:has-text("Hinzufügen")');
+      await page.waitForFunction(() => document.querySelector('.sf-toast')?.textContent.includes('Museum'), null, { timeout: 3000 });
+      const kws = await sw.evaluate(async () => (await chrome.storage.sync.get('keywords')).keywords);
+      assert.deepEqual(kws, ['*krise', 'Museum']);
+      await hidden(page, '#l-museum'); // jetzt über das Schlagwort
+    });
+
+    await step('Markierten Text per Rechtsklick als Schlagwort aufnehmen', async () => {
+      const r = await sw.evaluate(() => addKeyword('  „Schlosspark“ '));
+      assert.deepEqual(r, { added: true, term: 'Schlosspark' });
+      const again = await sw.evaluate(() => addKeyword('schlosspark'));
+      assert.equal(again.added, false);
+      await hidden(page, '#l-konzert');
+      const kws = await sw.evaluate(async () => (await chrome.storage.sync.get('keywords')).keywords);
+      assert.deepEqual(kws, ['*krise', 'Museum', 'Schlosspark']);
+    });
+
     await step('Rechtsklick „Will ich sehen“ auf Platzhalter: zeigt an und merkt', async () => {
       await page.click('#l-museum >> xpath=preceding-sibling::*[1]', { button: 'right', position: { x: 5, y: 5 } });
       await sw.evaluate((id) => chrome.tabs.sendMessage(id, { type: 'ctx', action: 'ok' }), tabId);
