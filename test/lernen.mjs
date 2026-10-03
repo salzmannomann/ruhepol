@@ -179,24 +179,25 @@ async function main() {
       assert.ok(found, 'fremde Bewertung nicht übernommen');
     });
 
-    await step('Darstellung „unscharf“: Klick auf Block → bewerten', async () => {
+    await step('Darstellung „unscharf“: anzeigen, dann 👎 bzw. 👍', async () => {
       await setSettings(sw, { display: 'blur' });
       await page.reload();
       await page.waitForFunction(() => document.querySelector('#l-klima').classList.contains('sf-blurred'));
       await page.click('#l-klima');
-      await page.click('.sf-overlay button:has-text("Passt so")');
+      await page.waitForFunction(() => !document.querySelector('#l-klima').classList.contains('sf-blurred'));
+      await page.click('.sf-overlay button:has-text("👎")');
+      await page.waitForFunction(() => document.querySelector('#l-klima').classList.contains('sf-blurred'));
       await new Promise((r) => setTimeout(r, 300));
       let last = (await ratings(sw)).at(-1);
       assert.equal(last.label, 'b');
       assert.match(last.text, /Klimakrise: Gletscher schmelzen/);
-      assert.ok(await page.evaluate(() => document.querySelector('#l-klima').classList.contains('sf-blurred')), 'bleibt unscharf');
-      await page.waitForFunction(() => !document.querySelector('.sf-overlay'), null, { timeout: 3000 });
       await page.click('#l-klima');
-      await page.click('.sf-overlay button:has-text("Will ich sehen")');
       await page.waitForFunction(() => !document.querySelector('#l-klima').classList.contains('sf-blurred'));
+      await page.click('.sf-overlay button:has-text("👍")');
       await new Promise((r) => setTimeout(r, 300));
       last = (await ratings(sw)).at(-1);
       assert.equal(last.label, 'o');
+      assert.ok(!(await page.evaluate(() => document.querySelector('#l-klima').classList.contains('sf-blurred'))), 'bleibt sichtbar');
     });
 
     await step('Kontextmenü ist registriert', async () => {

@@ -115,17 +115,21 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
   in den Einstellungen unter „Seiten“ und lassen sich dort löschen.
 - **Darstellung bei Treffer**:
   - **unscharf** (Standard): Text und Bilder des Blocks werden unscharf, ohne Hinweis auf
-    das Schlagwort und ohne Knöpfe. Ein Klick auf den unscharfen Block öffnet eine kleine
-    Leiste: **Passt so** (bleibt unscharf, wird gemerkt), **Will ich sehen** (zeigt an,
-    wird gemerkt), **Nur anzeigen** (danach Rückfrage „War das Ausblenden richtig?“) und
-    **×** (schließen).
+    das Schlagwort und ohne Knöpfe.
+    1. Auf den unscharfen Text oder das Bild drücken: An der Druckstelle erscheint sofort ein
+       Ladekreis.
+    2. Gedrückt halten, bis er voll ist (2 Sekunden): Der Inhalt wird angezeigt. Loslassen,
+       Wegziehen oder Scrollen bricht ab.
+    3. Danach fragt eine kleine Leiste „Künftig anzeigen?“: **👍** (so etwas künftig
+       zeigen), **👎** (künftig ausblenden, sofort wieder unscharf) oder **×** (nur dieses
+       Mal, nichts lernen).
   - Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten
   - komplett ausblenden
-- **Aufdecken nur durch Gedrückthalten** (Standard: an): „Nur anzeigen“,
-  „Will ich sehen“ und „Anzeigen“ reagieren erst nach 2 Sekunden Gedrückthalten (Maus,
-  Touch, Enter oder Leertaste). Ein Ladekreis im Knopf füllt sich dabei, ein kurzer Klick
-  zeigt nur einen Hinweis. Das schützt vor dem reflexhaften Klick. Abschaltbar unter
-  „Darstellung bei Treffer“; beim Update auf 1.3.1 wird die Option einmalig eingeschaltet.
+- **Aufdecken nur durch Gedrückthalten** (Standard: an): Unscharfe Inhalte (und in der
+  Platzhalter-Darstellung die Knöpfe „Anzeigen“/„Will ich sehen“) reagieren erst nach
+  2 Sekunden Gedrückthalten. Ein kurzer Klick zeigt nur einen Hinweis. Das schützt vor dem
+  reflexhaften Klick. Ausgeschaltet genügt ein Klick. Abschaltbar unter „Darstellung bei
+  Treffer“; beim Update auf 1.3.1 wird die Option einmalig eingeschaltet.
 
   Das gefundene Schlagwort wird in keiner Darstellung angezeigt.
 - **Bilder**: OCR ein/aus, Mindestbildgröße (Standard 120 × 80 px) und das Verhalten,
@@ -141,7 +145,7 @@ Schlagwörter allein unterscheiden nicht, ob „Krise“ eine Klimakrise oder ei
 Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
 
 **Bewerten:**
-- **Klick auf einen unscharfen Block:** Bewertungsleiste wie oben beschrieben.
+- **Nach dem Anzeigen eines unscharfen Blocks:** 👍 oder 👎, wie oben beschrieben.
 - **Rechtsklick auf einen Artikel oder ein Bild** (in jeder Darstellung, auch auf
   unscharfe Blöcke):
   - **„Will ich nicht sehen – unscharf stellen und merken“** stellt auch Inhalte ohne

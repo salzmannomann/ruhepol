@@ -923,20 +923,7 @@
     b.className = 'sf-btn sf-hold';
     b.title = 'Gedrückt halten zum Anzeigen';
     // Ladekreis: grauer Ring, der sich beim Gedrückthalten blau füllt.
-    const NS = 'http://www.w3.org/2000/svg';
-    const ring = document.createElementNS(NS, 'svg');
-    ring.setAttribute('viewBox', '0 0 20 20');
-    ring.setAttribute('class', 'sf-ring');
-    ring.setAttribute('aria-hidden', 'true');
-    for (const cls of ['sf-ring-bg', 'sf-ring-fg']) {
-      const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', '10');
-      c.setAttribute('cy', '10');
-      c.setAttribute('r', '8');
-      c.setAttribute('class', cls);
-      ring.append(c);
-    }
-    ring.lastChild.style.animationDuration = HOLD_MS + 'ms';
+    const ring = ringSvg();
     const label = document.createElement('span');
     label.textContent = text;
     b.append(ring, label);
@@ -1010,15 +997,7 @@
     toast('Bereich wird nicht mehr gesperrt');
   }
 
-  function showZoneChoices(block) {
-    const bar = overlayBar(block);
-    const label = document.createElement('span');
-    label.textContent = 'Gesperrter Bereich';
-    const show = revealButton('Nur anzeigen', () => { closeBar(block); reveal(block, null, { feedback: false }); });
-    const del = button('Nicht mehr sperren', () => { closeBar(block); removeZone(block.__sfZone); });
-    const close = button('×', () => closeBar(block));
-    bar.append(label, show, del, close);
-  }
+
 
   function countTeasers(el) {
     return Math.max(el.querySelectorAll('h1, h2, h3, h4, h5, h6').length, el.querySelectorAll('article, li').length);
@@ -1144,8 +1123,10 @@
     if (settings.display === 'hide') {
       block.classList.add('sf-hidden');
     } else if (settings.display === 'blur') {
-      // Nur unscharf, ohne Hinweis auf das Schlagwort und ohne Knöpfe; Klick zeigt den Inhalt.
+      // Nur unscharf, ohne Hinweis auf das Schlagwort und ohne Knöpfe.
+      // Gedrückt halten (Ladekreis) zeigt den Inhalt, danach 👍/👎.
       block.classList.add('sf-blurred');
+      block.addEventListener('pointerdown', onBlurDown, true);
       block.addEventListener('click', onBlurClick, true);
     } else {
       const ph = document.createElement(block.tagName === 'LI' ? 'li' : 'div');
@@ -1194,19 +1175,109 @@
     if (block.__sfBar && !block.__sfBar.contains(document.activeElement)) closeBar(block);
     block.classList.remove('sf-hidden', 'sf-blurred', 'sf-hidden-ph');
     block.removeEventListener('click', onBlurClick, true);
+    block.removeEventListener('pointerdown', onBlurDown, true);
+    cancelHold();
     if (block.__sfPlaceholder) { block.__sfPlaceholder.remove(); block.__sfPlaceholder = null; }
     delete block.dataset.sfHit;
     hitBlocks.delete(block);
   }
 
-  /** Klick auf einen unscharfen Block: Bewertungsleiste über dem Block (Block bleibt unscharf). */
-  function onBlurClick(ev) {
+  /**
+   * Unscharfer Block: Drücken startet sofort den Ladekreis an der Druckstelle; wer gedrückt hält,
+   * bis er voll ist, sieht den Inhalt. Loslassen, Wegziehen oder Scrollen bricht ab. Ohne die
+   * Option „Gedrückthalten“ genügt ein Klick. Klicks auf Links im unscharfen Block werden
+   * abgefangen.
+   */
+  let hold = null; // { block, ring, timer, x, y }
+
+  function onBlurDown(ev) {
+    if (ev.button !== 0) return; // Rechtsklick bleibt fürs Menü
     const block = ev.currentTarget;
     ev.preventDefault();
     ev.stopPropagation();
-    if (block.__sfBar && block.__sfBar.isConnected) { closeBar(block); return; }
-    if (block.__sfZone) showZoneChoices(block);
-    else showChoices(block);
+    if (!settings.revealHold) { revealBlurred(block); return; }
+    cancelHold();
+    const ring = holdRing(ev.clientX, ev.clientY);
+    hold = { block, ring, x: ev.clientX, y: ev.clientY, timer: setTimeout(() => {
+      const b = hold && hold.block;
+      cancelHold();
+      if (b) revealBlurred(b);
+    }, HOLD_MS) };
+    window.addEventListener('pointerup', onHoldEnd, true);
+    window.addEventListener('pointercancel', onHoldCancel, true);
+    window.addEventListener('pointermove', onHoldMove, true);
+    window.addEventListener('blur', onHoldCancel, true);
+  }
+
+  function onHoldCancel(ev) {
+    // Scrollen per Touch oder Fensterwechsel: ohne Hinweis abbrechen. Fokuswechsel innerhalb
+    // der Seite (blur einzelner Elemente, im Capture-Modus ebenfalls hier) zählen nicht.
+    if (ev && ev.type === 'blur' && ev.target !== window) return;
+    onHoldEnd(null, true);
+  }
+
+  function onHoldMove(ev) {
+    if (hold && Math.hypot(ev.clientX - hold.x, ev.clientY - hold.y) > 24) onHoldEnd(ev, true);
+  }
+
+  function onHoldEnd(_ev, moved) {
+    if (!hold) return;
+    cancelHold();
+    if (!moved) toast('Zum Anzeigen gedrückt halten, bis der Kreis voll ist');
+  }
+
+  function cancelHold() {
+    if (!hold) return;
+    clearTimeout(hold.timer);
+    hold.ring.remove();
+    hold = null;
+    window.removeEventListener('pointerup', onHoldEnd, true);
+    window.removeEventListener('pointercancel', onHoldCancel, true);
+    window.removeEventListener('pointermove', onHoldMove, true);
+    window.removeEventListener('blur', onHoldCancel, true);
+  }
+
+  /** Ladekreis an der Druckstelle (fixiert, fängt keine Mausereignisse ab). */
+  function holdRing(x, y) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sf-holdring sf-holding';
+    wrap.style.setProperty('left', `${x}px`, 'important');
+    wrap.style.setProperty('top', `${y}px`, 'important');
+    wrap.append(ringSvg());
+    (document.body || document.documentElement).appendChild(wrap);
+    return wrap;
+  }
+
+  function ringSvg() {
+    const NS = 'http://www.w3.org/2000/svg';
+    const ring = document.createElementNS(NS, 'svg');
+    ring.setAttribute('viewBox', '0 0 20 20');
+    ring.setAttribute('class', 'sf-ring');
+    ring.setAttribute('aria-hidden', 'true');
+    for (const cls of ['sf-ring-bg', 'sf-ring-fg']) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', '10');
+      c.setAttribute('cy', '10');
+      c.setAttribute('r', '8');
+      c.setAttribute('class', cls);
+      ring.append(c);
+    }
+    ring.lastChild.style.animationDuration = HOLD_MS + 'ms';
+    return ring;
+  }
+
+  function onBlurClick(ev) {
+    // Klicks (z. B. auf Links) im unscharfen Block nicht durchlassen; Aufdecken läuft über pointerdown.
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
+  function revealBlurred(block) {
+    const kw = block.dataset.sfHit;
+    const zone = block.__sfZone;
+    reveal(block, null, { feedback: false });
+    if (zone) askZoneAfterReveal(block, zone);
+    else askAfterReveal(block, kw);
   }
 
   function closeBar(block) {
@@ -1223,66 +1294,86 @@
     block.__sfBar = bar;
     let r = block.getBoundingClientRect();
     if (!r.width && !r.height && block.__sfPlaceholder) r = block.__sfPlaceholder.getBoundingClientRect();
-    bar.style.setProperty('top', `${Math.max(0, r.top + window.scrollY + 6)}px`, 'important');
-    bar.style.setProperty('left', `${Math.max(0, r.left + window.scrollX + 6)}px`, 'important');
-    bar.style.setProperty('max-width', `${Math.max(220, r.width - 12)}px`, 'important');
+    bar.style.setProperty('left', `${Math.max(0, r.left + window.scrollX)}px`, 'important');
+    bar.style.setProperty('max-width', `${Math.max(220, r.width)}px`, 'important');
+    bar.style.setProperty('top', '0px', 'important');
     (document.body || document.documentElement).appendChild(bar);
-    // Klick außerhalb schließt die Leiste.
+    // Über den Block setzen, damit nichts verdeckt wird; ohne Platz oben darunter.
+    const h = bar.offsetHeight || 36;
+    const top = r.top >= h + 6 ? r.top - h - 4 : r.bottom + 4;
+    bar.style.setProperty('top', `${Math.max(0, top + window.scrollY)}px`, 'important');
+    // Klick außerhalb schließt die Leiste – aber erst ein Klick, der nach dem Erscheinen begonnen
+    // hat (sonst schlösse das Loslassen nach dem Gedrückthalten die Leiste sofort wieder).
+    let armed = false;
+    const arm = () => { armed = true; };
     const outside = (e) => {
-      if (!bar.isConnected) { document.removeEventListener('click', outside, true); return; }
-      if (bar.contains(e.target) || block.contains(e.target)) return;
+      if (!bar.isConnected) {
+        document.removeEventListener('click', outside, true);
+        document.removeEventListener('pointerdown', arm, true);
+        return;
+      }
+      if (!armed || bar.contains(e.target) || block.contains(e.target)) return;
       document.removeEventListener('click', outside, true);
+      document.removeEventListener('pointerdown', arm, true);
       closeBar(block);
     };
-    setTimeout(() => document.addEventListener('click', outside, true), 0);
+    setTimeout(() => {
+      document.addEventListener('pointerdown', arm, true);
+      document.addEventListener('click', outside, true);
+    }, 0);
     return bar;
   }
 
-  function showChoices(block) {
-    const kw = block.dataset.sfHit;
-    const bar = overlayBar(block);
-    const done = (text) => {
-      bar.textContent = text;
-      setTimeout(() => closeBar(block), 1300);
-    };
-    const keep = button('Passt so', () => { train(block, 'b'); done('Gemerkt – bleibt unscharf.'); });
-    keep.title = 'Richtig ausgeblendet – merken';
-    const want = revealButton('Will ich sehen', () => {
-      train(block, 'o');
-      reveal(block, null, { feedback: false });
-      clearedBlocks.add(block);
-      done('Gemerkt.');
-    });
-    want.title = settings.revealHold ? 'Gedrückt halten: anzeigen und merken' : 'Falsch ausgeblendet – anzeigen und merken';
-    const show = revealButton('Nur anzeigen', () => {
-      reveal(block, null, { feedback: false });
-      askAfterReveal(block, kw);
-    });
-    const close = button('×', () => closeBar(block));
-    close.title = 'Schließen';
-    bar.append(keep, want, show, close);
-  }
-
-  /** Nach „Nur anzeigen“: nachträglich bewerten. */
+  /** Nach dem Anzeigen: 👍 künftig zeigen, 👎 künftig ausblenden (ohne Antwort: nichts lernen). */
   function askAfterReveal(block, kw) {
     const bar = overlayBar(block);
+    bar.classList.add('sf-thumbs');
     const label = document.createElement('span');
-    label.textContent = 'War das Ausblenden richtig?';
-    const yes = button('Ja, wieder ausblenden', () => {
+    label.textContent = 'Künftig anzeigen?';
+    const up = button('👍', () => {
+      train(block, 'o');
+      clearedBlocks.add(block);
+      bar.textContent = 'Gemerkt: wird künftig gezeigt.';
+      setTimeout(() => closeBar(block), 1300);
+    });
+    up.title = 'Ja – so etwas künftig anzeigen';
+    up.setAttribute('aria-label', up.title);
+    const down = button('👎', () => {
       train(block, 'b');
       closeBar(block);
       delete block.dataset.sfRevealed;
       for (const img of block.querySelectorAll('img')) delete img.dataset.sfRevealed;
       hit(block, kw, { block, force: true });
+      toast('Gemerkt: wird künftig ausgeblendet');
     });
-    const no = button('Nein, will ich sehen', () => {
-      train(block, 'o');
-      clearedBlocks.add(block);
-      bar.textContent = 'Gemerkt.';
-      setTimeout(() => closeBar(block), 1300);
-    });
+    down.title = 'Nein – so etwas künftig ausblenden';
+    down.setAttribute('aria-label', down.title);
     const close = button('×', () => closeBar(block));
-    bar.append(label, yes, no, close);
+    close.title = 'Schließen, ohne zu bewerten';
+    bar.append(label, up, down, close);
+    setTimeout(() => { if (block.__sfBar === bar) closeBar(block); }, 30000);
+  }
+
+  /** Gesperrter Bereich angezeigt: Sperre behalten oder aufheben. */
+  function askZoneAfterReveal(block, zone) {
+    const bar = overlayBar(block);
+    bar.classList.add('sf-thumbs');
+    const label = document.createElement('span');
+    label.textContent = 'Bereich künftig anzeigen?';
+    const up = button('👍', () => { closeBar(block); removeZone(zone); });
+    up.title = 'Ja – Bereich nicht mehr sperren';
+    up.setAttribute('aria-label', up.title);
+    const down = button('👎', () => {
+      closeBar(block);
+      delete block.dataset.sfRevealed;
+      block.__sfZone = zone;
+      hit(block, 'Bereich', { block, force: true });
+    });
+    down.title = 'Nein – Bereich weiter sperren';
+    down.setAttribute('aria-label', down.title);
+    const close = button('×', () => closeBar(block));
+    close.title = 'Schließen';
+    bar.append(label, up, down, close);
     setTimeout(() => { if (block.__sfBar === bar) closeBar(block); }, 30000);
   }
 

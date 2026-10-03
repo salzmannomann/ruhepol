@@ -56,26 +56,45 @@ async function main() {
       }, null, { timeout: 5000 });
     });
 
-    await step('Gedrückthalten (Standard): kurzer Klick deckt nicht auf, 2 s halten schon', async () => {
+    await step('Gedrückthalten (Standard): Ladekreis an der Druckstelle, 2 s halten zeigt an', async () => {
       assert.equal(await sw.evaluate(async () => (await chrome.storage.sync.get('revealHold')).revealHold), true, 'nicht Standard');
       await setSettings(sw, { display: 'blur' });
       await page.waitForFunction(() => document.querySelector('#x-hold').classList.contains('sf-blurred'));
+      // Kurzer Klick: bleibt unscharf, Hinweis, keine Auswahl-Leiste.
       await page.click('#x-hold');
-      const btn = page.locator('.sf-overlay button:has-text("Nur anzeigen")');
-      await btn.click();
       await page.waitForTimeout(300);
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'kurzer Klick hat aufgedeckt');
       assert.match(await page.textContent('.sf-toast'), /gedrückt halten/i);
-      const box = await btn.boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      assert.equal(await page.locator('.sf-overlay').count(), 0);
+      // Gedrückt halten: Kreis erscheint sofort an der Druckstelle und füllt sich.
+      const box = await page.locator('#x-hold h2').boundingBox();
+      const x = box.x + 20, y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
       await page.mouse.down();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(150);
+      const pos = await page.evaluate(() => {
+        const r = document.querySelector('.sf-holdring').getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      });
+      assert.ok(Math.abs(pos.x - x) < 3 && Math.abs(pos.y - y) < 3, `Kreis nicht an der Druckstelle (${JSON.stringify(pos)})`);
+      await page.waitForTimeout(850);
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'nach 1 s schon offen');
-      const offset = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sf-holding .sf-ring-fg')).strokeDashoffset.replace('px', '')));
+      const offset = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sf-holdring .sf-ring-fg')).strokeDashoffset.replace('px', '')));
       assert.ok(offset > 15 && offset < 35, `Ladekreis nicht halb gefüllt (${offset})`);
       await page.waitForTimeout(1200);
       await page.mouse.up();
       await page.waitForFunction(() => !document.querySelector('#x-hold').classList.contains('sf-blurred'), null, { timeout: 2000 });
+      assert.equal(await page.locator('.sf-holdring').count(), 0);
+      assert.match(await page.textContent('.sf-overlay'), /Künftig anzeigen\?/);
+      // Wegziehen bricht ab.
+      await page.click('.sf-overlay button:has-text("👎")');
+      await page.waitForFunction(() => document.querySelector('#x-hold').classList.contains('sf-blurred'));
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 60, y + 10, { steps: 3 });
+      await page.waitForTimeout(2300);
+      await page.mouse.up();
+      assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'Wegziehen hat nicht abgebrochen');
       await setSettings(sw, { revealHold: false });
     });
 
@@ -121,13 +140,14 @@ async function main() {
       await page.reload();
     });
 
-    await step('Bereich bleibt nach Neuladen gesperrt; Klick zeigt Bereichs-Leiste', async () => {
+    await step('Bereich bleibt nach Neuladen gesperrt; Anzeigen fragt 👍/👎', async () => {
       await page.reload();
       await page.waitForFunction(() => document.querySelector('#r-sport').classList.contains('sf-blurred'), null, { timeout: 5000 });
-      await page.click('#r-sport');
-      const bar = await page.textContent('.sf-overlay');
-      assert.match(bar, /Gesperrter Bereich/);
-      assert.doesNotMatch(bar, /Passt so/);
+      await page.click('#r-sport h2');
+      await page.waitForFunction(() => !document.querySelector('#r-sport').classList.contains('sf-blurred'));
+      assert.match(await page.textContent('.sf-overlay'), /Bereich künftig anzeigen\?/);
+      await page.click('.sf-overlay button:has-text("👎")');
+      await page.waitForFunction(() => document.querySelector('#r-sport').classList.contains('sf-blurred'));
     });
 
     await step('Einstellungsseite listet den Bereich; Entfernen hebt die Sperre auf', async () => {

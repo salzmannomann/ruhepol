@@ -136,20 +136,38 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
 }
 
-/* Aufdecken durch Gedrückthalten: Ladekreis im Knopf */
+/* Aufdecken durch Gedrückthalten: Ladekreis an der Druckstelle bzw. im Knopf */
+.sf-holdring {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  width: 46px !important;
+  height: 46px !important;
+  margin: -23px 0 0 -23px !important;
+  padding: 5px !important;
+  box-sizing: border-box !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25) !important;
+  pointer-events: none !important;
+}
+.sf-holdring .sf-ring {
+  width: 36px !important;
+  height: 36px !important;
+}
 .sf-btn.sf-hold {
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
 }
-.sf-btn.sf-hold .sf-ring {
+.sf-ring {
   display: inline-block !important;
   width: 16px !important;
   height: 16px !important;
   flex: none !important;
   transform: rotate(-90deg) !important;
+  overflow: visible !important;
 }
-.sf-btn.sf-hold .sf-ring circle {
+.sf-ring circle {
   /* r/cx/cy sind CSS-Eigenschaften und würden von „all: initial“ auf 0 gesetzt */
   display: inline !important;
   cx: 10px !important;
@@ -158,15 +176,15 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   fill: none !important;
   stroke-width: 3px !important;
 }
-.sf-btn.sf-hold .sf-ring-bg { stroke: #d6d9e6 !important; }
-.sf-btn.sf-hold .sf-ring-fg {
+.sf-ring-bg { stroke: #d6d9e6 !important; }
+.sf-ring-fg {
   stroke: #3d5afe !important;
   stroke-linecap: round !important;
   /* Umfang 2·π·8 ≈ 50.3; ohne !important, damit die Animation den Wert ändern kann */
   stroke-dasharray: 50.3 !important;
   stroke-dashoffset: 50.3;
 }
-.sf-btn.sf-hold.sf-holding .sf-ring-fg {
+.sf-holding .sf-ring-fg {
   animation: sf-ring 2s linear forwards;
 }
 @keyframes sf-ring {
@@ -174,8 +192,16 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   to { stroke-dashoffset: 0; }
 }
 
+/* 👍/👎 nach dem Anzeigen */
+.sf-feedback.sf-thumbs .sf-btn {
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+  padding: 2px 10px !important;
+}
+
 @media (prefers-color-scheme: dark) {
   .sf-feedback.sf-picker { background: #262a3d !important; }
-  .sf-btn.sf-hold .sf-ring-bg { stroke: #4a4f66 !important; }
-  .sf-btn.sf-hold .sf-ring-fg { stroke: #8c9eff !important; }
+  .sf-ring-bg { stroke: #4a4f66 !important; }
+  .sf-ring-fg { stroke: #8c9eff !important; }
+  .sf-holdring { background: rgba(30, 30, 34, 0.92) !important; }
 }

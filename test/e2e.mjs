@@ -175,21 +175,16 @@ async function main() {
       // Kein Hinweis aufs Schlagwort, keine Knöpfe sichtbar.
       assert.equal(await page.evaluate(() => document.querySelector('#t-later').getAttribute('title')), null);
       assert.equal(await page.locator('.sf-placeholder, .sf-feedback').count(), 0);
-      // Klick: Bewertungsleiste erscheint, Block bleibt unscharf; ohne Schlagwort-Text.
+      // Ohne Gedrückthalten-Option: Klick zeigt sofort an, danach 👍/👎 ohne Schlagwort-Text.
       await page.click('#t-later');
-      await page.waitForSelector('.sf-feedback.sf-overlay');
-      assert.ok(await page.evaluate(() => document.querySelector('#t-later').classList.contains('sf-blurred')));
-      const barText = await page.textContent('.sf-feedback.sf-overlay');
-      assert.match(barText, /Passt so/);
-      assert.doesNotMatch(barText, /Lawine/);
-      // Nochmal klicken schließt die Leiste wieder.
-      await page.click('#t-later');
-      assert.equal(await page.locator('.sf-feedback').count(), 0);
-      // „Nur anzeigen“ deckt auf und fragt danach.
-      await page.click('#t-later');
-      await page.click('.sf-overlay button:has-text("Nur anzeigen")');
       await page.waitForFunction(() => !document.querySelector('#t-later').classList.contains('sf-blurred'));
-      assert.match(await page.textContent('.sf-overlay'), /War das Ausblenden richtig/);
+      const barText = await page.textContent('.sf-feedback.sf-overlay');
+      assert.match(barText, /Künftig anzeigen\?/);
+      assert.match(barText, /👍/);
+      assert.doesNotMatch(barText, /Lawine/);
+      // 👎 stellt wieder unscharf.
+      await page.click('.sf-overlay button:has-text("👎")');
+      await page.waitForFunction(() => document.querySelector('#t-later').classList.contains('sf-blurred'));
       assert.ok(!(await page.evaluate(() => document.querySelector('#t-text').classList.contains('sf-blurred'))));
     });
 
