@@ -42,6 +42,9 @@
       // und derStandard (Datensatz A), geprüft an 391 frischen (Datensatz B), siehe README.
       examples: true,
       combo: { vorsichtig: 0.026, mittel: 0.0215, stark: 0.019 },
+      // Zusätzlich mit echten, von Hand eingestuften Teasern (lib/real-vectors.json): abgestimmt
+      // auf A, wobei jeder Teaser sich selbst nicht als Beispiel sehen durfte; geprüft auf B.
+      comboReal: { vorsichtig: 0.0175, mittel: 0.0145, stark: 0.0125 },
     },
     // Winziges Testmodell (test/make_tiny_model.py), nur für automatische Tests.
     'test/tiny': {
@@ -187,7 +190,8 @@
     let hide;
     if (cfg.combo && ref.exBad && ref.exBad.length && ref.exGood && ref.exGood.length) {
       const knn = topK(vec, ref.exBad, 3) - topK(vec, ref.exGood, 3);
-      hide = ((bad - good) + knn) / 2 >= cfg.combo[lv];
+      const th = ref.exReal && cfg.comboReal ? cfg.comboReal : cfg.combo;
+      hide = ((bad - good) + knn) / 2 >= th[lv];
     } else {
       hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
     }
@@ -245,6 +249,34 @@
     return btoaSafe(bin);
   }
 
+  /** Wie pack, aber je Vektor auf den größten Betrag skaliert (genauer; Skala vorangestellt). */
+  function packScaled(vec) {
+    let max = 0;
+    for (let i = 0; i < vec.length; i++) max = Math.max(max, Math.abs(vec[i]));
+    const scale = max || 1;
+    const bytes = new Uint8Array(vec.length);
+    for (let i = 0; i < vec.length; i++) bytes[i] = (Math.round((vec[i] / scale) * 127) + 256) % 256;
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return scale.toFixed(6) + ':' + btoaSafe(bin);
+  }
+
+  function unpackScaled(str) {
+    const [s, b] = String(str).split(':');
+    const scale = Number(s);
+    const bin = atobSafe(b);
+    const vec = new Float32Array(bin.length);
+    let norm = 0;
+    for (let i = 0; i < bin.length; i++) {
+      const c = bin.charCodeAt(i);
+      vec[i] = ((c > 127 ? c - 256 : c) / 127) * scale;
+      norm += vec[i] * vec[i];
+    }
+    norm = Math.sqrt(norm) || 1;
+    for (let i = 0; i < vec.length; i++) vec[i] /= norm;
+    return vec;
+  }
+
   function unpack(str) {
     const bin = atobSafe(str);
     const vec = new Float32Array(bin.length);
@@ -267,7 +299,7 @@
     return typeof atob === 'function' ? atob(str) : Buffer.from(str, 'base64').toString('binary');
   }
 
-  const api = { DEFAULT_MODEL, MODELS, LEVELS, NEUTRAL, TONE, modelConfig, cosine, topK, maxSim, decide, tone, pack, unpack, cleanText };
+  const api = { DEFAULT_MODEL, MODELS, LEVELS, NEUTRAL, TONE, modelConfig, cosine, topK, maxSim, decide, tone, pack, unpack, packScaled, unpackScaled, cleanText };
   root.SFSemantic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -328,3 +328,22 @@ test('Beispielsammlung: je Thema mehrere belastende, genug harmlose Beispiele', 
   assert.ok(E.NEUTRAL.length >= 100);
   assert.deepEqual(E.badFor([]), []);
 });
+
+test('Echte Beispiele (real-vectors.json): zum Modell, zu den Testdaten und zu den Themen passend', async () => {
+  const { createHash } = await import('node:crypto');
+  const { readFileSync } = await import('node:fs');
+  const R = require('../extension/lib/real-vectors.json');
+  const P = require('../extension/lib/presets.js');
+  const A = JSON.parse(readFileSync(new URL('./fixtures/real-headlines.json', import.meta.url), 'utf8')).daten
+    .filter((x) => x.set === 'A' && x.y !== 'X');
+  const hash = createHash('sha256').update(JSON.stringify(A.map((x) => [x.t, x.y]))).digest('hex').slice(0, 16);
+  assert.equal(R.hash, hash, 'Testdaten geändert: npm run beispielvektoren');
+  assert.equal(R.model, SEM.DEFAULT_MODEL);
+  assert.equal(R.bad.length, A.filter((x) => x.y === 'B').length);
+  assert.equal(R.good.length, A.filter((x) => x.y === 'U').length);
+  for (const b of R.bad) assert.ok(b.topics.length && b.topics.every((t) => P.ALL_IDS.includes(t)));
+  // keine Texte im Paket, nur Vektoren
+  assert.ok(!JSON.stringify(R).includes('Brücke'));
+  const v = SEM.unpackScaled(R.good[0]);
+  assert.equal(v.length, 384);
+});
