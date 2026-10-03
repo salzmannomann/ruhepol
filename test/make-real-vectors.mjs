@@ -18,6 +18,7 @@ const P = require('../extension/lib/presets.js');
 const M = require('../extension/lib/match.js');
 const E = require('../extension/lib/examples.js');
 
+// Liegt nicht im Repo (fremde Texte); nur lokal beim Entwickeln vorhanden.
 const fixture = readFileSync(join(here, 'fixtures', 'real-headlines.json'), 'utf8');
 const A = JSON.parse(fixture).daten.filter((x) => x.set === 'A' && x.y !== 'X');
 const hash = createHash('sha256').update(JSON.stringify(A.map((x) => [x.t, x.y]))).digest('hex').slice(0, 16);

@@ -323,7 +323,8 @@ Videolängen, Bildnachweise). Dann zählt das Mittel aus zwei Vergleichen:
    gesperrt ist. Neu erzeugen mit `npm run beispielvektoren`.
 
 **Gemessen** an echten Teasern von orf.at und derStandard vom 3. Oktober 2026, von Hand
-eingestuft (`test/fixtures/real-headlines.json`, `npm run kalibrieren`). Datensatz A
+eingestuft (`npm run kalibrieren`; die Teaser selbst sind als fremde Texte nicht im Repo,
+nur lokal unter `test/fixtures/real-headlines.json`). Datensatz A
 (453 Teaser) diente zum Abstimmen; Datensatz B (391 Teaser von anderen Seiten: orf.at
 Bundesländer, FM4, Help, derStandard Inland/Panorama/Kultur/Etat/Lifestyle/Web/Gesundheit)
 wurde erst danach gesammelt und nur zur Prüfung verwendet. Zahlen: belastende erkannt ·
