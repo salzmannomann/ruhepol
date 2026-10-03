@@ -9,7 +9,9 @@
 importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js', 'lib/semantic.js');
 
 const OCR_TIMEOUT_MS = 10000;
-const MAX_PARALLEL = 2;
+// Gleichzeitige Aufträge: Herunterladen läuft parallel, das Offscreen Document verteilt die
+// Texterkennung selbst auf seine Worker.
+const MAX_PARALLEL = 6;
 const CACHE_MAX = 2000;
 // Version 2: nur noch sicher erkannte Wörter (ältere Einträge „ocr:“ enthielten Buchstabensalat).
 const CACHE_PREFIX = 'ocr2:';
@@ -17,7 +19,7 @@ const OLD_CACHE_PREFIXES = ['ocr:'];
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const MAX_TEXT_LEN = 4000;
 const ERROR_RETRY_MS = 5 * 60 * 1000;
-const OFFSCREEN_IDLE_MS = 3 * 60 * 1000;
+const OFFSCREEN_IDLE_MS = 15 * 60 * 1000; // hält das Sprachmodell zwischen zwei Seiten geladen
 
 /* ---------------- Cache (chrome.storage.local, ein Schlüssel je Bild-URL) ---------------- */
 
@@ -69,7 +71,7 @@ async function cachePut(url, text) {
 async function cacheClear() {
   const idx = await loadCacheIndex();
   const all = await chrome.storage.local.get(null);
-  const keys = Object.keys(all).filter((k) => k.startsWith(CACHE_PREFIX));
+  const keys = Object.keys(all).filter((k) => k.startsWith(CACHE_PREFIX) || k.startsWith(VEC_PREFIX));
   if (keys.length) await chrome.storage.local.remove(keys);
   idx.clear();
   recentErrors.clear();
@@ -519,14 +521,73 @@ async function embedTexts(model, texts) {
   }
 }
 
+/*
+ * Dauerhafter Vektor-Cache (chrome.storage.local): Der Service Worker wird von Chrome nach
+ * ca. 30 s Leerlauf beendet; ohne Cache müssten danach Bezugstexte und Schlagzeilen neu
+ * berechnet werden. Vektoren als Float32 (Base64, ca. 2 KB je Text), Schlüssel = Hash.
+ */
+const VEC_PREFIX = 'sv1:';
+const VEC_MAX = 6000;
+let vecWrites = 0;
+
+function hashText(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
+}
+
+const vecKey = (model, text) => VEC_PREFIX + hashText(model + '\n' + text);
+
+function f32ToB64(v) {
+  const bytes = new Uint8Array(Float32Array.from(v).buffer);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+function b64ToF32(s) {
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Float32Array(bytes.buffer);
+}
+
+async function vecStore(entries) {
+  if (!entries.length) return;
+  await chrome.storage.local.set(Object.fromEntries(entries));
+  vecWrites += entries.length;
+  if (vecWrites < 300 || !chrome.storage.local.getKeys) return;
+  vecWrites = 0;
+  const keys = (await chrome.storage.local.getKeys()).filter((k) => k.startsWith(VEC_PREFIX));
+  if (keys.length > VEC_MAX) await chrome.storage.local.remove(keys); // grob, aber selten: Cache neu aufbauen
+}
+
 async function embedTextsNow(model, texts) {
   const cfg = SFSemantic.modelConfig(model);
   const out = new Array(texts.length);
-  const todo = [];
+  let todo = [];
   texts.forEach((t, i) => {
     const hit = semCache.get(model + '|' + t);
     if (hit) out[i] = hit; else todo.push(i);
   });
+  if (todo.length) {
+    const keys = todo.map((i) => vecKey(model, texts[i]));
+    const disk = await chrome.storage.local.get(keys);
+    todo = todo.filter((i, j) => {
+      const s = disk[keys[j]];
+      if (typeof s !== 'string') return true;
+      out[i] = b64ToF32(s);
+      semCache.set(model + '|' + texts[i], out[i]);
+      return false;
+    });
+  }
+  const fresh = [];
   for (let k = 0; k < todo.length; k += SEM_BATCH) {
     const idx = todo.slice(k, k + SEM_BATCH);
     await ensureOffscreen();
@@ -538,8 +599,10 @@ async function embedTextsNow(model, texts) {
       const v = Float32Array.from(r.vectors[j]);
       out[i] = v;
       semCache.set(model + '|' + texts[i], v);
+      fresh.push([vecKey(model, texts[i]), f32ToB64(v)]);
     });
   }
+  vecStore(fresh).catch(() => {});
   while (semCache.size > SEM_CACHE_MAX) semCache.delete(semCache.keys().next().value);
   return out;
 }
@@ -625,6 +688,16 @@ function nanoJudge(texts) {
 async function nanoStatus() {
   const { nanoFake } = await chrome.storage.local.get('nanoFake');
   return nanoCall({ type: 'nanoStatus', fake: !!nanoFake }).catch(() => ({ ok: true, availability: 'unavailable' }));
+}
+
+/** Modell und Bezugstexte vorab laden (beim Seitenaufbau), Fehler egal. */
+function semWarm() {
+  serialSem(async () => {
+    const settings = await SFSettings.load();
+    if (!settings.semantic) return;
+    const model = await semModelId();
+    if (await semInstalled(model)) await semReference(settings, model);
+  }).catch(() => {});
 }
 
 function semScore(texts) {
@@ -789,6 +862,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'importRatings':
       importRatings(msg.ratings).then(sendResponse);
       return true;
+    case 'semWarm':
+      semWarm();
+      return false;
     case 'semScore':
       semScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
       return true;

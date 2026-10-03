@@ -134,8 +134,8 @@ Die einzelnen Optionen:
 - **Darstellung bei Treffer**:
   - **unscharf** (Standard): Text und Bilder des Blocks werden unscharf, ohne Hinweis auf
     das Schlagwort und ohne Knöpfe.
-    1. Auf den unscharfen Text oder das Bild drücken: An der Druckstelle erscheint sofort ein
-       Ladekreis.
+    1. Auf den unscharfen Text oder das Bild drücken: In der Mitte des Bildes bzw. Textes
+       (bei langen Artikeln in der Mitte des sichtbaren Teils) erscheint sofort ein Ladekreis.
     2. Gedrückt halten, bis er voll ist (2 Sekunden): Der Inhalt wird angezeigt. Loslassen,
        Wegziehen oder Scrollen bricht ab.
     3. Danach fragt eine kleine Leiste „Künftig anzeigen?“: **👍** (so etwas künftig
@@ -236,10 +236,17 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 **Ablauf:**
 - Geprüft wird nur, was Schlagwörter und Lernfilter durchgelassen haben, gesammelt in
   Paketen von bis zu 24 Teasern.
-- Das Modell läuft im Offscreen Document (transformers.js mit onnxruntime-web,
-  WebAssembly, ein Thread). Es lädt ausschließlich aus dem Paket, Downloads aus dem
-  Internet sind abgeschaltet.
-- Nach 5 Minuten ohne Arbeit wird das Modell entladen.
+- Das Modell läuft in einem eigenen Worker-Thread des Offscreen Documents (transformers.js
+  mit onnxruntime-web, WebAssembly), damit es die Bildvorbereitung für die Texterkennung
+  nicht aufhält. Es lädt ausschließlich aus dem Paket, Downloads aus dem Internet sind
+  abgeschaltet.
+- Das Laden dauert beim ersten Mal ca. 5 s; Ruhepol beginnt damit schon beim Seitenaufbau.
+  Nach 15 Minuten ohne Arbeit wird das Modell entladen (ca. 250 MB Arbeitsspeicher frei).
+- Berechnete Vektoren (Bezugstexte und Schlagzeilen) werden dauerhaft lokal gespeichert
+  (höchstens 6000, ca. 2 KB je Text). Eine schon besuchte Nachrichtenseite wird dadurch
+  sofort beurteilt, auch nachdem Chrome den Hintergrund-Prozess zwischendurch beendet hat.
+- Geprüft wird parallel zum Textscan, nicht erst danach – auf Seiten mit Tickern wird der
+  Textscan sonst nie fertig.
 - Vektoren der Bewertungen werden lokal gespeichert (int8, ca. 0,5 KB je Bewertung) und
   nicht synchronisiert; jeder Rechner berechnet sie aus den synchronisierten Bewertungen.
 
@@ -424,11 +431,17 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
 4. Sonst lädt der Service Worker das Bild per `fetch`. Dank `host_permissions` gibt es
    dabei keine CORS-Probleme mit fremden Bild-Domains. Das Bild geht an ein Offscreen
    Document, weil Service Worker keine Web Worker starten können. Dort wird es skaliert
-   (lange Seite höchstens 1600 px, kleine Bilder bis 2-fach vergrößert) und von
-   tesseract.js gelesen (Deutsch + Englisch).
-5. Die Worker werden einmal erzeugt und wiederverwendet. Die Warteschlange arbeitet
-   höchstens zwei Bilder parallel ab, Bilder außerhalb des sichtbaren Bereichs kommen erst
-   beim Heranscrollen dran.
+   (lange Seite höchstens 1200 px, nur Bilder unter 500 px werden bis 2-fach vergrößert),
+   als unkomprimiertes BMP an tesseract.js übergeben und gelesen (Deutsch + Englisch).
+   Das BMP ist wichtig für das Tempo: Übergibt man tesseract.js ein Canvas, wandelt es dieses
+   per `canvas.toBlob()` um – das dauert im Offscreen Document jedes Mal genau 1 Sekunde,
+   während die eigentliche Texterkennung nur 30–300 ms braucht.
+5. Die Worker (je zweiter Prozessorkern einer, 2 bis 4) werden einmal erzeugt und
+   wiederverwendet. Herunterladen läuft parallel zur Texterkennung. Geprüft wird
+   vorausschauend, sobald ein Bild bis auf 1200 px an den sichtbaren Bereich herankommt.
+   Gemessen auf orf.at beim Durchscrollen (erster Besuch): Bilder bleiben nach dem
+   Sichtbarwerden im Median 1,1 s unscharf (vorher 7 s), höchstens 2 s (vorher 15 s);
+   beim zweiten Besuch meist gar nicht (Cache).
 6. Übernommen werden nur Wörter, bei denen Tesseract ziemlich sicher ist (Sicherheit ≥ 70,
    überwiegend Buchstaben). Fotos ohne Schrift – Rasen, Laub, Stoff – liefern sonst
    Buchstabensalat, der die Schlagwort- und KI-Prüfung in die Irre führt.

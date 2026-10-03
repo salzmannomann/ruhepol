@@ -4,9 +4,12 @@
  */
 'use strict';
 
-const WORKER_COUNT = 2;
-const MAX_SIDE = 1600;
-const UPSCALE_BELOW = 1000; // kleinere Bilder vergrößern, damit kleine Schrift lesbar wird
+// Je zweiter Prozessorkern ein Worker, mindestens 2, höchstens 4 (je ca. 30–40 MB Speicher).
+const WORKER_COUNT = Math.max(2, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+// Nachrichtenfotos (meist 600–1000 px) nicht vergrößern: kostet viel Rechenzeit, bringt bei
+// Schrift in Teaserbildern nichts. Nur wirklich kleine Bilder werden vergrößert.
+const MAX_SIDE = 1200;
+const UPSCALE_BELOW = 500;
 const MAX_UPSCALE = 2;
 const IDLE_TERMINATE_MS = 5 * 60 * 1000;
 
@@ -118,11 +121,45 @@ function cleanWords(tsv) {
   return [...lines.values()].map((w) => w.join(' ')).join('\n');
 }
 
+/**
+ * Canvas als unkomprimiertes 24-Bit-BMP. Tesseract bekäme sonst das Canvas selbst und würde es
+ * per canvas.toBlob() umwandeln – das dauert im Offscreen Document jedes Mal genau 1 s (Chrome
+ * erledigt es erst bei Leerlauf, den diese unsichtbare Seite nie meldet). Die eigentliche
+ * Texterkennung braucht nur 30–100 ms. BMP ist trivial und liest Tesseract (Leptonica) direkt.
+ */
+function canvasToBmp(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  const row = (w * 3 + 3) & ~3; // Zeilen auf 4 Byte auffüllen
+  const size = 54 + row * h;
+  const buf = new ArrayBuffer(size);
+  const v = new DataView(buf);
+  const out = new Uint8Array(buf);
+  v.setUint16(0, 0x4d42, true); // "BM"
+  v.setUint32(2, size, true);
+  v.setUint32(10, 54, true); // Beginn der Bilddaten
+  v.setUint32(14, 40, true); // BITMAPINFOHEADER
+  v.setInt32(18, w, true);
+  v.setInt32(22, h, true); // positiv = Zeilen von unten nach oben
+  v.setUint16(26, 1, true);
+  v.setUint16(28, 24, true);
+  v.setUint32(34, row * h, true);
+  for (let y = 0; y < h; y++) {
+    let o = 54 + (h - 1 - y) * row;
+    for (let x = 0, i = y * w * 4; x < w; x++, i += 4) {
+      out[o++] = px[i + 2]; // B
+      out[o++] = px[i + 1]; // G
+      out[o++] = px[i]; // R
+    }
+  }
+  return out;
+}
+
 async function recognize(dataUrl) {
   clearTimeout(idleTimer);
   const scheduler = await getScheduler();
-  const canvas = await prepare(dataUrl);
-  const { data } = await scheduler.addJob('recognize', canvas, {}, { text: false, tsv: true });
+  const bmp = canvasToBmp(await prepare(dataUrl));
+  const { data } = await scheduler.addJob('recognize', bmp, {}, { text: false, tsv: true });
   return cleanWords(data.tsv);
 }
 
