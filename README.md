@@ -249,6 +249,19 @@ Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
 - **Übersicht in den Einstellungen:** Status, die stärksten Wörter je Richtung, die letzten
   Bewertungen (einzeln löschbar) und „Gelerntes zurücksetzen“.
 
+**Gemessen und nicht eingebaut** (gleiche Simulation, jeweils gegen den Lernfilter wie oben):
+
+- *Gezielt nachfragen* bei Grenzfällen (wo die KI am unsichersten ist): Diese Bewertungen
+  lehren nicht mehr als die, die ohnehin anfallen, teils weniger („nur Gewalt“: 8 statt 4,5
+  Fehler). Ein Wochenrückblick mit zufälligen Beispielen brächte wenig (22 → 19 Fehler),
+  verschlechterte das Profil „sensibel“ und müsste besuchte Texte speichern.
+- *Schlagwort-Vorschläge* aus häufigen Wörtern in 👎-Bewertungen: Vorgeschlagen werden vor
+  allem Orts- und Parteinamen. Übernommen blenden sie alles dazu aus, bis zu dreimal so
+  viele Fehltreffer.
+- *Altern alter Bewertungen*: Mit den vorhandenen Daten (eine Momentaufnahme) nicht messbar.
+  Es würde den gemessenen Nutzen schwächen. Bewertungen lassen sich einzeln löschen, und
+  gespeichert werden höchstens die letzten 3000.
+
 **Grenzen:** Das Modell lernt Wörter, keine Bedeutung. „Flut“ und „Hochwasser“ sind für es
 verschiedene Dinge, bis beide bewertet wurden. Bilder ohne Schrift beurteilt es nur über
 den Text drumherum.
