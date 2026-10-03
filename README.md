@@ -199,11 +199,22 @@ Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
   welche Wörter und Wortpaare bei dir für „weg“ oder „passt“ sprechen.
 - **Startbedingung:** Ab 10 Bewertungen, davon mindestens 3 je Richtung, entscheidet das
   Modell mit:
-  - **Schlagwort trifft, aber das Modell ist sich sicher, dass du es sehen willst:** Der
-    Inhalt bleibt sichtbar.
+  - **Schlagwort trifft, aber das Modell ist sich sehr sicher, dass du es sehen willst**
+    (über 95 %, mindestens 4 bekannte Wörter): Der Inhalt bleibt sichtbar.
   - **Kein Schlagwort, aber das Modell ist sich sehr sicher, dass du es nicht willst:** Der
-    Inhalt wird ausgeblendet. Die Schwelle ist einstellbar (80/90/95 %) und auch
-    abschaltbar.
+    Inhalt wird ausgeblendet. Die Schwelle ist einstellbar (90/95/98 %, empfohlen 95 %) und
+    auch abschaltbar.
+- **Wie es rechnet:** Gewichtet werden nur Wörter, die mindestens zweimal vorkamen; geglättet
+  wird Richtung ihrer Gesamthäufigkeit, und kein einzelnes Wort entscheidet allein. Wie oft
+  du „weg“ oder „passt“ wählst, zählt nicht – man bewertet vor allem, was falsch lief.
+
+  Bis 1.15 war das anders und wurde mit vielen Bewertungen schlechter. In einer Simulation
+  (verschiedene Nutzerprofile bewerten 10, 30 oder 100 echte Teaser, geprüft an unabhängigen
+  echten Teasern) blendete der alte Lernfilter nach 100 Bewertungen bis zu 72 harmlose
+  Meldungen aus, oder er ließ belastende durch (36 statt 52 von 56 erkannt). Jetzt: 47 von
+  56 bei 13 Fehltreffern (ohne Bewertungen 52 · 18). Ein zusätzlich getesteter „persönlicher
+  Klassifikator“ auf den KI-Vektoren war in derselben Simulation nicht besser und ist daher
+  nicht eingebaut.
 - **Übersicht in den Einstellungen:** Status, die stärksten Wörter je Richtung, die letzten
   Bewertungen (einzeln löschbar) und „Gelerntes zurücksetzen“.
 

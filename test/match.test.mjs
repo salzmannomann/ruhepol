@@ -347,3 +347,21 @@ test('Echte Beispiele (real-vectors.json): zum Modell, zu den Testdaten und zu d
   const v = SEM.unpackScaled(R.good[0]);
   assert.equal(v.length, 384);
 });
+
+test('Lernfilter: bei ungleich vielen Bewertungen zählen „sehen“-Wörter nicht als „ausblenden“', () => {
+  const L = require('../extension/lib/learn.js');
+  const ratings = [];
+  const bad = ['Neues KI-Modell ersetzt Jobs', 'KI-Chatbot erfindet Zitate', 'OpenAI stellt KI-Modell vor', 'KI-Modell schreibt Hausübungen',
+    'Konzern setzt auf KI-Modell', 'KI-Modell erkennt Gesichter', 'Streit um KI-Modell', 'KI-Modell im Test', 'Regeln für KI-Modell', 'KI-Modell lernt Sprache'];
+  bad.forEach((t) => ratings.push({ text: t, label: 'b' }));
+  // 90 harmlose, jeweils mit eigenen Wörtern, die nur einmal vorkommen
+  for (let i = 0; i < 90; i++) ratings.push({ text: `Gemeindefest${i} Sonntagsmarkt${i} Radweg${i} eröffnet`, label: 'o' });
+  ratings.push({ text: 'Probealarm Sirenen Zivilschutz am Samstag', label: 'o' });
+  const m = L.build(ratings);
+  // Wörter, die einmal bei „sehen“ vorkamen, dürfen nicht Richtung „ausblenden“ zeigen
+  const s1 = L.score(m, 'Probealarm: Sirenen beim Zivilschutz am Samstag getestet');
+  assert.ok(!s1 || s1.p <= 0.5, JSON.stringify(s1));
+  // echte Muster werden weiter erkannt
+  const s2 = L.score(m, 'Neues KI-Modell vorgestellt');
+  assert.ok(s2 && s2.p > 0.9, JSON.stringify(s2));
+});

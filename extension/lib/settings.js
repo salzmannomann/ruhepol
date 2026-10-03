@@ -29,7 +29,7 @@
     learn: true,
     // gelernte Inhalte auch ohne Schlagwort ausblenden, ab dieser Sicherheit
     learnHide: true,
-    learnThreshold: 0.9,
+    learnThreshold: 0.95,
     // Bedeutungs-Filter (Stufe 2, lokales Sprachmodell): aus, bis das Modell installiert ist
     semantic: false,
     // 'vorsichtig' | 'mittel' | 'stark'
