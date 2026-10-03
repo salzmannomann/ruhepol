@@ -1,4 +1,4 @@
-/* Schlagwortfilter – nur aktiv, wenn <html> die Klasse sf-active trägt. */
+/* Ruhepol – nur aktiv, wenn <html> die Klasse sf-active trägt. */
 
 /* Bilder, deren Prüfung noch läuft (oder noch nicht begonnen hat), unscharf stellen. */
 html.sf-active img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revealed]) {
@@ -50,7 +50,7 @@ html.sf-active .sf-placeholder {
 }
 html.sf-active .sf-placeholder:hover { background: #e9e9e9 !important; }
 html.sf-active .sf-ph-text { cursor: pointer !important; }
-html.sf-active .sf-ph-text:focus { outline: 2px solid #6b8afd !important; border-radius: 3px !important; }
+html.sf-active .sf-ph-text:focus { outline: 2px solid #5aa0ea !important; border-radius: 3px !important; }
 html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !important; flex-wrap: wrap !important; font-size: 12.5px !important; }
 
 .sf-feedback {
@@ -61,8 +61,8 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   margin: 4px 0 !important;
   padding: 6px 10px !important;
   border-radius: 6px !important;
-  background: #eef1ff !important;
-  border: 1px solid #c5cdfa !important;
+  background: #eef6ff !important;
+  border: 1px solid #bcd8f5 !important;
   font-size: 13px !important;
 }
 
@@ -73,7 +73,7 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   background: #fff !important;
 }
 @media (prefers-color-scheme: dark) {
-  .sf-feedback.sf-overlay { background: #262a3d !important; }
+  .sf-feedback.sf-overlay { background: #1f2a36 !important; }
 }
 
 .sf-btn {
@@ -87,11 +87,11 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
 }
 .sf-chips { display: inline-flex !important; flex-wrap: wrap !important; gap: 5px !important; }
 .sf-btn.sf-chip { border-radius: 999px !important; }
-.sf-btn.sf-chip.sf-on { background: #3d5afe !important; border-color: #3d5afe !important; color: #fff !important; }
+.sf-btn.sf-chip.sf-on { background: #2f7fd6 !important; border-color: #2f7fd6 !important; color: #fff !important; }
 .sf-btn.sf-primary { font-weight: 600 !important; }
 .sf-btn:disabled { opacity: 0.45 !important; cursor: default !important; }
-.sf-btn:hover { background: #f0f3ff !important; border-color: #6b8afd !important; }
-.sf-btn:focus-visible { outline: 2px solid #6b8afd !important; }
+.sf-btn:hover { background: #eef6ff !important; border-color: #5aa0ea !important; }
+.sf-btn:focus-visible { outline: 2px solid #5aa0ea !important; }
 
 .sf-toast {
   position: fixed !important;
@@ -114,16 +114,16 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   .sf-feedback * { color: #ddd !important; }
   html.sf-active .sf-placeholder { background: #2a2a2a !important; border-color: #666 !important; }
   html.sf-active .sf-placeholder:hover { background: #333 !important; }
-  .sf-feedback { background: #262a3d !important; border-color: #46507e !important; }
+  .sf-feedback { background: #1f2a36 !important; border-color: #3b5f86 !important; }
   .sf-btn { background: #1e1e1e !important; border-color: #555 !important; }
-  .sf-btn:hover { background: #2b3050 !important; }
+  .sf-btn:hover { background: #24384d !important; }
 }
 
 /* Bereichsauswahl */
 .sf-pick {
-  outline: 3px dashed #3d5afe !important;
+  outline: 3px dashed #2f7fd6 !important;
   outline-offset: 2px !important;
-  background-color: rgba(61, 90, 254, 0.06) !important;
+  background-color: rgba(47, 127, 214, 0.07) !important;
 }
 .sf-feedback.sf-picker {
   position: fixed !important;
@@ -178,7 +178,7 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
 }
 .sf-ring-bg { stroke: #d6d9e6 !important; }
 .sf-ring-fg {
-  stroke: #3d5afe !important;
+  stroke: #2f7fd6 !important;
   stroke-linecap: round !important;
   /* Umfang 2·π·8 ≈ 50.3; ohne !important, damit die Animation den Wert ändern kann */
   stroke-dasharray: 50.3 !important;
@@ -200,8 +200,8 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
 }
 
 @media (prefers-color-scheme: dark) {
-  .sf-feedback.sf-picker { background: #262a3d !important; }
+  .sf-feedback.sf-picker { background: #1f2a36 !important; }
   .sf-ring-bg { stroke: #4a4f66 !important; }
-  .sf-ring-fg { stroke: #8c9eff !important; }
+  .sf-ring-fg { stroke: #7db7ff !important; }
   .sf-holdring { background: rgba(30, 30, 34, 0.92) !important; }
 }

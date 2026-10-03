@@ -224,7 +224,7 @@
     const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `schlagwortfilter-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `ruhepol-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();

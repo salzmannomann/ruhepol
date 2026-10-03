@@ -1,7 +1,10 @@
-# Schlagwortfilter
+# Ruhepol
 
-Chrome-Erweiterung (Manifest V3), die Inhalte mit bestimmten Schlagwörtern ausblendet –
-auch wenn das Wort nur als Schrift **im Bild** steht. Die Texterkennung (OCR) läuft mit
+<img src="extension/icons/icon128.png" alt="" width="96" align="right">
+
+Chrome-Erweiterung (Manifest V3), die belastende Inhalte sanft unscharf stellt – nach
+Schlagwörtern, Themen und dem, was du ihr beibringst, auch wenn das Wort nur als Schrift
+**im Bild** steht. (Früherer Arbeitstitel: „Schlagwortfilter“.) Die Texterkennung (OCR) läuft mit
 [tesseract.js](https://github.com/naptha/tesseract.js) komplett lokal in der Erweiterung:
 keine externen Server, keine CDNs. Einstellungen und Bewertungen werden höchstens über die
 Chrome-Synchronisierung des eigenen Google-Kontos abgeglichen.
@@ -37,10 +40,10 @@ Voraussetzung zum Bauen: [Node.js](https://nodejs.org/) ab Version 18.
 3. Rechts oben den **Entwicklermodus** einschalten.
 4. **Entpackte Erweiterung laden** anklicken und den Ordner **`extension`** in diesem
    Projekt auswählen (nicht den Projektordner selbst).
-5. Optional: Das Puzzle-Symbol in der Symbolleiste anklicken und den Schlagwortfilter
+5. Optional: Das Puzzle-Symbol in der Symbolleiste anklicken und den Ruhepol
    anheften.
 
-Nach Änderungen am Code auf `chrome://extensions` beim Schlagwortfilter auf den
+Nach Änderungen am Code auf `chrome://extensions` beim Ruhepol auf den
 Neu-laden-Pfeil klicken und offene Tabs neu laden.
 
 > **Update von 1.0.0 auf 1.1.0:** Ab 1.1.0 hat die Erweiterung eine feste Kennung (`key` im

@@ -1,8 +1,8 @@
 {
-  "name": "schlagwortfilter",
-  "version": "1.4.1",
+  "name": "ruhepol",
+  "version": "1.5.0",
   "private": true,
-  "description": "Chrome-Erweiterung (MV3), die Inhalte mit bestimmten Schlagwörtern ausblendet – auch wenn das Wort nur als Schrift im Bild steht (OCR mit tesseract.js, komplett lokal).",
+  "description": "Ruhepol: Chrome-Erweiterung (MV3), die belastende Inhalte unscharf stellt – auch Schrift in Bildern (OCR), Themen per lokalem Sprachmodell, lernt aus Bewertungen. Komplett lokal.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "fetch-lang": "node scripts/fetch-lang.mjs",
