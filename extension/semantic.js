@@ -47,6 +47,9 @@ function embed(model, texts, prefix) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // Bereitschafts-Ping: dieses Modul wird als letztes Skript des Dokuments ausgeführt, also
+  // hören dann auch Texterkennung (offscreen.js) und Chrome-Modell schon zu.
+  if (msg && msg.target === 'offscreen' && msg.type === 'ping') { sendResponse(true); return false; }
   if (!msg || msg.target !== 'offscreen' || msg.type !== 'embed') return false;
   embed(msg.model, msg.texts, msg.prefix)
     .then((vectors) => sendResponse({ ok: true, vectors }))

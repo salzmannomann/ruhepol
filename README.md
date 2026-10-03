@@ -240,7 +240,9 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
   mit onnxruntime-web, WebAssembly), damit es die Bildvorbereitung für die Texterkennung
   nicht aufhält. Es lädt ausschließlich aus dem Paket, Downloads aus dem Internet sind
   abgeschaltet.
-- Das Laden dauert beim ersten Mal ca. 5 s; Ruhepol beginnt damit schon beim Seitenaufbau.
+- Das Laden dauert beim ersten Mal ca. 5 s. Ruhepol beginnt damit schon beim Start von
+  Chrome (und beim Einschalten des Bedeutungs-Filters), sonst beim ersten Seitenaufbau. So
+  wird auch eine Nachrichten-Startseite gleich nach dem Start schneller beurteilt.
   Nach 15 Minuten ohne Arbeit wird das Modell entladen (ca. 250 MB Arbeitsspeicher frei).
 - Berechnete Vektoren (Bezugstexte und Schlagzeilen) werden dauerhaft lokal gespeichert
   (höchstens 6000, ca. 2 KB je Text). Eine schon besuchte Nachrichtenseite wird dadurch
