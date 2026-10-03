@@ -649,6 +649,27 @@ function topicCount(settings) {
 }
 
 /** Bezugspunkte zusammenstellen; Bewertungs-Vektoren werden dauerhaft gespeichert. */
+let realCache = null; // { model, bad: [{topics, v}], good: [v] } oder false
+
+/** Mitgelieferte Vektoren echter Teaser (lib/real-vectors.json), nur fürs passende Modell. */
+async function realVectors(model) {
+  if (realCache && realCache.model === model) return realCache;
+  if (realCache === false) return null;
+  try {
+    const data = await (await fetch(chrome.runtime.getURL('lib/real-vectors.json'))).json();
+    if (data.model !== model) return null;
+    realCache = {
+      model,
+      bad: data.bad.map((b) => ({ topics: b.topics, v: SFSemantic.unpackScaled(b.v) })),
+      good: data.good.map((g) => SFSemantic.unpackScaled(g)),
+    };
+    return realCache;
+  } catch (_) {
+    realCache = false;
+    return null;
+  }
+}
+
 async function semReference(settings, model) {
   const anchors = anchorTexts(settings);
   const key = JSON.stringify([model, anchors, settings.wishYes]);
@@ -683,6 +704,15 @@ async function semReference(settings, model) {
     const badEx = SFExamples.badFor(settings.presets);
     ref.exBad = badEx.length ? await embedTexts(model, badEx) : [];
     ref.exGood = await embedTexts(model, SFExamples.NEUTRAL);
+    // Echte, von Hand eingestufte Teaser (nur Vektoren); belastende nur zu gesperrten Themen.
+    const real = await realVectors(model);
+    if (real) {
+      const active = new Set(settings.presets);
+      const bad = real.bad.filter((b) => b.topics.some((t) => active.has(t))).map((b) => b.v);
+      ref.exBad = ref.exBad.concat(bad);
+      ref.exGood = ref.exGood.concat(real.good);
+      ref.exReal = true;
+    }
   }
   const nAbout = SFPresets.aboutFor(settings.presets).length;
   ref.wishNo = anchorVecs.slice(nAbout, nAbout + settings.wishNo.length);

@@ -1,6 +1,6 @@
 {
   "name": "ruhepol",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "private": true,
   "description": "Ruhepol: Chrome-Erweiterung (MV3), die belastende Inhalte unscharf stellt – auch Schrift in Bildern (OCR), Themen per lokalem Sprachmodell, lernt aus Bewertungen. Komplett lokal.",
   "scripts": {
@@ -16,7 +16,8 @@
     "fetch-model": "node scripts/fetch-model.mjs",
     "test:semantik": "node test/semantik.mjs",
     "kalibrieren": "node test/kalibrierung.mjs",
-    "test:nano": "node test/nano.mjs"
+    "test:nano": "node test/nano.mjs",
+    "beispielvektoren": "node test/make-real-vectors.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",

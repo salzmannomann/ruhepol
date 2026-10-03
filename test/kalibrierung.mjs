@@ -108,7 +108,9 @@ try {
     const M = require('../extension/lib/match.js');
     const m = M.compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
     const data = JSON.parse(readFileSync(join(here, 'fixtures', 'real-headlines.json'))).daten.filter((x) => x.y !== 'X');
-    console.log('\nEchte Teaser (Schlagwörter + KI; in Klammern KI allein):');
+    console.log('\nEchte Teaser (Schlagwörter + KI; in Klammern KI allein).');
+    console.log('Achtung: A steckt (als Vektoren, lib/real-vectors.json) selbst in der Beispielsammlung –');
+    console.log('aussagekräftig ist nur B (A ohne Selbsttreffer gemessen: siehe README).');
     for (const set of ['A', 'B']) {
       const lab = data.filter((x) => x.set === set);
       const nB = lab.filter((x) => x.y === 'B').length, nU = lab.length - nB;

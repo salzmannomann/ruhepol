@@ -259,9 +259,13 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 Videolängen, Bildnachweise). Dann zählt das Mittel aus zwei Vergleichen:
 1. Nähe zu den Themenbeschreibungen (und deinen Bewertungen, Schlagwörtern, Wünschen) minus
    Nähe zu neutralen Vergleichstexten,
-2. Nähe zu den 3 ähnlichsten von rund 160 belastenden Beispiel-Schlagzeilen der aktivierten
-   Themen minus Nähe zu den 3 ähnlichsten von rund 125 harmlosen
-   (`extension/lib/examples.js`, selbst formuliert).
+2. Nähe zu den 3 ähnlichsten belastenden Beispielen der aktivierten Themen minus Nähe zu den
+   3 ähnlichsten harmlosen. Die Beispiele: rund 160 belastende und 125 harmlose, selbst
+   formuliert (`extension/lib/examples.js`), dazu 96 belastende und 357 harmlose **echte
+   Teaser** von orf.at und derStandard, von Hand eingestuft. Von den echten Teasern sind nur
+   die berechneten Vektoren in der Erweiterung (`extension/lib/real-vectors.json`, keine
+   Texte); jeder belastende hat ein oder mehrere Themen und zählt nur, wenn eines davon
+   gesperrt ist. Neu erzeugen mit `npm run beispielvektoren`.
 
 **Gemessen** an echten Teasern von orf.at und derStandard vom 3. Oktober 2026, von Hand
 eingestuft (`test/fixtures/real-headlines.json`, `npm run kalibrieren`). Datensatz A
@@ -275,10 +279,20 @@ harmlose fälschlich unscharf, Schlagwörter und Bedeutungs-Filter zusammen:
 | A vorher | 81/96 · 12 | 88/96 · 25 | 92/96 · 47 |
 | A jetzt | 83/96 · 12 | 85/96 · 18 | 88/96 · 28 |
 | B vorher | 46/56 · 22 | 51/56 · 26 | 52/56 · 38 |
-| B jetzt | 51/56 · 24 | 52/56 · 29 | 53/56 · 33 |
+| B mit eigenen Beispielen | 51/56 · 24 | 52/56 · 29 | 53/56 · 33 |
+| **B mit echten Beispielen (jetzt)** | **52/56 · 14** | **52/56 · 19** | **52/56 · 21** |
 
-Der Bedeutungs-Filter allein (ohne Schlagwörter) erkennt auf A jetzt 73 statt 67 belastende
-bei 10 statt 21 Fehltreffern (Stufe mittel). Zusammen mit den Schlagwörtern ist der Gewinn
+Die letzte Zeile ist die ehrlichste Messung: B war beim Abstimmen nie im Spiel. Die Schwellen
+mit echten Beispielen wurden auf A so bestimmt, dass jeder Teaser sich selbst nicht als
+Beispiel sehen durfte (A dann: 90/96 · 12, 92/96 · 16, 93/96 · 21). In den B-Zahlen der letzten
+Zeile stecken die eingebauten Ausnahmen der Schlagwortlisten (siehe unten). Von den 19
+Fehltreffern auf Stufe mittel kommen 12 von den Schlagwortlisten selbst, nur 7 vom
+Bedeutungs-Filter.
+
+Echte Beispiele schlagen selbst formulierte: In einem Vorversuch brachten sie auf B bei
+gleicher Fehltrefferzahl 2–3 Treffer mehr; noch mehr Beispiele (eigene + echte) brachten
+darüber hinaus nichts. Laufend aktualisierte Datenbanken (etwa GDELT) würden daher wenig
+bringen – deine eigenen 👍/👎-Bewertungen wirken genauso, nur auf dich zugeschnitten. Zusammen mit den Schlagwörtern ist der Gewinn
 kleiner: Das kleine Sprachmodell kann Teaser wie „Wie Unternehmen 2027 Gehälter erhöhen“
 und „Brücke in Kyjiw von Drohne getroffen“ nur begrenzt auseinanderhalten. Ein größeres
 Modell (multilingual-e5-base, 280 MB) war in derselben Messung schlechter, nicht besser.
