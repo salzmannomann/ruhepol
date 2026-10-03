@@ -60,7 +60,7 @@ async function main() {
       }, null, { timeout: 5000 });
     });
 
-    await step('Gedrückthalten (Standard): Ladekreis an der Druckstelle, 2 s halten zeigt an', async () => {
+    await step('Gedrückthalten (Standard): Ladekreis in der Mitte des Blocks, 2 s halten zeigt an', async () => {
       assert.equal(await sw.evaluate(async () => (await chrome.storage.sync.get('revealHold')).revealHold), true, 'nicht Standard');
       await setSettings(sw, { display: 'blur' });
       await page.waitForFunction(() => document.querySelector('#x-hold').classList.contains('sf-blurred'));
@@ -70,9 +70,11 @@ async function main() {
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'kurzer Klick hat aufgedeckt');
       assert.match(await page.textContent('.sf-toast'), /gedrückt halten/i);
       assert.equal(await page.locator('.sf-overlay').count(), 0);
-      // Gedrückt halten: Kreis erscheint sofort an der Druckstelle und füllt sich.
+      // Gedrückt halten (absichtlich am Rand): Kreis erscheint sofort in der Blockmitte und füllt sich.
       const box = await page.locator('#x-hold h2').boundingBox();
       const x = box.x + 20, y = box.y + box.height / 2;
+      const blk = await page.locator('#x-hold').boundingBox();
+      const cx = blk.x + blk.width / 2, cy = blk.y + blk.height / 2;
       await page.mouse.move(x, y);
       await page.mouse.down();
       await page.waitForTimeout(150);
@@ -80,7 +82,8 @@ async function main() {
         const r = document.querySelector('.sf-holdring').getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       });
-      assert.ok(Math.abs(pos.x - x) < 3 && Math.abs(pos.y - y) < 3, `Kreis nicht an der Druckstelle (${JSON.stringify(pos)})`);
+      assert.ok(Math.abs(pos.x - cx) < 3 && Math.abs(pos.y - cy) < 3, `Kreis nicht in der Blockmitte (${JSON.stringify({ pos, cx, cy })})`);
+      assert.ok(Math.abs(pos.x - x) > 50, 'Kreis sitzt unter dem Mauszeiger statt in der Mitte');
       await page.waitForTimeout(850);
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'nach 1 s schon offen');
       const offset = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sf-holdring .sf-ring-fg')).strokeDashoffset.replace('px', '')));

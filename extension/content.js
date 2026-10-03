@@ -17,7 +17,7 @@
   const PRIMARY_BLOCKS = 'article, li, figure';
   const IDLE_BUDGET_MS = 8;
   const OBSERVER_THROTTLE_MS = 100;
-  const OCR_MARGIN = '600px';
+  const OCR_MARGIN = '1200px'; // vorausschauend prüfen, damit Bilder beim Hinscrollen schon fertig sind
   const LEARN_KEEP = 0.2; // Schlagwort-Treffer zeigen, wenn das Modell sicher "will ich sehen" sagt
   const LEARN_CANDIDATES = 'article, li, figure, h1, h2, h3, h4';
   const OWN_CLASSES = ['sf-placeholder', 'sf-feedback', 'sf-toast'];
@@ -81,6 +81,8 @@
     settings = s;
     model = local.model || null;
     apply();
+    // Sprachmodell und Bezugstexte schon laden, während die Seite noch aufbaut.
+    if (active && semanticOn()) chrome.runtime.sendMessage({ type: 'semWarm' }).catch(() => {});
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local' || !changes.model) return;
       const wasHiding = learningHides();
@@ -291,7 +293,10 @@
       if (budget() <= 1) break;
     }
     if (pendingRoots.size || activeWalker) idleHandle = requestIdle(work);
-    else { flushOcr(); scheduleLearn(); }
+    else flushOcr();
+    // Lernfilter/Sprachmodell nicht erst nach dem ganzen Textscan: auf Seiten mit Tickern wird der
+    // nie fertig. Ein Block, der danach noch ein Schlagwort trifft, wird einfach übersprungen.
+    scheduleLearn();
     reportCount();
   }
 
@@ -335,7 +340,8 @@
       }
     }
     if (zoneRules.length) applyZones();
-    if (!pendingRoots.size) { flushOcr(); scheduleLearn(); }
+    if (!pendingRoots.size) flushOcr();
+    scheduleLearn();
   }
 
   function isOwn(n) {
@@ -587,7 +593,7 @@
    * OCR erst starten, wenn der Textscan durch ist: Steht das Schlagwort schon im Teaser-Text,
    * ist der Block bereits ausgeblendet und das Bild muss nicht gelesen werden.
    */
-  const OCR_MAX_WAIT_MS = 1500;
+  const OCR_MAX_WAIT_MS = 400; // Texterkennung kostet nur noch ~0,2 s: nicht lange auf den Textscan warten
   let ocrWaitTimer = null;
 
   function flushOcr() {
@@ -1535,7 +1541,7 @@
   }
 
   /**
-   * Unscharfer Block: Drücken startet sofort den Ladekreis an der Druckstelle; wer gedrückt hält,
+   * Unscharfer Block: Drücken startet sofort den Ladekreis in der Blockmitte; wer gedrückt hält,
    * bis er voll ist, sieht den Inhalt. Loslassen, Wegziehen oder Scrollen bricht ab. Ohne die
    * Option „Gedrückthalten“ genügt ein Klick. Klicks auf Links im unscharfen Block werden
    * abgefangen.
@@ -1547,7 +1553,7 @@
     const block = ev.currentTarget;
     ev.preventDefault();
     ev.stopPropagation();
-    beginHold(ev, () => revealBlurred(block));
+    beginHold(ev, () => revealBlurred(block), block);
   }
 
   /** Bilder, die noch geprüft werden, lassen sich ebenso per Gedrückthalten aufdecken. */
@@ -1566,7 +1572,7 @@
     beginHold(ev, () => {
       swallowNextClick();
       img.dataset.sfRevealed = '1';
-    });
+    }, img);
   }
 
   function onPendingClick(ev) {
@@ -1574,10 +1580,21 @@
     if (active && pendingImageAt(ev.target)) { ev.preventDefault(); ev.stopPropagation(); }
   }
 
-  function beginHold(ev, onDone) {
+  /** Mitte des sichtbaren Teils eines Elements (lange Artikel ragen oft aus dem Fenster). */
+  function visibleCenter(el) {
+    const r = el.getBoundingClientRect();
+    const left = Math.max(r.left, 0), right = Math.min(r.right, window.innerWidth);
+    const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, window.innerHeight);
+    if (right <= left || bottom <= top) return null;
+    return { x: (left + right) / 2, y: (top + bottom) / 2 };
+  }
+
+  function beginHold(ev, onDone, el) {
     if (!settings.revealHold) { onDone(); return; }
     cancelHold();
-    const ring = holdRing(ev.clientX, ev.clientY);
+    // Ladekreis in der Mitte des Bildes bzw. Textblocks, nicht unter dem Mauszeiger.
+    const c = (el && visibleCenter(el)) || { x: ev.clientX, y: ev.clientY };
+    const ring = holdRing(c.x, c.y);
     hold = { ring, x: ev.clientX, y: ev.clientY, timer: setTimeout(() => {
       cancelHold();
       onDone();
@@ -1616,7 +1633,7 @@
     window.removeEventListener('blur', onHoldCancel, true);
   }
 
-  /** Ladekreis an der Druckstelle (fixiert, fängt keine Mausereignisse ab). */
+  /** Ladekreis an der angegebenen Stelle (fixiert, fängt keine Mausereignisse ab). */
   function holdRing(x, y) {
     const wrap = document.createElement('div');
     wrap.className = 'sf-holdring sf-holding';

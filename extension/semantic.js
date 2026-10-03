@@ -1,50 +1,49 @@
 /*
- * Offscreen Document, Teil 2: lokales Sprachmodell für den Bedeutungs-Filter.
- * Lädt transformers.js und das Modell ausschließlich aus dem Erweiterungspaket
- * (vendor/transformers, vendor/models); Downloads aus dem Internet sind abgeschaltet.
+ * Offscreen Document, Teil 2: Brücke zum Sprachmodell (semantic-worker.js). Das Modell rechnet
+ * in einem eigenen Thread, damit die Bildvorbereitung für die Texterkennung nicht wartet.
+ * Nach 15 Minuten ohne Arbeit wird der Worker beendet und gibt den Speicher frei.
  */
-import { env, pipeline } from './vendor/transformers/transformers.min.js';
+const IDLE_UNLOAD_MS = 15 * 60 * 1000; // Laden dauert ca. 5 s: zwischen zwei Nachrichtenseiten behalten
 
-const IDLE_UNLOAD_MS = 5 * 60 * 1000;
-
-env.allowRemoteModels = false;
-env.allowLocalModels = true;
-env.localModelPath = chrome.runtime.getURL('vendor/models/');
-env.useBrowserCache = false;
-env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('vendor/transformers/');
-// Mehrere Threads bräuchten eine cross-origin-isolierte Seite; ein Thread reicht für Teaser.
-env.backends.onnx.wasm.numThreads = 1;
-
-let extractor = null; // { model, promise }
+let worker = null;
 let idleTimer = null;
+let nextId = 1;
+const pending = new Map(); // id -> { resolve, reject }
 
-function getExtractor(model) {
-  if (!extractor || extractor.model !== model) {
-    if (extractor) extractor.promise.then((e) => e.dispose && e.dispose()).catch(() => {});
-    const promise = pipeline('feature-extraction', model, { dtype: 'q8', device: 'wasm' });
-    extractor = { model, promise };
-    promise.catch(() => { if (extractor && extractor.promise === promise) extractor = null; });
+function getWorker() {
+  if (!worker) {
+    worker = new Worker('semantic-worker.js', { type: 'module' });
+    worker.onmessage = ({ data }) => {
+      const p = pending.get(data.id);
+      if (!p) return;
+      pending.delete(data.id);
+      if (data.ok) p.resolve(data.vectors); else p.reject(new Error(data.error));
+    };
+    worker.onerror = (e) => {
+      for (const p of pending.values()) p.reject(new Error(e.message || 'Sprachmodell abgestürzt'));
+      pending.clear();
+      worker = null;
+    };
   }
-  return extractor.promise;
+  return worker;
 }
 
 function scheduleUnload() {
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(async () => {
-    const e = extractor;
-    extractor = null;
-    if (e) {
-      try { (await e.promise).dispose(); } catch (_) { /* egal */ }
-    }
+  idleTimer = setTimeout(() => {
+    if (pending.size) return scheduleUnload();
+    if (worker) worker.terminate();
+    worker = null;
   }, IDLE_UNLOAD_MS);
 }
 
-async function embed(model, texts, prefix) {
+function embed(model, texts, prefix) {
   clearTimeout(idleTimer);
-  const ex = await getExtractor(model);
-  const out = await ex(texts.map((t) => (prefix || '') + t), { pooling: 'mean', normalize: true });
-  // Auf 4 Nachkommastellen runden: kleinere Nachrichten, ohne messbaren Genauigkeitsverlust.
-  return out.tolist().map((v) => v.map((x) => Math.round(x * 1e4) / 1e4));
+  return new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, { resolve, reject });
+    getWorker().postMessage({ id, model, texts, prefix });
+  });
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
