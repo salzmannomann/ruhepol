@@ -243,6 +243,25 @@ async function main() {
       await opt.close();
       await page.waitForFunction(() => !document.querySelector('#r-sport').classList.contains('sf-blurred'), null, { timeout: 5000 });
     });
+
+    await step('Kaltstart: Bildprüfungen kurz nach dem Start gehen nicht verloren', async () => {
+      const res = await sw.evaluate(async () => {
+        await chrome.offscreen.closeDocument().catch(() => {});
+        offscreenReady = null;
+        const c = new OffscreenCanvas(200, 60);
+        const g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, 200, 60); g.fillStyle = '#000'; g.font = '28px sans-serif';
+        const urls = [];
+        for (let i = 0; i < 24; i++) {
+          g.fillRect(190, 0, 2 + i, 2); // jedes Bild etwas anders
+          urls.push(await blobToDataUrl(await c.convertToBlob({ type: 'image/png' })));
+        }
+        // gestaffelt: einige Aufträge kommen, während das Dokument schon existiert, aber noch lädt
+        return Promise.all(urls.map((d, i) => new Promise((r) => setTimeout(r, i * 15)).then(() => runJob(null, d))));
+      });
+      const bad = res.filter((r) => !r.ok);
+      assert.equal(bad.length, 0, JSON.stringify(bad));
+    });
   } finally {
     await close();
     srv.close();

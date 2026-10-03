@@ -87,7 +87,34 @@ async function cacheSize() {
 let creatingOffscreen = null;
 let offscreenIdleTimer = null;
 
+let offscreenReady = null; // Promise: Dokument existiert und alle Skripte hören zu
+
 async function ensureOffscreen() {
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+  if (!contexts.length) offscreenReady = null;
+  if (!offscreenReady) {
+    offscreenReady = createAndPing().catch((e) => { offscreenReady = null; throw e; });
+  }
+  return offscreenReady;
+}
+
+/**
+ * Dokument anlegen (falls nötig) und warten, bis es auf ein Ping antwortet. createDocument ist
+ * fertig, bevor die Skripte geladen sind; eine Nachricht in diesem Moment scheitert mit
+ * „Receiving end does not exist“ – bei mehreren gleichzeitigen Aufträgen kam das oft vor.
+ */
+async function createAndPing() {
+  await createOffscreen();
+  for (let i = 0; i < 100; i++) {
+    try {
+      if (await chrome.runtime.sendMessage({ target: 'offscreen', type: 'ping' })) return;
+    } catch (_) { /* noch nicht bereit */ }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('Offscreen Document antwortet nicht');
+}
+
+async function createOffscreen() {
   const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
   if (contexts.length) return;
   if (!creatingOffscreen) {
@@ -110,6 +137,7 @@ function scheduleOffscreenClose() {
   clearTimeout(offscreenIdleTimer);
   offscreenIdleTimer = setTimeout(async () => {
     if (active > 0 || queue.length || semActive > 0 || nanoActive > 0) return;
+    offscreenReady = null;
     try { await chrome.offscreen.closeDocument(); } catch (_) { /* schon zu */ }
   }, OFFSCREEN_IDLE_MS);
 }
@@ -820,6 +848,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onStartup.addListener(() => {
   createMenus();
   pullSync().then(schedulePush).catch(() => {});
+  // Sprachmodell gleich beim Chrome-Start laden (ca. 5 s), damit auch die erste Seite – etwa eine
+  // Nachrichten-Startseite oder wiederhergestellte Tabs – sofort beurteilt wird. Ohne Surfen wird
+  // es nach 15 Minuten wieder entladen.
+  semWarm();
+});
+
+// Bedeutungs-Filter eben eingeschaltet: Modell schon laden, bevor die nächste Seite kommt.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.semantic && changes.semantic.newValue === true && !changes.semantic.oldValue) semWarm();
 });
 
 /* ---------------- Nachrichten ---------------- */

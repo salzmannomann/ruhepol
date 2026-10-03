@@ -34,6 +34,16 @@ async function main() {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('Seitenfehler:', e));
 
+    await step('Einschalten lädt das Modell schon vorab (wie beim Chrome-Start)', async () => {
+      await setSettings(sw, { semantic: false });
+      await sw.evaluate(() => { semRef = null; });
+      await setSettings(sw, { semantic: true });
+      await sw.evaluate(async () => {
+        for (let i = 0; i < 100 && !semRef; i++) await new Promise((r) => setTimeout(r, 100));
+        if (!semRef) throw new Error('Modell/Bezugstexte nicht vorgeladen');
+      });
+    });
+
     await step('Ohne Schlagwort: Klima-Artikel über Themen-Beschreibung erkannt', async () => {
       await page.goto(srv.base + '/semantik.html');
       await hidden(page, '#s-klima');
