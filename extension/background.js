@@ -359,7 +359,7 @@ async function pushSync() {
     await chrome.storage.sync.set(data);
     if (stale.length) await chrome.storage.sync.remove(stale);
   } catch (e) {
-    console.warn('Schlagwortfilter: Sync fehlgeschlagen', e);
+    console.warn('Ruhepol: Sync fehlgeschlagen', e);
   }
 }
 
