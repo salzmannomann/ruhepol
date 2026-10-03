@@ -3,7 +3,6 @@
 /* Bilder, deren Prüfung noch läuft (oder noch nicht begonnen hat), unscharf stellen. */
 html.sf-active img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revealed]) {
   filter: blur(18px) !important;
-  transition: filter 0.15s ease-out;
 }
 
 /* CSS-Hintergrundbilder und Video-Vorschaubilder während der Prüfung. */

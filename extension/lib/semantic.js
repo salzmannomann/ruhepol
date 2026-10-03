@@ -177,8 +177,12 @@
     const hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
     // Gegenprüfung ohne die eigenen Schlagwörter als Anker – sonst läge ein Treffer auf
     // „Museum“ immer nah am Anker „Museum“ und könnte nie als harmlos gelten.
-    const badTopic = Math.max(topK(vec, ref.b, 3), maxSim(vec, ref.topics || ref.anchors));
-    return { hide, veto: good - badTopic >= cfg.veto, bad: round(bad), good: round(good) };
+    // Ohne Themen und ohne „ausblenden“-Bewertungen gibt es nichts zu vergleichen: kein Veto
+    // (sonst läge jeder Text „näher am Neutralen“ als an nichts).
+    const topics = ref.topics || ref.anchors;
+    const canVeto = topics.length > 0 || ref.b.length > 0;
+    const badTopic = Math.max(topK(vec, ref.b, 3), maxSim(vec, topics));
+    return { hide, veto: canVeto && good - badTopic >= cfg.veto, bad: round(bad), good: round(good) };
   }
 
   function round(x) {

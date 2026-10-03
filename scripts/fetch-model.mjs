@@ -11,7 +11,9 @@ import { pipeline } from 'node:stream/promises';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const model = process.env.SF_MODEL || 'Xenova/multilingual-e5-small';
-const base = `https://huggingface.co/${model}/resolve/main`;
+// Feste Revision: passt zu den SHA-256-Prüfsummen unten, auch wenn das Repo sich ändert.
+const REVISION = process.env.SF_MODEL ? 'main' : '761b726dd34fb83930e26aab4e9ac3899aa1fa78';
+const base = `https://huggingface.co/${model}/resolve/${REVISION}`;
 const dir = join(root, 'extension', 'vendor', 'models', model);
 const force = process.argv.includes('--force');
 

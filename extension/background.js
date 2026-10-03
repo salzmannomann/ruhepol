@@ -39,13 +39,19 @@ function loadCacheIndex() {
   return cacheIndexPromise;
 }
 
+// data:-URLs und sehr lange Adressen nicht cachen: der Schlüssel wäre das ganze Bild.
+const CACHE_KEY_MAX = 2048;
+const cacheable = (url) => url.length <= CACHE_KEY_MAX && !url.startsWith('data:');
+
 async function cacheGet(url) {
+  if (!cacheable(url)) return null;
   const key = CACHE_PREFIX + url;
   const r = await chrome.storage.local.get(key);
   return r[key] || null;
 }
 
 async function cachePut(url, text) {
+  if (!cacheable(url)) return;
   const idx = await loadCacheIndex();
   const ts = Date.now();
   await chrome.storage.local.set({ [CACHE_PREFIX + url]: { t: text, ts } });
@@ -101,7 +107,7 @@ async function ensureOffscreen() {
 function scheduleOffscreenClose() {
   clearTimeout(offscreenIdleTimer);
   offscreenIdleTimer = setTimeout(async () => {
-    if (active > 0 || queue.length) return;
+    if (active > 0 || queue.length || semActive > 0) return;
     try { await chrome.offscreen.closeDocument(); } catch (_) { /* schon zu */ }
   }, OFFSCREEN_IDLE_MS);
 }
@@ -159,6 +165,8 @@ function pump() {
 }
 
 async function runJob(url, dataUrl) {
+  // Offscreen Document zuerst starten: der Kaltstart soll nicht in die 10 s zählen.
+  await ensureOffscreen();
   const controller = new AbortController();
   let timer;
   const timeout = new Promise((resolve) => {
@@ -169,7 +177,6 @@ async function runJob(url, dataUrl) {
   });
   const work = (async () => {
     const src = dataUrl || (await fetchAsDataUrl(url, controller.signal));
-    await ensureOffscreen();
     const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'recognize', dataUrl: src });
     if (!r) return { ok: false, error: 'keine Antwort vom Offscreen Document' };
     if (!r.ok) return { ok: false, error: r.error || 'OCR fehlgeschlagen' };
@@ -185,6 +192,9 @@ async function runJob(url, dataUrl) {
 async function fetchAsDataUrl(url, signal) {
   const res = await fetch(url, { signal, credentials: 'include', cache: 'force-cache' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const type = res.headers.get('content-type') || '';
+  if (type && !/^image\/|octet-stream/i.test(type)) throw new Error('kein Bild');
+  if (Number(res.headers.get('content-length')) > MAX_IMAGE_BYTES) throw new Error('Bild zu groß');
   const blob = await res.blob();
   if (blob.size > MAX_IMAGE_BYTES) throw new Error('Bild zu groß');
   if (blob.size === 0) throw new Error('leeres Bild');
@@ -263,6 +273,7 @@ async function getRatings() {
 async function saveRatings(ratings, model, fromSync) {
   await chrome.storage.local.set({ ratings, model: model || SFLearn.build(ratings) });
   semRef = null; // Bedeutungs-Filter: Bezugspunkte beim nächsten Mal neu zusammenstellen
+  semRefGen++;
   if (!fromSync) schedulePush();
 }
 
@@ -271,7 +282,13 @@ function addRating(text, label, host) {
     text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, RATING_TEXT_MAX);
     if (!text || (label !== 'b' && label !== 'o')) return { ok: false };
     let ratings = await getRatings();
-    // Gleicher Text erneut bewertet: alte Bewertung ersetzen.
+    // Gleicher Text erneut bewertet: alte Bewertung ersetzen – und als gelöscht vermerken,
+    // damit der Abgleich sie nicht von einem anderen Gerät zurückholt.
+    const replaced = ratings.filter((r) => r.text === text).map((r) => r.id);
+    if (replaced.length) {
+      const { syncDeleted = [] } = await chrome.storage.local.get('syncDeleted');
+      await chrome.storage.local.set({ syncDeleted: syncDeleted.concat(replaced).slice(-MAX_TOMBSTONES) });
+    }
     ratings = ratings.filter((r) => r.text !== text);
     ratings.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: Date.now(), label, host: host || '', text });
     if (ratings.length > MAX_RATINGS) ratings = ratings.slice(-MAX_RATINGS);
@@ -293,6 +310,8 @@ function deleteRating(id) {
 function resetLearning() {
   return serialLearn(async () => {
     await chrome.storage.local.set({ ratings: [], model: SFLearn.emptyModel(), syncResetTs: Date.now(), syncDeleted: [] });
+    semRef = null;
+    semRefGen++;
     schedulePush();
     return { ok: true };
   });
@@ -307,7 +326,7 @@ function resetLearning() {
  */
 
 const SYNC_TEXT_MAX = 280;
-const SYNC_BUDGET = 70 * 1024;
+const SYNC_BUDGET = 60 * 1024; // Rest der 100 KB bleibt für die Einstellungen
 const SYNC_CHUNK = 7000;
 const SYNC_PREFIX = 'ratings';
 const MAX_TOMBSTONES = 300;
@@ -328,17 +347,32 @@ async function readSync() {
   return { list, keys: chunks, deleted: all.ratingsDeleted || [], resetTs: all.ratingsReset || 0 };
 }
 
+const utf8 = new TextEncoder();
+const bytes = (v) => utf8.encode(JSON.stringify(v)).length; // Kontingent zählt UTF-8-Bytes
+
 async function pushSync() {
-  const ratings = await getRatings();
   const local = await chrome.storage.local.get(['syncDeleted', 'syncResetTs']);
   const remote = await readSync();
+  // Bewertungen anderer Geräte, die hier noch nicht angekommen sind, nicht verdrängen.
+  const resetTs = Math.max(remote.resetTs || 0, local.syncResetTs || 0);
+  const gone = new Set((remote.deleted || []).concat(local.syncDeleted || []));
+  const byId = new Map();
+  for (const r of remote.list) {
+    if (r && r.id && (r.label === 'b' || r.label === 'o') && r.ts >= resetTs && !gone.has(r.id)) byId.set(r.id, r);
+  }
+  const mine = await getRatings();
+  const mineTexts = new Set(mine.map((r) => r.text.slice(0, SYNC_TEXT_MAX)));
+  for (const [id, r] of byId) if (mineTexts.has(String(r.text || ''))) byId.delete(id); // hier neu bewertet
+  for (const r of mine) byId.set(r.id, r);
+  const ratings = [...byId.values()].sort((a, b) => a.ts - b.ts);
   // Neueste zuerst einpacken, bis das Budget erreicht ist.
   const packed = [];
   let size = 0;
   for (let i = ratings.length - 1; i >= 0; i--) {
     const r = ratings[i];
-    const row = [r.id, r.ts, r.label, r.host, r.text.slice(0, SYNC_TEXT_MAX)];
-    const len = JSON.stringify(row).length + 1;
+    const row = [String(r.id).slice(0, 40), r.ts, r.label, String(r.host || '').slice(0, 100), String(r.text || '').slice(0, SYNC_TEXT_MAX)];
+    const len = bytes(row) + 1;
+    if (len > SYNC_CHUNK) continue;
     if (size + len > SYNC_BUDGET) break;
     size += len;
     packed.unshift(row);
@@ -346,7 +380,7 @@ async function pushSync() {
   const chunks = [];
   let cur = [], curLen = 2;
   for (const row of packed) {
-    const len = JSON.stringify(row).length + 1;
+    const len = bytes(row) + 1;
     if (curLen + len > SYNC_CHUNK && cur.length) { chunks.push(cur); cur = []; curLen = 2; }
     cur.push(row); curLen += len;
   }
@@ -362,6 +396,7 @@ async function pushSync() {
     if (stale.length) await chrome.storage.sync.remove(stale);
   } catch (e) {
     console.warn('Ruhepol: Sync fehlgeschlagen', e);
+    await chrome.storage.local.set({ syncError: String((e && e.message) || e) });
   }
 }
 
@@ -401,10 +436,10 @@ function importRatings(list) {
     const clean = (Array.isArray(list) ? list : [])
       .filter((r) => r && typeof r.text === 'string' && (r.label === 'b' || r.label === 'o'))
       .map((r, i) => ({
-        id: String(r.id || Date.now().toString(36) + i),
+        id: String(r.id || Date.now().toString(36) + i).slice(0, 40),
         ts: Number(r.ts) || Date.now(),
         label: r.label,
-        host: String(r.host || ''),
+        host: String(r.host || '').slice(0, 100),
         text: r.text.slice(0, RATING_TEXT_MAX),
       }));
     const byText = new Map();
@@ -442,6 +477,7 @@ const SEM_BATCH = 16;
 const SEM_CACHE_MAX = 3000;
 const semCache = new Map(); // "model|text" -> Float32Array
 let semRef = null;
+let semRefGen = 0; // erhöht bei jeder Bewertungsänderung: veraltete Bezugspunkte nicht speichern
 let semChain = Promise.resolve();
 
 function serialSem(fn) {
@@ -471,7 +507,19 @@ async function semInstalled(model) {
 }
 
 /** Texte in Vektoren umrechnen (mit Zwischenspeicher, in Paketen). */
+let semActive = 0; // laufende Sprachmodell-Anfragen: Offscreen Document solange nicht schließen
+
 async function embedTexts(model, texts) {
+  semActive++;
+  try {
+    return await embedTextsNow(model, texts);
+  } finally {
+    semActive--;
+    scheduleOffscreenClose();
+  }
+}
+
+async function embedTextsNow(model, texts) {
   const cfg = SFSemantic.modelConfig(model);
   const out = new Array(texts.length);
   const todo = [];
@@ -509,6 +557,7 @@ async function semReference(settings, model) {
   const anchors = anchorTexts(settings);
   const key = JSON.stringify([model, anchors]);
   if (semRef && semRef.key === key) return semRef;
+  const gen = semRefGen;
   const ratings = await getRatings();
   const stored = (await chrome.storage.local.get('semIndex')).semIndex;
   const vecs = stored && stored.model === model ? stored.vecs : {};
@@ -524,7 +573,7 @@ async function semReference(settings, model) {
   for (const r of ratings) (r.label === 'b' ? b : o).push(SFSemantic.unpack(vecs[r.id]));
   const topicTexts = SFPresets.aboutFor(settings.presets);
   const anchorVecs = anchors.length ? await embedTexts(model, anchors) : [];
-  semRef = {
+  const ref = {
     key,
     b,
     o,
@@ -532,7 +581,8 @@ async function semReference(settings, model) {
     topics: anchorVecs.slice(0, topicTexts.length), // anchorTexts beginnt mit den Themenbeschreibungen
     neutral: await embedTexts(model, SFSemantic.NEUTRAL),
   };
-  return semRef;
+  if (gen === semRefGen) semRef = ref;
+  return ref;
 }
 
 function semScore(texts) {
@@ -659,8 +709,12 @@ chrome.runtime.onStartup.addListener(() => {
 
 /* ---------------- Nachrichten ---------------- */
 
+const ADMIN_MESSAGES = new Set(['cacheClear', 'deleteRating', 'resetLearning', 'exportRatings', 'importRatings']);
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || msg.target === 'offscreen') return false;
+  // Verwaltung (löschen, importieren, exportieren) nur von den eigenen Seiten, nicht aus Tabs.
+  if (ADMIN_MESSAGES.has(msg.type) && !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return false;
   switch (msg.type) {
     case 'ocr':
       if (typeof msg.url !== 'string') return false;

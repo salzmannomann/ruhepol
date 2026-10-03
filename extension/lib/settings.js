@@ -49,15 +49,30 @@
 
   const KEYS = Object.keys(DEFAULTS);
 
+  // Grenzen halten storage.sync (8 KB je Eintrag) auch bei großen Importen ein.
+  const MAX_TERM_LEN = 80;
+  const MAX_TERMS = 400;
+
+  function cleanList(list) {
+    const out = [];
+    for (const k of list) {
+      if (typeof k !== 'string' && typeof k !== 'number') continue;
+      const t = String(k).trim().slice(0, MAX_TERM_LEN);
+      if (t && !out.includes(t)) out.push(t);
+      if (out.length >= MAX_TERMS) break;
+    }
+    return out;
+  }
+
   function sanitize(raw) {
     const s = Object.assign({}, DEFAULTS);
     if (!raw || typeof raw !== 'object') return s;
     if (typeof raw.enabled === 'boolean') s.enabled = raw.enabled;
     if (Array.isArray(raw.keywords)) {
-      s.keywords = raw.keywords.map((k) => String(k).trim()).filter(Boolean);
+      s.keywords = cleanList(raw.keywords);
     }
     if (Array.isArray(raw.allow)) {
-      s.allow = raw.allow.map((k) => String(k).trim()).filter(Boolean);
+      s.allow = cleanList(raw.allow);
     }
     if (Array.isArray(raw.zones)) {
       s.zones = raw.zones
@@ -83,7 +98,7 @@
     }
     if (raw.siteMode === 'all' || raw.siteMode === 'only') s.siteMode = raw.siteMode;
     if (Array.isArray(raw.siteList)) {
-      s.siteList = raw.siteList.map(normalizeHost).filter(Boolean);
+      s.siteList = raw.siteList.filter((h) => typeof h === 'string').map(normalizeHost).filter(Boolean).slice(0, MAX_TERMS);
     }
     for (const k of ['minWidth', 'minHeight']) {
       const n = Number(raw[k]);
@@ -145,10 +160,24 @@
     return sanitize(raw);
   }
 
+  /**
+   * Speichert nur die übergebenen Schlüssel. So überschreibt z. B. die Einstellungsseite kein
+   * Schlagwort, das inzwischen über das Kontextmenü dazukam. Ungültige Werte behalten den
+   * gespeicherten Wert statt auf den Standard zurückzufallen.
+   */
   async function save(partial) {
-    const merged = sanitize(Object.assign(await load(), partial));
-    await chrome.storage.sync.set(merged);
-    return merged;
+    const loaded = await load();
+    const changes = {};
+    for (const k of Object.keys(partial || {})) {
+      if (!KEYS.includes(k)) continue;
+      const v = sanitize(Object.assign({}, loaded, { [k]: partial[k] }))[k];
+      // Einfacher Wert, der beim Bereinigen auf den Standard zurückfiel: war ungültig.
+      const d = DEFAULTS[k];
+      const fellBack = !Array.isArray(d) && v === d && String(partial[k]) !== String(d);
+      changes[k] = fellBack ? loaded[k] : v;
+    }
+    if (Object.keys(changes).length) await chrome.storage.sync.set(changes);
+    return Object.assign(loaded, changes);
   }
 
   root.SFSettings = { DEFAULTS, KEYS, sanitize, normalizeHost, hostInList, isActiveOn, toggleHost, allKeywords, load, save };

@@ -17,12 +17,14 @@
 (function (root) {
   'use strict';
 
-  const FUZZY_MIN_LEN = 6;
+  const FUZZY_MIN_LEN = 8; // kürzere Wörter: "Gruppen" → "Truppen", "leicht" → "Leiche"
+  const PARTIAL_MIN_LEN = 4; // "KI" als Wortteil träfe "Mai", "Kaiser", "Skifahren"
   const WILDCARD_MIN_LEN = 3; // kürzere Platzhalter-Kerne ("*e") würden fast alles treffen
 
   function normalize(str) {
     if (!str) return '';
     return String(str)
+      .normalize('NFC') // zerlegte Umlaute ("o" + Trema) erst zusammensetzen
       .toLowerCase()
       .replace(/ä/g, 'ae')
       .replace(/ö/g, 'oe')
@@ -37,6 +39,23 @@
   function tokenize(str) {
     const n = normalize(str);
     return n ? n.split(' ') : [];
+  }
+
+  /**
+   * Wie tokenize, merkt sich aber, welche Wörter im Original nur durch einen Bindestrich
+   * getrennt waren ("Fuß-ball", "Fuß- ball" aus OCR). Nur diese dürfen zu einem Wort
+   * zusammengesetzt werden – sonst ergäbe "über Fall" ein "Überfall".
+   */
+  function tokenizeJoins(str) {
+    const toks = [];
+    const joins = new Set(); // Index i: toks[i] und toks[i + 1] dürfen zusammengesetzt werden
+    const chunks = String(str || '').split(/[-\u00ad\u2010\u2011]/);
+    chunks.forEach((chunk, ci) => {
+      const t = tokenize(chunk);
+      if (ci > 0 && t.length && toks.length && /[\p{L}\p{N}]$/u.test(chunks[ci - 1])) joins.add(toks.length - 1);
+      for (const x of t) toks.push(x);
+    });
+    return { toks, joins };
   }
 
   /**
@@ -155,7 +174,7 @@
       if (p.pre) return textTok.startsWith(k);
       if (p.suf) return textTok.endsWith(k);
       if (textTok === k) return true;
-      return fuzzy && k.length >= FUZZY_MIN_LEN && withinDistance(textTok, k, 1);
+      return fuzzy && k.length >= FUZZY_MIN_LEN && textTok[0] === k[0] && withinDistance(textTok, k, 1);
     }
 
     function tokenContains(textTok, p) {
@@ -181,12 +200,12 @@
       return w.charAt(0).toUpperCase() + w.slice(1);
     }
 
-    function findIndexed(toks) {
+    function findIndexed(toks, joins) {
       for (let i = 0; i < toks.length; i++) {
         for (const e of candidates(toks[i])) if (seqAt(toks, i, e.pats)) return shown(e, toks.slice(i, i + e.pats.length));
       }
-      // Zwei aufeinanderfolgende Wörter ergeben zusammen den Begriff ("Fuß-ball", OCR-Trennung).
-      for (let i = 0; i + 1 < toks.length; i++) {
+      // Zwei per Bindestrich getrennte Wörter ergeben zusammen den Begriff ("Fuß-ball", OCR-Trennung).
+      for (const i of joins) {
         const c = toks[i] + toks[i + 1];
         for (const e of candidates(c)) if (e.pats.length === 1 && tokenEq(c, e.pats[0])) return shown(e, [c]);
       }
@@ -201,7 +220,7 @@
     }
 
     /** Entfernt Wörter/Wortfolgen der "Nie ausblenden"-Liste. */
-    function stripAllowed(toks) {
+    function stripAllowed(toks, joins) {
       const drop = new Uint8Array(toks.length);
       let any = false;
       for (const pats of allowList) {
@@ -211,22 +230,32 @@
           if (ok) { for (let j = 0; j < pats.length; j++) drop[i + j] = 1; any = true; }
         }
       }
-      return any ? toks.filter((_, i) => !drop[i]) : toks;
+      if (!any) return { toks, joins };
+      const out = [];
+      const outJoins = new Set();
+      toks.forEach((t, i) => {
+        if (drop[i]) return;
+        if (joins.has(i) && !drop[i + 1]) outJoins.add(out.length);
+        out.push(t);
+      });
+      return { toks: out, joins: outJoins };
     }
 
     function find(text) {
       if (!entries.length || !text) return null;
-      let toks = tokenize(text);
-      if (allowList.length) toks = stripAllowed(toks);
+      let { toks, joins } = tokenizeJoins(text);
+      if (allowList.length) ({ toks, joins } = stripAllowed(toks, joins));
       if (!toks.length) return null;
 
-      if (!partial && !fuzzy) return findIndexed(toks);
+      if (!partial && !fuzzy) return findIndexed(toks, joins);
 
       const joined = toks.join(' ');
       const compact = joined.replace(/ /g, '');
       for (const e of entries) {
         const k = e.pats;
-        if (partial) {
+        if (partial && e.compact.length < PARTIAL_MIN_LEN) {
+          if (matchSequence(toks, k)) return e.label; // kurze Begriffe nur als ganzes Wort
+        } else if (partial) {
           if (joined.includes(e.joined)) return e.label;
           // Silbentrennung/Zeilenumbruch aus OCR ("Fuß- ball") abfangen.
           if (compact.includes(e.compact)) return e.label;
@@ -238,7 +267,7 @@
         } else {
           if (matchSequence(toks, k)) return e.label;
           if (k.length === 1) {
-            for (let i = 0; i + 1 < toks.length; i++) {
+            for (const i of joins) {
               if (tokenEq(toks[i] + toks[i + 1], k[0])) return e.label;
             }
           }

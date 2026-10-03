@@ -72,6 +72,8 @@
   /* ---------------- Start / Einstellungen ---------------- */
 
   async function init() {
+    // Nur HTML-Dokumente (keine XML-Ansichten wie RSS/Sitemaps: dort fehlen style und dataset).
+    if (!(document.documentElement instanceof HTMLElement)) return;
     const [s, local] = await Promise.all([S.load(), chrome.storage.local.get('model')]);
     settings = s;
     model = local.model || null;
@@ -148,6 +150,10 @@
     try { return window.top.location.hostname; } catch (_) { return ''; }
   }
 
+  function contextGone() {
+    try { return !chrome.runtime || !chrome.runtime.id; } catch (_) { return true; }
+  }
+
   function teardown() {
     active = false;
     if (observer) observer.disconnect();
@@ -181,10 +187,14 @@
     document.removeEventListener('click', onPendingClick, true);
     document.documentElement.classList.remove('sf-active');
     for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback')) el.remove();
+    cancelHold();
     for (const el of document.querySelectorAll('[data-sf-hit]')) {
       el.classList.remove('sf-hidden', 'sf-blurred', 'sf-hidden-ph');
+      el.removeEventListener('click', onBlurClick, true);
+      el.removeEventListener('pointerdown', onBlurDown, true);
       delete el.dataset.sfHit;
     }
+    hitBlocks.clear();
     for (const el of document.querySelectorAll('img[data-sf], [data-sf-bg]')) {
       delete el.dataset.sf;
       delete el.dataset.sfBg;
@@ -194,6 +204,8 @@
       for (const el of root.querySelectorAll('.sf-placeholder')) el.remove();
       for (const el of root.querySelectorAll('[data-sf-hit]')) {
         el.classList.remove('sf-hidden', 'sf-blurred', 'sf-hidden-ph');
+        el.removeEventListener('click', onBlurClick, true);
+        el.removeEventListener('pointerdown', onBlurDown, true);
         delete el.dataset.sfHit;
       }
       for (const el of root.querySelectorAll('img[data-sf], [data-sf-bg]')) {
@@ -299,7 +311,7 @@
       } else if (r.type === 'attributes') {
         const el = r.target;
         if (r.attributeName === 'style' || r.attributeName === 'poster') {
-          if (!isOwn(el)) checkBackground(el);
+          if (!isOwn(el)) queueBackground(el); // gebündelt im Leerlauf, nicht bei jeder Animation sofort
           continue;
         }
         if (el.tagName === 'IMG' || el.tagName === 'SOURCE') {
@@ -402,7 +414,9 @@
    */
   function processImage(img) {
     if (!active || img.dataset.sfRevealed) return;
-    if (img.closest('[data-sf-hit], [data-sf-revealed]')) return;
+    // Im aufgedeckten Block nachgeladen: gleich mit aufdecken (sonst bliebe es per CSS unscharf).
+    if (img.closest('[data-sf-revealed]')) { img.dataset.sfRevealed = '1'; return; }
+    if (img.closest('[data-sf-hit]')) return;
     // Vorauswahl: Bildhinweise (alt, title, aria-label, figcaption) sofort prüfen, noch bevor
     // das Bild geladen ist. Bei Treffer wird der Block gleich ausgeblendet; OCR entfällt dann,
     // und ausgeblendete Lazy-Bilder werden oft gar nicht erst geladen.
@@ -566,6 +580,8 @@
       if (src.startsWith('blob:')) msg.dataUrl = await blobUrlToDataUrl(src);
       res = await withTimeout(chrome.runtime.sendMessage(msg), 60000);
     } catch (e) {
+      // Erweiterung aktualisiert/entfernt: dieses alte Skript abschalten statt Bilder zu verstecken.
+      if (contextGone()) { teardown(); return; }
       res = { ok: false, error: String(e) };
     }
     if (gen !== generation || !active) return;
@@ -622,7 +638,8 @@
 
   function hitImage(img, kw, why) {
     setState(img, 'hit');
-    hit(img, kw, { why });
+    // Block bleibt sichtbar (bestätigt harmlos, gelernt, schon aufgedeckt): Bild nicht unscharf lassen.
+    if (!hit(img, kw, { why })) setState(img, 'ok');
   }
 
 
@@ -801,7 +818,8 @@
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* bleibt unscharf */ }
     vetoBusy = false;
-    if (gen !== generation || !active) return;
+    // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
+    if (gen !== generation || !active) { if (active) flushVeto(); return; }
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
@@ -855,7 +873,8 @@
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'toneScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* bleibt unscharf */ }
     toneBusy = false;
-    if (gen !== generation || !active) return;
+    // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
+    if (gen !== generation || !active) { if (active) flushTone(); return; }
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
@@ -908,7 +927,8 @@
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
     semBusy = false;
-    if (gen !== generation || !active) return;
+    // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
+    if (gen !== generation || !active) { if (active) flushSem(); return; }
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
@@ -956,7 +976,8 @@
         suggestBar(hidden);
         return;
       }
-      const block = findBlock(el.closest('.sf-feedback') ? el.closest('.sf-feedback').__sfBlock : el);
+      const fb = el.closest('.sf-feedback');
+      const block = findBlock((fb && fb.__sfBlock) || el); // Auswahlleiste hat keinen Block
       if (!block || block === document.body || block === document.documentElement) {
         toast('Hier wurde kein einzelner Inhaltsblock erkannt.');
         return;
@@ -1099,6 +1120,7 @@
     let timer = null;
     let done = false;
     const start = (ev) => {
+      if (ev.button !== undefined && ev.button !== 0) return; // Rechtsklick: Menü, nicht aufdecken
       ev.preventDefault();
       ev.stopPropagation();
       if (timer || done) return;
@@ -1326,18 +1348,22 @@
 
   /* ---------------- Ausblenden ---------------- */
 
+  /** Liefert true, wenn der Block jetzt ausgeblendet ist. */
   function hit(el, kw, opts) {
     opts = opts || {};
     const block = opts.block || findBlock(el);
-    if (!opts.force && clearedBlocks.has(block)) return;
-    if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return;
+    if (!block || !block.dataset) return false;
+    // Nie die ganze Seite: Text direkt unter <body> o. Ä.
+    if (block === document.body || block === document.documentElement || block.tagName === 'MAIN') return false;
+    if (!opts.force && clearedBlocks.has(block)) return false;
+    if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return false;
     // Lernfilter: Schlagwort trifft, aber laut Bewertungen will der Nutzer das sehen.
     if (!opts.force && learningActive()) {
       const s = L.score(model, blockText(block));
       if (s && s.known >= 2 && s.p < LEARN_KEEP) {
         clearedBlocks.add(block);
         block.dataset.sfLearnOk = String(Math.round(s.p * 100));
-        return;
+        return false;
       }
     }
     block.dataset.sfHit = kw;
@@ -1405,6 +1431,7 @@
       block.__sfPlaceholder = ph;
     }
     scheduleReport();
+    return true;
   }
 
   function unhide(block) {
@@ -1417,6 +1444,13 @@
     delete block.dataset.sfHit;
     delete block.dataset.sfWhy;
     hitBlocks.delete(block);
+    // Bilder im Block wurden übersprungen, solange er ausgeblendet war: jetzt prüfen
+    // (nach dem Aufrufer, der den Block meist noch als geprüft markiert).
+    queueMicrotask(() => {
+      if (!active || !block.isConnected || block.dataset.sfHit) return;
+      const imgs = block.tagName === 'IMG' ? [block] : block.querySelectorAll('img');
+      for (const img of imgs) if (img.dataset.sf !== 'ok' && img.dataset.sf !== 'small') processImage(img);
+    });
   }
 
   /**
@@ -1692,6 +1726,8 @@
   function reportCount() {
     clearTimeout(reportTimer);
     reportTimer = null;
+    // Von der Seite entfernte Blöcke (Endlos-Feeds) nicht mehr zählen und nicht festhalten.
+    for (const b of hitBlocks) if (!b.isConnected) hitBlocks.delete(b);
     const n = hitBlocks.size;
     if (n === lastReported) return;
     lastReported = n;

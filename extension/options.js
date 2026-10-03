@@ -40,6 +40,7 @@
         const have = new Set(lines($('keywords').value).map((l) => l.toLowerCase()));
         const add = p.terms.filter((t) => !have.has(t.toLowerCase()));
         $('keywords').value = lines($('keywords').value).concat(add).join('\n');
+        dirty.add('keywords');
         save(`${add.length} Begriffe in die eigene Liste übernommen`);
       });
       terms.append(document.createElement('br'), copy);
@@ -97,7 +98,9 @@
     $('allow').value = s.allow.join('\n');
     $('learn').checked = s.learn;
     $('learnHide').checked = s.learnHide;
-    $('learnThreshold').value = String(s.learnThreshold);
+    // Auf die nächste Auswahl einrasten (Importe können Zwischenwerte enthalten).
+    const opts = [...$('learnThreshold').options].map((o) => Number(o.value));
+    $('learnThreshold').value = String(opts.reduce((a, b) => (Math.abs(b - s.learnThreshold) < Math.abs(a - s.learnThreshold) ? b : a)));
     $('siteList').value = s.siteList.join('\n');
     document.querySelector(`input[name="siteMode"][value="${s.siteMode}"]`).checked = true;
     document.querySelector(`input[name="display"][value="${s.display}"]`).checked = true;
@@ -122,13 +125,13 @@
       allow: lines($('allow').value),
       learn: $('learn').checked,
       learnHide: $('learnHide').checked,
-      learnThreshold: Number($('learnThreshold').value),
+      learnThreshold: $('learnThreshold').value === '' ? null : Number($('learnThreshold').value),
       presets: [...document.querySelectorAll('input[name="preset"]:checked')].map((cb) => cb.value),
       siteList: lines($('siteList').value),
       siteMode: document.querySelector('input[name="siteMode"]:checked').value,
       display: document.querySelector('input[name="display"]:checked').value,
-      minWidth: Number($('minWidth').value),
-      minHeight: Number($('minHeight').value),
+      minWidth: $('minWidth').value === '' ? null : Number($('minWidth').value),
+      minHeight: $('minHeight').value === '' ? null : Number($('minHeight').value),
       ocr: $('ocr').checked,
       partial: $('partial').checked,
       fuzzy: $('fuzzy').checked,
@@ -225,12 +228,26 @@
    */
   let saveTimer = null;
   let saving = Promise.resolve();
+  // Nur geänderte Felder speichern: sonst überschriebe ein Klick hier Schlagwörter oder
+  // Seiten, die inzwischen über Kontextmenü oder Popup dazukamen.
+  const dirty = new Set();
+
+  function keyOf(el) {
+    if (el.name === 'preset') return 'presets';
+    return el.name || el.id;
+  }
 
   function save(message) {
     clearTimeout(saveTimer);
+    saveTimer = null;
     saving = saving.then(async () => {
+      const all = read();
+      const part = {};
+      for (const k of dirty) if (k in all) part[k] = all[k];
+      dirty.clear();
+      if (!Object.keys(part).length) return;
       try {
-        await S.save(read());
+        await S.save(part);
         status(message || 'Gespeichert ✓', 'ok');
       } catch (e) {
         status('Speichern fehlgeschlagen: ' + (e && e.message ? e.message : e), 'err');
@@ -247,12 +264,19 @@
   const form = document.querySelector('main');
   form.addEventListener('change', (e) => {
     if (e.target.id === 'importFile') return;
-    if (e.target.matches('textarea, input[type="number"]')) save();
-    else if (e.target.matches('input, select')) save();
+    if (e.target.matches('input, select, textarea')) {
+      dirty.add(keyOf(e.target));
+      save();
+    }
   });
   form.addEventListener('input', (e) => {
-    if (e.target.matches('textarea, input[type="number"]')) saveSoon();
+    if (e.target.matches('textarea, input[type="number"]')) {
+      dirty.add(keyOf(e.target));
+      saveSoon();
+    }
   });
+  // beforeunload wartet nicht auf asynchrones Speichern; beim Verbergen bleibt noch Zeit.
+  document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
   window.addEventListener('beforeunload', () => { if (saveTimer) save(); });
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); }
@@ -287,7 +311,10 @@
       const json = JSON.parse(await file.text());
       const raw = json && json.format === 'schlagwortfilter' ? json.settings : json;
       if (!raw || typeof raw !== 'object') throw new Error('keine Einstellungen gefunden');
-      const s = S.sanitize(raw);
+      // Offene Änderungen zuerst speichern, dann den Import auf die aktuellen Einstellungen legen
+      // (eine Datei nur mit Schlagwörtern setzt den Rest nicht auf Standard zurück).
+      await save();
+      const s = S.sanitize(Object.assign(await S.load(), raw));
       await chrome.storage.sync.set(s);
       fill(s);
       let msg = 'Einstellungen importiert.';
@@ -304,10 +331,12 @@
 
   $('presetsAll').addEventListener('click', () => {
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = true;
+    dirty.add('presets');
     save('Alle Listen aktiv');
   });
   $('presetsNone').addEventListener('click', () => {
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = false;
+    dirty.add('presets');
     save('Alle Listen aus');
   });
 
@@ -320,6 +349,18 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     // Bereiche werden meist auf der Seite angelegt; Liste aktuell halten, damit das Speichern sie nicht überschreibt.
     if (area === 'sync' && changes.zones) renderZones(S.sanitize({ zones: changes.zones.newValue || [] }).zones);
+    // Listen, die auch Kontextmenü und Popup ändern: anzeigen, solange hier nicht getippt wird.
+    if (area === 'sync') {
+      const lists = { keywords: 'keywords', allow: 'allow', siteList: 'siteList' };
+      for (const [key, id] of Object.entries(lists)) {
+        if (!changes[key] || dirty.has(key) || document.activeElement === $(id)) continue;
+        $(id).value = S.sanitize({ [key]: changes[key].newValue || [] })[key].join('\n');
+      }
+      if (changes.presets && !dirty.has('presets')) {
+        const ids = S.sanitize({ presets: changes.presets.newValue || [] }).presets;
+        for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = ids.includes(cb.value);
+      }
+    }
     if (area === 'local' && changes.model) refreshLearn();
   });
 

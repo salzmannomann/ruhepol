@@ -93,10 +93,12 @@ Die einzelnen Optionen:
   Bindestriche trennen Wörter: „Ukraine-Krieg“ enthält das Wort „Krieg“.
 - **Auch Teilwörter finden**: Jeder Begriff gilt als Wortteil, „ball“ findet dann auch
   „Fußballspiel“. Das erzeugt deutlich mehr Fehltreffer, Platzhalter sind meist besser.
+  Begriffe mit höchstens drei Buchstaben („KI“, „AI“) zählen weiter nur als ganzes Wort,
+  sonst träfe „KI“ auch „Mai“ und „Kaiser“.
 - **Nie ausblenden**: Begriffe, die nie einen Treffer auslösen, in derselben Schreibweise.
   Mit `Wohnungskrise` bleibt „Die Wohnungskrise verschärft sich“ sichtbar. „Wohnungskrise
   und Klimakrise“ wird über „Klimakrise“ trotzdem ausgeblendet.
-- **Unscharfer Abgleich**: fängt OCR-Lesefehler ab. Bei Wörtern ab 6 Zeichen reicht eine
+- **Unscharfer Abgleich**: fängt OCR-Lesefehler ab. Bei Wörtern ab 8 Zeichen mit gleichem Anfangsbuchstaben reicht eine
   Abweichung von einem Buchstaben (Levenshtein-Distanz 1). Standardmäßig aus.
 - **Vorschlagslisten**: fertige Listen zu vorwiegend negativen Themen, einzeln an- und
   abwählbar. Standardmäßig sind alle aktiv:
