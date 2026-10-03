@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schlagwortfilter – Einstellungen</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { padding: 24px 16px 80px; }
+    main { max-width: 720px; margin: 0 auto; }
+    section { background: var(--card); border-radius: 10px; padding: 16px; margin: 14px 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+    .radio { display: block; padding: 3px 0; }
+    input[type="number"] { width: 90px; }
+    .bar { position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--line); padding: 10px 0; display: flex; gap: 12px; align-items: center; }
+    #status { font-size: 13px; }
+    #status.ok { color: var(--ok); }
+    #status.err { color: var(--err); }
+    .check { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+    .check input { margin-top: 3px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Schlagwortfilter – Einstellungen</h1>
+  <p class="hint">Alles bleibt auf diesem Rechner: Die Texterkennung läuft lokal in der Erweiterung, es werden keine Daten an Server geschickt.</p>
+
+  <section>
+    <h2>Schlagwörter</h2>
+    <textarea id="keywords" rows="10" placeholder="Ein Begriff pro Zeile, z. B.&#10;Fußball&#10;Formel 1"></textarea>
+    <p class="hint">Ein Begriff pro Zeile. Groß-/Kleinschreibung ist egal, Umlaute werden gleich behandelt (ä = ae, ß = ss). Mehrere Wörter in einer Zeile müssen als Wortfolge vorkommen.</p>
+    <label class="check"><input type="checkbox" id="partial"><span>Auch Teilwörter finden<br><span class="hint">„ball“ findet dann auch „Fußballspiel“.</span></span></label>
+    <label class="check"><input type="checkbox" id="fuzzy"><span>Unscharfer Abgleich (für OCR-Lesefehler)<br><span class="hint">Bei Wörtern ab 6 Zeichen reicht eine Abweichung von einem Buchstaben („Bürgermeisler“ → „Bürgermeister“). Kann mehr Fehltreffer erzeugen.</span></span></label>
+  </section>
+
+  <section>
+    <h2>Seiten</h2>
+    <label class="radio"><input type="radio" name="siteMode" value="all"> Auf allen Seiten filtern, außer …</label>
+    <label class="radio"><input type="radio" name="siteMode" value="only"> Nur auf diesen Seiten filtern …</label>
+    <textarea id="siteList" rows="5" placeholder="orf.at&#10;example.com"></textarea>
+    <p class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen (orf.at gilt auch für sport.orf.at).</p>
+  </section>
+
+  <section>
+    <h2>Darstellung bei Treffer</h2>
+    <label class="radio"><input type="radio" name="display" value="placeholder"> Platzhalter „Ausgeblendet (Schlagwort)“, Klick zeigt den Inhalt</label>
+    <label class="radio"><input type="radio" name="display" value="blur"> Unscharf, Klick zeigt den Inhalt</label>
+    <label class="radio"><input type="radio" name="display" value="hide"> Komplett ausblenden</label>
+  </section>
+
+  <section>
+    <h2>Bilder</h2>
+    <label class="check"><input type="checkbox" id="ocr"><span>Schrift in Bildern erkennen (OCR)<br><span class="hint">Bilder werden bis zur Prüfung unscharf gezeigt. Alt-Text, Titel und Bildunterschrift werden immer geprüft.</span></span></label>
+    <div class="row" style="margin-top:8px">
+      <label>Mindestgröße: <input type="number" id="minWidth" min="0" step="10"> × <input type="number" id="minHeight" min="0" step="10"> px</label>
+    </div>
+    <p class="hint">Kleinere Bilder (Symbole, Logos) werden nicht geprüft.</p>
+    <div class="row" style="margin-top:10px">
+      <label>Wenn ein Bild nicht gelesen werden kann (Fehler, Zeitüberschreitung nach 10 s):
+        <select id="onError">
+          <option value="show">scharf stellen</option>
+          <option value="blur">unscharf lassen</option>
+          <option value="hide">ausblenden</option>
+        </select>
+      </label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="clearCache">Cache leeren</button>
+      <span class="hint" id="cacheInfo"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sichern</h2>
+    <div class="row">
+      <button id="export">Einstellungen exportieren</button>
+      <button id="import">Einstellungen importieren …</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </div>
+  </section>
+
+  <div class="bar">
+    <button class="primary" id="save">Speichern</button>
+    <span id="status"></span>
+  </div>
+</main>
+<script src="lib/settings.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Lasttest</title></head>
+<body>
+  <ul id="list"></ul>
+  <script>
+    const words = ['Wirtschaft', 'Kultur', 'Wetter', 'Politik', 'Wissenschaft', 'Reise', 'Gesundheit'];
+    let html = '';
+    for (let i = 0; i < 4000; i++) {
+      const w = i % 500 === 7 ? 'Fußball' : words[i % words.length];
+      html += `<li id="i${i}"><a href="#"><b>${w}</b> Meldung Nummer ${i} mit etwas mehr Text, damit es realistisch ist.</a> <span title="Info ${i}">mehr</span></li>`;
+    }
+    document.getElementById('list').innerHTML = html;
+  </script>
+</body>
+</html>
