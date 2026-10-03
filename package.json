@@ -1,6 +1,6 @@
 {
   "name": "schlagwortfilter",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Chrome-Erweiterung (MV3), die Inhalte mit bestimmten Schlagwörtern ausblendet – auch wenn das Wort nur als Schrift im Bild steht (OCR mit tesseract.js, komplett lokal).",
   "scripts": {

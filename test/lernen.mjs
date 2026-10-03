@@ -67,8 +67,8 @@ async function main() {
       await page.waitForTimeout(500);
       assert.ok(await visible(page, '#l-wohnen'), 'Wohnungskrise sollte sichtbar sein');
       assert.ok(await page.evaluate(() => document.querySelector('#l-wohnen').dataset.sfLearnOk !== undefined));
-      const label = await page.locator('#l-gletscher').locator('xpath=preceding-sibling::*[1]').textContent();
-      assert.match(label, /Ausgeblendet \(gelernt, \d+ %\)/);
+      const reason = await page.evaluate(() => document.querySelector('#l-gletscher').dataset.sfHit);
+      assert.match(reason, /^gelernt, \d+ %$/);
       for (const sel of ['#l-museum', '#l-konzert']) assert.ok(await visible(page, sel), sel);
       await hidden(page, '#l-regierung'); // unbekannte Krise: Schlagwort entscheidet
     });
@@ -105,8 +105,7 @@ async function main() {
       await page.click('#l-museum h2', { button: 'right' });
       await sw.evaluate((id) => chrome.tabs.sendMessage(id, { type: 'ctx', action: 'block' }), tabId);
       await hidden(page, '#l-museum');
-      const ph = await page.locator('#l-museum').locator('xpath=preceding-sibling::*[1]').textContent();
-      assert.match(ph, /von dir ausgeblendet/);
+      assert.equal(await page.evaluate(() => document.querySelector('#l-museum').dataset.sfHit), 'von dir ausgeblendet');
       const last = (await ratings(sw)).at(-1);
       assert.equal(last.label, 'b');
       assert.match(last.text, /Museum/);

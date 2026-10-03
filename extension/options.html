@@ -56,10 +56,10 @@
 
   <section>
     <h2>Lernfilter</h2>
-    <p class="hint">Bewerte Inhalte mit den Knöpfen am Platzhalter („Passt so“ / „Will ich sehen“) oder per Rechtsklick auf einen Artikel („Will ich nicht sehen“ / „Will ich sehen“). Daraus lernt die Erweiterung, was dich stört. Das Lernen passiert lokal; die neuesten Bewertungen werden über die Chrome-Synchronisierung mit deinen anderen Rechnern abgeglichen.</p>
+    <p class="hint">Bewerte Inhalte per Rechtsklick auf einen Artikel oder ein Bild („Will ich nicht sehen“ / „Will ich sehen“) oder, in der Darstellung „Platzhalter“, mit den Knöpfen dort. Daraus lernt die Erweiterung, was dich stört. Das Lernen passiert lokal; die neuesten Bewertungen werden über die Chrome-Synchronisierung mit deinen anderen Rechnern abgeglichen.</p>
     <div id="learnStatus" class="learn-status"></div>
     <label class="check"><input type="checkbox" id="learn"><span>Lernfilter verwenden<br><span class="hint">Schlagwort-Treffer bleiben sichtbar, wenn deine Bewertungen klar dafür sprechen.</span></span></label>
-    <label class="check"><input type="checkbox" id="learnHide"><span>Auch ohne Schlagwort ausblenden, wenn ziemlich sicher<br><span class="hint">Platzhalter zeigt dann z. B. „Ausgeblendet (gelernt, 93 %)“.</span></span></label>
+    <label class="check"><input type="checkbox" id="learnHide"><span>Auch ohne Schlagwort ausblenden, wenn ziemlich sicher<br><span class="hint">Wie sicher, lässt sich darunter einstellen.</span></span></label>
     <div class="row" style="margin:4px 0 0 26px">
       <label>Sicherheit ab:
         <select id="learnThreshold">
@@ -103,9 +103,10 @@
 
   <section>
     <h2>Darstellung bei Treffer</h2>
-    <label class="radio"><input type="radio" name="display" value="placeholder"> Platzhalter „Ausgeblendet (Schlagwort)“, Klick zeigt den Inhalt</label>
-    <label class="radio"><input type="radio" name="display" value="blur"> Unscharf, Klick zeigt den Inhalt</label>
+    <label class="radio"><input type="radio" name="display" value="blur"> Unscharf (Text und Bilder), ohne Hinweis und ohne Knöpfe – Klick zeigt den Inhalt</label>
+    <label class="radio"><input type="radio" name="display" value="placeholder"> Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten</label>
     <label class="radio"><input type="radio" name="display" value="hide"> Komplett ausblenden</label>
+    <p class="hint">Das Schlagwort wird nirgends angezeigt. Bewerten geht in jeder Darstellung per Rechtsklick auf einen Inhalt.</p>
   </section>
 
   <section>
