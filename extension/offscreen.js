@@ -134,3 +134,39 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     .finally(touchIdle);
   return true;
 });
+
+/* ---------------- Chromes eingebautes Sprachmodell (falls vorhanden) ---------------- */
+
+// Automatische Tests: Ersatz-Modell aus vendor/test (nicht im Paket) statt Gemini Nano.
+let fakeLoaded = null;
+function loadFake(msg) {
+  if (!msg.fake) return Promise.resolve();
+  if (!fakeLoaded) {
+    fakeLoaded = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'vendor/test/nano-fake.js';
+      s.onload = s.onerror = () => resolve();
+      document.head.appendChild(s);
+    });
+  }
+  return fakeLoaded;
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg || msg.target !== 'offscreen') return false;
+  if (msg.type === 'nanoStatus') {
+    loadFake(msg).then(() => SFNano.availability()).then((a) => sendResponse({ ok: true, availability: a }));
+    return true;
+  }
+  if (msg.type === 'nanoJudge') {
+    loadFake(msg).then(() => SFNano.availability())
+      .then((a) => {
+        if (a !== 'available') throw new Error('nicht verfügbar');
+        return SFNano.judge(msg.texts || [], msg.ctx || { topics: [] });
+      })
+      .then((harmless) => sendResponse({ ok: true, harmless }))
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
+    return true;
+  }
+  return false;
+});

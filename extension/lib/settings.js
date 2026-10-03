@@ -41,6 +41,11 @@
     positiveLevel: 'mittel',
     // Aufdecken nur durch Gedrückthalten (2 s), schützt vor reflexhaftem Klicken
     revealHold: true,
+    // Wünsche in eigenen Worten (ganze Sätze) für das Sprachmodell
+    wishNo: [], // „Will ich nicht sehen“
+    wishYes: [], // „Will ich trotzdem sehen“
+    // Grenzfälle zusätzlich von Chromes eingebautem Modell (Gemini Nano) prüfen lassen, falls vorhanden
+    nanoCheck: true,
     // Gesperrte Bereiche: [{host, sel (CSS-Selektor), head (erste Überschrift, optional)}]
     zones: [],
     // Verhalten bei OCR-Fehler/Timeout: 'show' (scharf stellen) | 'blur' (unscharf lassen) | 'hide'
@@ -53,15 +58,22 @@
   const MAX_TERM_LEN = 80;
   const MAX_TERMS = 400;
 
-  function cleanList(list) {
+  function cleanList(list, maxLen = MAX_TERM_LEN) {
     const out = [];
     for (const k of list) {
       if (typeof k !== 'string' && typeof k !== 'number') continue;
-      const t = String(k).trim().slice(0, MAX_TERM_LEN);
+      const t = String(k).trim().slice(0, maxLen);
       if (t && !out.includes(t)) out.push(t);
       if (out.length >= MAX_TERMS) break;
     }
     return out;
+  }
+
+  const MAX_WISH_LEN = 200;
+  const MAX_WISHES = 30;
+
+  function cleanWishes(list) {
+    return cleanList(list, MAX_WISH_LEN).slice(0, MAX_WISHES);
   }
 
   function sanitize(raw) {
@@ -74,6 +86,8 @@
     if (Array.isArray(raw.allow)) {
       s.allow = cleanList(raw.allow);
     }
+    if (Array.isArray(raw.wishNo)) s.wishNo = cleanWishes(raw.wishNo);
+    if (Array.isArray(raw.wishYes)) s.wishYes = cleanWishes(raw.wishYes);
     if (Array.isArray(raw.zones)) {
       s.zones = raw.zones
         .filter((z) => z && typeof z.sel === 'string' && z.sel.trim() && z.sel.length <= 300)
@@ -88,7 +102,7 @@
     }
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.semanticLevel)) s.semanticLevel = raw.semanticLevel;
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.positiveLevel)) s.positiveLevel = raw.positiveLevel;
-    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow']) {
+    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow', 'nanoCheck']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

@@ -96,6 +96,9 @@
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = s.presets.includes(cb.value);
     $('keywords').value = s.keywords.join('\n');
     $('allow').value = s.allow.join('\n');
+    $('wishNo').value = s.wishNo.join('\n');
+    $('wishYes').value = s.wishYes.join('\n');
+    $('nanoCheck').checked = s.nanoCheck;
     $('learn').checked = s.learn;
     $('learnHide').checked = s.learnHide;
     // Auf die nächste Auswahl einrasten (Importe können Zwischenwerte enthalten).
@@ -117,12 +120,20 @@
     $('positiveShow').checked = s.positiveShow;
     $('positiveLevel').value = s.positiveLevel;
     renderZones(s.zones);
+    updateWishOff();
+  }
+
+  function updateWishOff() {
+    $('wishOff').hidden = $('semantic').checked || (!lines($('wishNo').value).length && !lines($('wishYes').value).length);
   }
 
   function read() {
     return {
       keywords: lines($('keywords').value),
       allow: lines($('allow').value),
+      wishNo: lines($('wishNo').value),
+      wishYes: lines($('wishYes').value),
+      nanoCheck: $('nanoCheck').checked,
       learn: $('learn').checked,
       learnHide: $('learnHide').checked,
       learnThreshold: $('learnThreshold').value === '' ? null : Number($('learnThreshold').value),
@@ -269,6 +280,8 @@
       save();
     }
   });
+  form.addEventListener('input', updateWishOff);
+  form.addEventListener('change', updateWishOff);
   form.addEventListener('input', (e) => {
     if (e.target.matches('textarea, input[type="number"]')) {
       dirty.add(keyOf(e.target));
@@ -351,7 +364,7 @@
     if (area === 'sync' && changes.zones) renderZones(S.sanitize({ zones: changes.zones.newValue || [] }).zones);
     // Listen, die auch Kontextmenü und Popup ändern: anzeigen, solange hier nicht getippt wird.
     if (area === 'sync') {
-      const lists = { keywords: 'keywords', allow: 'allow', siteList: 'siteList' };
+      const lists = { keywords: 'keywords', allow: 'allow', siteList: 'siteList', wishNo: 'wishNo', wishYes: 'wishYes' };
       for (const [key, id] of Object.entries(lists)) {
         if (!changes[key] || dirty.has(key) || document.activeElement === $(id)) continue;
         $(id).value = S.sanitize({ [key]: changes[key].newValue || [] })[key].join('\n');
@@ -364,7 +377,147 @@
     if (area === 'local' && changes.model) refreshLearn();
   });
 
+  /* ---------------- Assistent (Chromes eingebautes Modell) ---------------- */
+
+  const NANO_TEXT = {
+    available: 'Chromes eingebautes Modell ist bereit.',
+    downloadable: 'Chrome kann das Modell herunterladen (einige GB, lädt Chrome selbst).',
+    downloading: 'Chrome lädt das Modell gerade herunter …',
+    unavailable: 'Auf diesem Rechner stellt Chrome kein eingebautes Modell bereit (braucht Chrome 138+, Windows/macOS/Linux, mind. 22 GB frei und eine Grafikkarte mit mehr als 4 GB oder 16 GB Arbeitsspeicher). Alles andere funktioniert trotzdem.',
+  };
+
+  async function refreshNano() {
+    const a = await SFNano.availability();
+    $('nanoStatus').textContent = NANO_TEXT[a] || NANO_TEXT.unavailable;
+    $('nanoStatus').className = 'status-box ' + (a === 'available' ? 'ok' : a === 'unavailable' ? '' : 'warn');
+    $('nanoDownload').hidden = a !== 'downloadable';
+    $('assistBox').hidden = a !== 'available';
+    // Die zweite Meinung läuft im Hintergrund (Offscreen Document) – dort nachfragen.
+    const bg = await chrome.runtime.sendMessage({ type: 'nanoStatus' }).catch(() => null);
+    const b = (bg && bg.availability) || 'unavailable';
+    $('nanoCheckStatus').textContent = b === 'available' ? 'bereit.' : b === 'unavailable' ? 'auf diesem Rechner nicht verfügbar.' : 'noch nicht heruntergeladen (siehe Themen → Assistent).';
+  }
+
+  $('nanoDownload').addEventListener('click', async () => {
+    $('nanoDownload').disabled = true;
+    try {
+      const s = await SFNano.createSession('Test', (m) => m.addEventListener('downloadprogress', (e) => {
+        $('nanoStatus').textContent = `Chrome lädt das Modell: ${Math.round(e.loaded * 100)} %`;
+      }));
+      s.destroy();
+    } catch (e) {
+      status('Herunterladen fehlgeschlagen: ' + (e && e.message ? e.message : e), 'err');
+    }
+    $('nanoDownload').disabled = false;
+    refreshNano();
+  });
+
+  let proposal = null;
+
+  /** Vorschlag des Modells prüfen und als lesbare Liste aufbereiten (nur bekannte Felder). */
+  function cleanProposal(p, s) {
+    const strs = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string').map((x) => x.trim()).filter(Boolean).slice(0, 20) : []);
+    const ids = new Set(SFPresets.ALL_IDS);
+    const out = {
+      addKeywords: strs(p.addKeywords).filter((k) => !s.keywords.includes(k)),
+      removeKeywords: strs(p.removeKeywords).filter((k) => s.keywords.includes(k)),
+      addAllow: strs(p.addAllow).filter((k) => !s.allow.includes(k)),
+      removeAllow: strs(p.removeAllow).filter((k) => s.allow.includes(k)),
+      enablePresets: strs(p.enablePresets).filter((id) => ids.has(id) && !s.presets.includes(id)),
+      disablePresets: strs(p.disablePresets).filter((id) => ids.has(id) && s.presets.includes(id)),
+      addWishNo: strs(p.addWishNo).filter((w) => !s.wishNo.includes(w)),
+      addWishYes: strs(p.addWishYes).filter((w) => !s.wishYes.includes(w)),
+      disableSites: strs(p.disableSites).map(S.normalizeHost).filter(Boolean),
+      enableSites: strs(p.enableSites).map(S.normalizeHost).filter(Boolean),
+      semanticLevel: ['vorsichtig', 'mittel', 'stark'].includes(p.semanticLevel) && p.semanticLevel !== s.semanticLevel ? p.semanticLevel : '',
+    };
+    const name = (id) => (SFPresets.PRESETS.find((x) => x.id === id) || {}).name || id;
+    const lines = [];
+    const q = (l) => l.map((x) => `„${x}“`).join(', ');
+    if (out.addKeywords.length) lines.push(`Schlagwörter hinzufügen: ${q(out.addKeywords)}`);
+    if (out.removeKeywords.length) lines.push(`Schlagwörter entfernen: ${q(out.removeKeywords)}`);
+    if (out.addAllow.length) lines.push(`Nie ausblenden: ${q(out.addAllow)}`);
+    if (out.removeAllow.length) lines.push(`Aus „Nie ausblenden“ entfernen: ${q(out.removeAllow)}`);
+    if (out.enablePresets.length) lines.push(`Listen einschalten: ${out.enablePresets.map(name).join(', ')}`);
+    if (out.disablePresets.length) lines.push(`Listen ausschalten: ${out.disablePresets.map(name).join(', ')}`);
+    if (out.addWishNo.length) lines.push(`Will ich nicht sehen: ${q(out.addWishNo)}`);
+    if (out.addWishYes.length) lines.push(`Will ich trotzdem sehen: ${q(out.addWishYes)}`);
+    if (out.disableSites.length) lines.push(`Ausschalten auf: ${out.disableSites.join(', ')}`);
+    if (out.enableSites.length) lines.push(`Einschalten auf: ${out.enableSites.join(', ')}`);
+    if (out.semanticLevel) lines.push(`Empfindlichkeit: ${out.semanticLevel}`);
+    if ((out.addWishNo.length || out.addWishYes.length || out.semanticLevel) && !s.semantic) lines.push('Bedeutungs-Filter einschalten (nötig für Wünsche in eigenen Worten)');
+    return { changes: out, lines };
+  }
+
+  $('assistGo').addEventListener('click', async () => {
+    const text = $('assistInput').value.trim();
+    if (!text) return;
+    $('assistGo').disabled = true;
+    $('assistGo').textContent = 'Denkt nach …';
+    $('assistPreview').hidden = true;
+    try {
+      await save(); // offene Eingaben zuerst sichern
+      const s = await S.load();
+      const state = {
+        presets: SFPresets.PRESETS.map((p) => ({ id: p.id, name: p.name })),
+        active: s.presets, keywords: s.keywords, allow: s.allow, semanticLevel: s.semanticLevel,
+      };
+      const p = await SFNano.assist(text, state);
+      proposal = cleanProposal(p || {}, s);
+      $('assistAnswer').textContent = String((p && p.antwort) || '').slice(0, 400);
+      const ul = $('assistChanges');
+      ul.textContent = '';
+      for (const l of proposal.lines) {
+        const li = document.createElement('li');
+        li.textContent = l;
+        ul.appendChild(li);
+      }
+      if (!proposal.lines.length) {
+        const li = document.createElement('li');
+        li.textContent = 'Keine Änderung nötig oder möglich.';
+        ul.appendChild(li);
+      }
+      $('assistApply').hidden = !proposal.lines.length;
+      $('assistPreview').hidden = false;
+    } catch (e) {
+      status('Assistent fehlgeschlagen: ' + (e && e.message ? e.message : e), 'err');
+    }
+    $('assistGo').disabled = false;
+    $('assistGo').textContent = 'Vorschlag machen';
+  });
+
+  $('assistApply').addEventListener('click', async () => {
+    if (!proposal) return;
+    const c = proposal.changes;
+    const s = await S.load();
+    const without = (list, drop) => list.filter((x) => !drop.includes(x));
+    const part = {
+      keywords: without(s.keywords, c.removeKeywords).concat(c.addKeywords),
+      allow: without(s.allow, c.removeAllow).concat(c.addAllow),
+      presets: without(s.presets, c.disablePresets).concat(c.enablePresets),
+      wishNo: s.wishNo.concat(c.addWishNo),
+      wishYes: s.wishYes.concat(c.addWishYes),
+    };
+    if (c.semanticLevel) part.semanticLevel = c.semanticLevel;
+    if (c.addWishNo.length || c.addWishYes.length || c.semanticLevel) part.semantic = true;
+    let t = Object.assign({}, s, part);
+    for (const h of c.disableSites) t.siteList = S.toggleHost(t, h, false);
+    for (const h of c.enableSites) t.siteList = S.toggleHost(t, h, true);
+    if (c.disableSites.length || c.enableSites.length) part.siteList = t.siteList;
+    fill(await S.save(part));
+    proposal = null;
+    $('assistPreview').hidden = true;
+    $('assistInput').value = '';
+    status('Übernommen ✓', 'ok');
+  });
+
+  $('assistDiscard').addEventListener('click', () => {
+    proposal = null;
+    $('assistPreview').hidden = true;
+  });
+
   buildPresets();
+  refreshNano();
   refreshLearn();
   refreshSem();
   fill(await S.load());

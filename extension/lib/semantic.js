@@ -35,6 +35,8 @@
       // wenn Neutrales um so viel näher liegt. Gemessen: Sportmeldungen mit „Krieg“ oder
       // „Kosovo“ +0,032/+0,033, echte Meldungen (Flut, Drohnenangriff) ≤ +0,010.
       veto: 0.015,
+      // Knapp unter der Schwelle: Grenzfall, den ein Sprachmodell zusätzlich beurteilen darf.
+      unsure: 0.03,
     },
     // Winziges Testmodell (test/make_tiny_model.py), nur für automatische Tests.
     'test/tiny': {
@@ -42,6 +44,7 @@
       floor: { vorsichtig: 0.7, mittel: 0.6, stark: 0.5 },
       margin: { vorsichtig: 0.3, mittel: 0.2, stark: 0.1 },
       veto: 0.1,
+      unsure: 0.15,
     },
   };
 
@@ -176,7 +179,15 @@
     const lv = LEVELS.includes(level) ? level : 'mittel';
     const bad = Math.max(topK(vec, ref.b, 3), maxSim(vec, ref.anchors));
     const good = Math.max(topK(vec, ref.o, 3), maxSim(vec, ref.neutral));
-    const hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
+    let hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
+    // Eigene Wünsche („will ich nicht sehen“) gehen den eingebauten neutralen Texten vor: Ein
+    // Wunsch „Mieten und Wohnungsnot“ soll nicht daran scheitern, dass „Wohnen und Alltag“ als
+    // neutral gilt. Gegengewicht sind dann nur die eigenen „anzeigen“-Bewertungen und Wünsche.
+    if (!hide && ref.wishNo && ref.wishNo.length) {
+      const wish = maxSim(vec, ref.wishNo);
+      const userGood = Math.max(topK(vec, ref.o, 3), maxSim(vec, ref.wishYes || []));
+      hide = wish >= cfg.floor[lv] && wish - userGood >= cfg.margin[lv];
+    }
     // Gegenprüfung ohne die eigenen Schlagwörter als Anker – sonst läge ein Treffer auf
     // „Museum“ immer nah am Anker „Museum“ und könnte nie als harmlos gelten.
     // Ohne Themen und ohne „ausblenden“-Bewertungen gibt es nichts zu vergleichen: kein Veto
@@ -184,7 +195,10 @@
     const topics = ref.topics || ref.anchors;
     const canVeto = topics.length > 0 || ref.b.length > 0;
     const badTopic = Math.max(topK(vec, ref.b, 3), maxSim(vec, topics));
-    return { hide, veto: canVeto && good - badTopic >= cfg.veto, bad: round(bad), good: round(good) };
+    const vetoMargin = good - badTopic;
+    const veto = canVeto && vetoMargin >= cfg.veto;
+    const unsure = canVeto && !veto && vetoMargin >= cfg.veto - (cfg.unsure || 0);
+    return { hide, veto, unsure, bad: round(bad), good: round(good) };
   }
 
   function round(x) {
