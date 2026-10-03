@@ -513,12 +513,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+function olderThan(a, b) {
+  const pa = String(a || '0').split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x < y;
+  }
+  return false;
+}
+
 function safeHost(url) {
   try { return new URL(url).hostname; } catch (_) { return ''; }
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   createMenus();
+  // Ab 1.3.1 ist „Aufdecken durch Gedrückthalten“ Standard: einmalig auch bei Updates einschalten.
+  if (details && details.reason === 'update' && olderThan(details.previousVersion, '1.3.1')) {
+    await chrome.storage.sync.set({ revealHold: true });
+  }
   pullSync().then(schedulePush).catch(() => {});
   // Fehlende Einstellungen mit Standardwerten auffüllen.
   // Nur fehlende Schlüssel schreiben, damit nichts Vorhandenes überschrieben wird.

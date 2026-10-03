@@ -21,7 +21,7 @@
   const LEARN_KEEP = 0.2; // Schlagwort-Treffer zeigen, wenn das Modell sicher "will ich sehen" sagt
   const LEARN_CANDIDATES = 'article, li, figure, h1, h2, h3, h4';
   const OWN_CLASSES = ['sf-placeholder', 'sf-feedback', 'sf-toast'];
-  const HOLD_MS = 1000;
+  const HOLD_MS = 2000;
   // Elemente, die typischerweise Hintergrundbilder tragen; Textauszeichnung (b, i, em …) nicht.
   const BG_TAGS = new Set(['DIV', 'A', 'SPAN', 'FIGURE', 'SECTION', 'HEADER', 'ARTICLE', 'LI', 'PICTURE', 'ASIDE', 'VIDEO']);
   const OBSERVE_OPTS = {
@@ -870,8 +870,25 @@
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'sf-btn sf-hold';
-    b.textContent = text;
     b.title = 'Gedrückt halten zum Anzeigen';
+    // Ladekreis: grauer Ring, der sich beim Gedrückthalten blau füllt.
+    const NS = 'http://www.w3.org/2000/svg';
+    const ring = document.createElementNS(NS, 'svg');
+    ring.setAttribute('viewBox', '0 0 20 20');
+    ring.setAttribute('class', 'sf-ring');
+    ring.setAttribute('aria-hidden', 'true');
+    for (const cls of ['sf-ring-bg', 'sf-ring-fg']) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', '10');
+      c.setAttribute('cy', '10');
+      c.setAttribute('r', '8');
+      c.setAttribute('class', cls);
+      ring.append(c);
+    }
+    ring.lastChild.style.animationDuration = HOLD_MS + 'ms';
+    const label = document.createElement('span');
+    label.textContent = text;
+    b.append(ring, label);
     let timer = null;
     let done = false;
     const start = (ev) => {

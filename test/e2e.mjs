@@ -74,6 +74,7 @@ async function main() {
       presets: [],
       display: 'hide',
       ocr: true,
+      revealHold: false,
     });
 
     const page = await ctx.newPage();

@@ -30,8 +30,8 @@
     // gelernte Inhalte auch ohne Schlagwort ausblenden, ab dieser Sicherheit
     learnHide: true,
     learnThreshold: 0.9,
-    // Aufdecken nur durch Gedrückthalten (1 s), schützt vor reflexhaftem Klicken
-    revealHold: false,
+    // Aufdecken nur durch Gedrückthalten (2 s), schützt vor reflexhaftem Klicken
+    revealHold: true,
     // Gesperrte Bereiche: [{host, sel (CSS-Selektor), head (erste Überschrift, optional)}]
     zones: [],
     // Verhalten bei OCR-Fehler/Timeout: 'show' (scharf stellen) | 'blur' (unscharf lassen) | 'hide'
