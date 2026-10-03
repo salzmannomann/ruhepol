@@ -344,6 +344,7 @@
     }
   });
 
+  $('presetsQuiz').addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('kennenlernen.html') }));
   $('presetsAll').addEventListener('click', () => {
     for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = true;
     dirty.add('presets');

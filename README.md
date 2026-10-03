@@ -54,6 +54,37 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
 
 ## Bedienung
 
+### Kennenlernen (beim ersten Start)
+
+Nach der Installation öffnet sich eine kurze Seite mit 20 erfundenen, sachlichen
+Schlagzeilen ohne Bilder: eine je Themenliste und fünf Grenzfälle ohne Schlagwort. Zu jeder
+sagt man „Möchte ich nicht sehen“, „Ist okay für mich“ oder „Weiß nicht“. Daraus schlägt
+Ruhepol die Themenauswahl vor:
+
+- Themen, deren Schlagzeile als okay eingestuft wurde, werden abgeschaltet. Übersprungene
+  Themen bleiben an.
+- Wer die meisten Grenzfälle nicht sehen will, bekommt das Angebot, den Bedeutungs-Filter
+  auf „stark“ zu stellen.
+
+Vor dem Speichern lässt sich alles anpassen. Später erreicht man die Seite über
+*Einstellungen → Themen → Mit Beispielen wählen …*. Sind über die Chrome-Synchronisierung
+schon Einstellungen da (zweiter Rechner), öffnet sie sich nicht von selbst.
+
+**Warum:** Die Themenauswahl ist der größte Hebel für wenige Fehler. Gemessen wurde das in
+der Persona-Simulation an unabhängigen echten Teasern (Fehler = Fehltreffer + übersehene):
+
+| Profil | alle Themen (Standard) | nach dem Kennenlernen | passende Auswahl |
+|---|---|---|---|
+| alle Themen belasten | 22 | 22 | 22 |
+| nur Gewalt (Krieg, Terror, Verbrechen …) | 36 | 9 | 6 |
+| nur Krieg und Terror | 62 | 21 | 10 |
+| nur KI und Klima | 52 | 26 | 8 |
+| alles außer KI | 34 | 16 | 16 |
+
+Ebenfalls gemessen und **nicht** eingebaut: Eine Empfindlichkeit je Thema, die sich aus
+Aufdecken+👍 und Rechtsklick-Sperren selbst nachstellt, war nicht besser als eine feste
+Schwelle. Sie half einem Profil leicht und machte zwei andere deutlich schlechter.
+
 ### Popup (Klick auf das Symbol)
 
 - **Filter aktiv**: schaltet die Erweiterung überall ein oder aus.
@@ -600,6 +631,8 @@ extension/
   options.html/js    Einstellungsseite
   lib/match.js       Abgleich (Normalisierung, Platzhalter, Levenshtein)
   lib/presets.js     Vorschlagslisten
+  lib/onboarding.js  Kennenlernen: Beispiel-Schlagzeilen, Auswahl daraus ableiten
+  kennenlernen.html/js  Kennenlernen-Seite (öffnet sich bei der Installation)
   lib/learn.js       Lernfilter (Naive Bayes)
   lib/semantic.js    Bedeutungs-Filter: Entscheidung, Schwellen, Vektor-Speicherung
   semantic.js        Sprachmodell im Offscreen Document (transformers.js)
