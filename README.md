@@ -17,9 +17,21 @@ Voraussetzung zum Bauen: [Node.js](https://nodejs.org/) ab Version 18.
    npm run setup
    ```
 
-   `npm run setup` kopiert tesseract.js, den Worker und den WASM-Kern aus `node_modules`
-   nach `extension/vendor/` und lädt die Sprachdaten Deutsch und Englisch
-   (`tessdata_fast`, zusammen etwa 6 MB) nach `extension/vendor/lang/`.
+   `npm run setup` erledigt drei Dinge:
+   - kopiert tesseract.js und transformers.js (mit der WASM-Laufzeit von onnxruntime-web,
+     ca. 27 MB) aus `node_modules` nach `extension/vendor/`;
+   - lädt die Sprachdaten Deutsch und Englisch (`tessdata_fast`, ca. 6 MB) nach
+     `extension/vendor/lang/`;
+   - lädt das Sprachmodell für den Bedeutungs-Filter (`Xenova/multilingual-e5-small`,
+     int8, ca. 135 MB mit Tokenizer) von Hugging Face nach `extension/vendor/models/`.
+
+   Die Datei `.npmrc` schaltet Installationsskripte von Paketen ab. transformers.js zieht
+   sonst onnxruntime-node mit, das beim Installieren Binärdateien nachlädt, die die
+   Erweiterung nicht braucht.
+
+   Wer den Bedeutungs-Filter nicht braucht, lässt den letzten Schritt weg:
+   `npm run build && npm run fetch-lang`. Das Paket ist dann etwa 45 MB groß statt etwa
+   180 MB.
 
 2. In Chrome `chrome://extensions` öffnen.
 3. Rechts oben den **Entwicklermodus** einschalten.
@@ -162,6 +174,41 @@ Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
 verschiedene Dinge, bis beide bewertet wurden. Bilder ohne Schrift beurteilt es nur über
 den Text drumherum.
 
+### Bedeutung verstehen (Stufe 2, KI lokal)
+
+Optional, standardmäßig aus (Einstellungen → „Bedeutung verstehen“). Ein kleines
+mehrsprachiges Sprachmodell (`multilingual-e5-small`) rechnet Überschrift und Vorspann
+jedes Teasers in einen Vektor mit 384 Zahlen um. Texte mit ähnlicher Bedeutung liegen nah
+beieinander, auch ohne gemeinsame Wörter und auch auf Englisch.
+
+Ein Teaser wird unscharf, wenn er deutlich näher liegt an
+- deinen Bewertungen „ausblenden“ (Mittel der 3 nächsten) oder
+- den Themen-Beschreibungen der aktivierten Vorschlagslisten und deinen eigenen
+  Schlagwörtern
+
+als an
+- deinen Bewertungen „will ich sehen“ oder
+- neutralen Vergleichstexten (Kultur, Sport, Wetter, Wohnen …).
+
+Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
+
+**Ablauf:**
+- Geprüft wird nur, was Schlagwörter und Lernfilter durchgelassen haben, gesammelt in
+  Paketen von bis zu 24 Teasern.
+- Das Modell läuft im Offscreen Document (transformers.js mit onnxruntime-web,
+  WebAssembly, ein Thread). Es lädt ausschließlich aus dem Paket, Downloads aus dem
+  Internet sind abgeschaltet.
+- Nach 5 Minuten ohne Arbeit wird das Modell entladen.
+- Vektoren der Bewertungen werden lokal gespeichert (int8, ca. 0,5 KB je Bewertung) und
+  nicht synchronisiert; jeder Rechner berechnet sie aus den synchronisierten Bewertungen.
+
+**Speicher:** ca. 135 MB Modell + 27 MB Laufzeit auf der Festplatte, beim Rechnen ca.
+200–300 MB Arbeitsspeicher.
+
+**Stand:** Die ganze Kette ist mit einem winzigen Testmodell automatisch getestet
+(`test/make_tiny_model.py`, `test/semantik.mjs`). Die Schwellen für das echte Modell sind
+Startwerte und werden mit echten Teasern nachjustiert (`extension/lib/semantic.js`).
+
 ### Synchronisieren zwischen Rechnern
 
 - **Einstellungen** liegen in `chrome.storage.sync`.
@@ -263,8 +310,9 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
 ```bash
 npm install
 npm run setup        # vendor/ und Sprachdaten
-npm test             # Unit-Tests (Abgleich, Listen, Lernmodell) + Playwright-Tests
-                     # (Testseite, Lernfilter, Hintergrundbilder/Shadow-DOM/Gedrückthalten/Bereiche)
+npm test             # Unit-Tests (Abgleich, Listen, Lernmodell, Bedeutungs-Logik) + Playwright-Tests
+                     # (Testseite, Lernfilter, Hintergrundbilder/Shadow-DOM/Gedrückthalten/Bereiche,
+                     #  Bedeutungs-Filter mit Testmodell)
 npm run test:orf     # Praxistest gegen https://orf.at (braucht Internet; HEADED=1 für sichtbares Fenster)
 ```
 
@@ -300,6 +348,8 @@ extension/
   lib/match.js       Abgleich (Normalisierung, Platzhalter, Levenshtein)
   lib/presets.js     Vorschlagslisten
   lib/learn.js       Lernfilter (Naive Bayes)
+  lib/semantic.js    Bedeutungs-Filter: Entscheidung, Schwellen, Vektor-Speicherung
+  semantic.js        Sprachmodell im Offscreen Document (transformers.js)
   lib/settings.js    Einstellungen und Seitenregeln
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole
@@ -308,6 +358,10 @@ test/                Unit-Tests, Playwright-Test, Testseite, Testbilder
 
 ## Drittanbieter
 
-tesseract.js und tesseract.js-core stehen unter Apache-2.0; die Lizenztexte werden nach
-`extension/vendor/` kopiert. Die Sprachdaten `tessdata_fast` stehen ebenfalls unter
-Apache-2.0.
+- tesseract.js und tesseract.js-core: Apache-2.0
+- Sprachdaten `tessdata_fast`: Apache-2.0
+- transformers.js: Apache-2.0
+- onnxruntime-web: MIT
+- Sprachmodell `multilingual-e5-small` (intfloat, ONNX-Fassung von Xenova): MIT
+
+Die Lizenztexte der Bibliotheken werden nach `extension/vendor/` kopiert.

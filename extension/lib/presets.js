@@ -18,6 +18,8 @@
   const PRESETS = [
     {
       id: 'ki',
+      // Beschreibung für den Bedeutungs-Filter (Stufe 2): wird als Themen-Anker eingebettet.
+      about: 'Künstliche Intelligenz, KI-Modelle, ChatGPT und Chatbots, Algorithmen ersetzen Menschen. Artificial intelligence, AI models, chatbots.',
       name: 'Künstliche Intelligenz',
       terms: [
         'KI', 'AI', 'künstliche Intelligenz', 'künstlicher Intelligenz', 'artificial intelligence',
@@ -28,6 +30,7 @@
     },
     {
       id: 'klima',
+      about: 'Klimawandel, Erderwärmung und Klimakrise: Gletscher schmelzen, Hitze und Dürre, CO2-Emissionen, steigender Meeresspiegel. Climate change, global warming.',
       name: 'Klimawandel',
       terms: [
         'Klimawandel*', 'Klimakrise*', 'Klimakatastrophe*', 'Klimaerwärmung', 'Erderwärmung',
@@ -40,6 +43,7 @@
     },
     {
       id: 'krieg',
+      about: 'Krieg, Soldaten und Panzer an der Front, Raketen und Luftangriffe, Bombardierung, zerstörte Städte, Kriegsopfer. War, military attack, missiles.',
       name: 'Krieg und Militär',
       terms: [
         'Krieg', '*krieg', '*kriege', '*krieges', 'kriegs*', 'Luftangriff*',
@@ -52,6 +56,7 @@
     },
     {
       id: 'terror',
+      about: 'Terroranschlag, Attentat, Amoklauf, Geiselnahme, Schüsse und Explosion, Extremisten. Terror attack, shooting, extremists.',
       name: 'Terror und Gewalt',
       terms: [
         'Terror*', 'Anschlag', 'Anschlags', 'Anschläge*', 'Terroranschlag*', 'Bombenanschlag*',
@@ -63,6 +68,7 @@
     },
     {
       id: 'verbrechen',
+      about: 'Mord, Tötung, Gewaltverbrechen, Leiche gefunden, Messerangriff, Raubüberfall, Entführung, Mordprozess. Murder, violent crime.',
       name: 'Verbrechen',
       terms: [
         'Mord', 'Morde', 'Mordes', 'Mordfall*', 'Mordprozess*', 'Mordversuch*', 'Mordanklage*', 'ermordet*',
@@ -72,6 +78,7 @@
     },
     {
       id: 'missbrauch',
+      about: 'Sexueller Missbrauch, Vergewaltigung, sexuelle Gewalt, Kindesmissbrauch, häusliche Gewalt gegen Frauen, Femizid. Sexual abuse, rape, domestic violence.',
       name: 'Missbrauch und sexuelle Gewalt',
       terms: [
         'Missbrauch*', 'missbraucht', 'Kindesmissbrauch*', 'Vergewaltig*', 'sexuelle* Übergriff*',
@@ -82,6 +89,7 @@
     },
     {
       id: 'unglueck',
+      about: 'Schwerer Unfall, Absturz, Erdbeben, Überschwemmung, Hochwasser, Lawine, Waldbrand, Explosion, Tote und Verletzte. Disaster, accident, deaths.',
       name: 'Unglücke und Katastrophen',
       terms: [
         'Unglück', 'Unglücks', 'Unfall*', 'Unfälle*', 'Verkehrsunfall*', 'Flugzeugabsturz*',
@@ -95,6 +103,7 @@
     },
     {
       id: 'tod',
+      about: 'Tod, Todesfall, gestorben, Trauer und Begräbnis, Nachruf, Suizid und Selbstmord. Death, grief, suicide.',
       name: 'Tod, Trauer, Suizid',
       terms: [
         'Tod', 'Todes', 'Todesfall*', 'tödlich*', 'gestorben', 'verstorben*', 'stirbt', 'starb',
@@ -103,6 +112,7 @@
     },
     {
       id: 'psyche',
+      about: 'Depression, Angststörung, Panikattacken, Essstörung, Magersucht, Selbstverletzung, Trauma, Burnout, psychische Krise. Mental illness, depression, anxiety.',
       name: 'Psychische Belastung',
       terms: [
         'Depression*', 'depressiv*', 'Angststörung*', 'Panikattacke*', 'Essstörung*', 'Magersucht',
@@ -113,6 +123,7 @@
     },
     {
       id: 'sucht',
+      about: 'Drogen, Überdosis, Heroin, Kokain, Fentanyl, Alkoholsucht, Spielsucht, Drogentote. Drugs, addiction, overdose.',
       name: 'Drogen und Sucht',
       terms: [
         'Drogen*', 'Drogentod*', 'Drogentote*', 'Überdosis', 'Heroin', 'Kokain', 'Crystal Meth', 'Fentanyl',
@@ -122,6 +133,7 @@
     },
     {
       id: 'diskriminierung',
+      about: 'Rassismus, Antisemitismus, Hassverbrechen, Hetze und Hasspostings, Homophobie, Sexismus, Diskriminierung, Mobbing. Racism, hate crime, discrimination.',
       name: 'Hass und Diskriminierung',
       terms: [
         'Rassismus', 'rassistisch*', 'Antisemitismus', 'antisemitisch*', 'Hassverbrechen', 'Hasskriminalität',
@@ -132,6 +144,7 @@
     },
     {
       id: 'tierleid',
+      about: 'Tierquälerei, Tierversuche, Massentierhaltung, Tiertransporte, Schlachthof, verendete Tiere. Animal cruelty, animal suffering.',
       name: 'Tierleid',
       terms: [
         'Tierquälerei', 'Tierquäler*', 'Tierversuch*', 'Massentierhaltung', 'Tiertransport*', 'Schlachthof*',
@@ -140,6 +153,7 @@
     },
     {
       id: 'krankheit',
+      about: 'Pandemie, Corona und Covid, Virus und Infektionen, Lockdown, Seuche, Epidemie, schwere Krankheit. Pandemic, virus, disease outbreak.',
       name: 'Pandemie und Krankheit',
       terms: [
         'Corona*', 'Covid*', 'Pandemie*', 'Epidemie*', 'Lockdown*', 'Impfpflicht', 'Vogelgrippe',
@@ -149,6 +163,7 @@
     },
     {
       id: 'wirtschaft',
+      about: 'Wirtschaftskrise, Inflation und Teuerung, Rezession, Pleite und Insolvenz, Stellenabbau und Kündigungen, Börsencrash. Economic crisis, inflation, layoffs.',
       name: 'Wirtschaftskrise',
       terms: [
         'Inflation*', 'Teuerung*', 'Rezession*', 'Wirtschaftskrise*', 'Finanzkrise*', 'Energiekrise*',
@@ -159,6 +174,7 @@
     },
     {
       id: 'krise',
+      about: 'Krise, Skandal, Eskalation, Tragödie, Schock und Panik, Korruption, Notstand. Crisis, scandal, escalation.',
       name: 'Krisen und Skandale allgemein',
       terms: [
         '*krise', '*krisen', 'Skandal*', 'Eskalation*', 'eskaliert', 'Tragödie*', 'Schock*', 'Horror*',
@@ -176,6 +192,11 @@
     return out;
   }
 
-  root.SFPresets = { PRESETS, ALL_IDS, termsFor };
+  function aboutFor(ids) {
+    const set = new Set(ids || []);
+    return PRESETS.filter((p) => set.has(p.id) && p.about).map((p) => p.about);
+  }
+
+  root.SFPresets = { PRESETS, ALL_IDS, termsFor, aboutFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFPresets;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

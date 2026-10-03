@@ -91,6 +91,8 @@
     $('fuzzy').checked = s.fuzzy;
     $('onError').value = s.onError;
     $('revealHold').checked = s.revealHold;
+    $('semantic').checked = s.semantic;
+    $('semanticLevel').value = s.semanticLevel;
     renderZones(s.zones);
   }
 
@@ -112,6 +114,8 @@
       fuzzy: $('fuzzy').checked,
       onError: $('onError').value,
       revealHold: $('revealHold').checked,
+      semantic: $('semantic').checked,
+      semanticLevel: $('semanticLevel').value,
       zones: currentZones,
     };
   }
@@ -170,6 +174,20 @@
       ul.append(li);
     }
     if (!info.recent.length) ul.innerHTML = '<li>Noch keine.</li>';
+  }
+
+  async function refreshSem() {
+    const st = await chrome.runtime.sendMessage({ type: 'semStatus' });
+    const el = $('semStatus');
+    if (!st) return;
+    const name = st.model.split('/').pop();
+    if (!st.installed) {
+      el.textContent = `Sprachmodell (${name}) ist nicht installiert. Im Projektordner „npm run fetch-model“ ausführen und die Erweiterung neu laden.`;
+      $('semantic').disabled = !$('semantic').checked;
+    } else {
+      el.textContent = `Sprachmodell ${name} ist installiert.` + (st.indexed ? ` ${st.indexed} Bewertungen eingerechnet.` : '');
+      $('semantic').disabled = false;
+    }
   }
 
   async function refreshCacheInfo() {
@@ -258,6 +276,7 @@
 
   buildPresets();
   refreshLearn();
+  refreshSem();
   fill(await S.load());
   refreshCacheInfo();
 })();

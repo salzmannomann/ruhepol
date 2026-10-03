@@ -83,6 +83,22 @@
   </section>
 
   <section>
+    <h2>Bedeutung verstehen (KI, lokal)</h2>
+    <p class="hint">Ein kleines Sprachmodell vergleicht die <em>Bedeutung</em> von Überschriften und Vorspann mit deinen Bewertungen und den Themen der aktivierten Vorschlagslisten. So werden auch Artikel erkannt, in denen kein Schlagwort vorkommt („Flut“ statt „Hochwasser“, englische Texte). Läuft vollständig auf diesem Rechner.</p>
+    <div id="semStatus" class="learn-status">…</div>
+    <label class="check"><input type="checkbox" id="semantic"><span>Bedeutungs-Filter verwenden<br><span class="hint">Braucht beim Rechnen etwa 200–300 MB Arbeitsspeicher; nach 5 Minuten ohne Arbeit wird das Modell entladen.</span></span></label>
+    <div class="row" style="margin:4px 0 0 26px">
+      <label>Empfindlichkeit:
+        <select id="semanticLevel">
+          <option value="vorsichtig">vorsichtig (nur sehr eindeutige Fälle)</option>
+          <option value="mittel">mittel (empfohlen)</option>
+          <option value="stark">stark (blendet mehr aus)</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <section>
     <h2>Vorschlagslisten</h2>
     <p class="hint">Fertige Listen zu vorwiegend negativen Themen. Angehakte Listen werden zusätzlich zu den eigenen Schlagwörtern verwendet. Einzelne Begriffe lassen sich mit „In eigene Liste kopieren“ übernehmen und anpassen (die Liste dann abhaken).</p>
     <div class="row" style="margin:8px 0">

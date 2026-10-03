@@ -105,7 +105,8 @@
     const host = location.hostname || (window.top !== window ? safeTopHost() : '');
     const keywords = S.allKeywords(settings);
     zoneRules = settings.zones.filter((z) => S.hostInList(location.hostname, [z.host]));
-    const shouldRun = S.isActiveOn(settings, host) && (keywords.length > 0 || learningHides() || zoneRules.length > 0);
+    const shouldRun = S.isActiveOn(settings, host) &&
+      (keywords.length > 0 || learningHides() || settings.semantic || zoneRules.length > 0);
     if (!shouldRun) {
       reportCount();
       return;
@@ -157,6 +158,8 @@
     activeWalker = null;
     ocrWaiting.clear();
     learnCandidates.clear();
+    semQueue.clear();
+    semUnavailable = false;
     bgQueue.clear();
     if (bgHandle) cancelIdle(bgHandle);
     bgHandle = null;
@@ -649,8 +652,13 @@
 
   /* ---------------- Lernfilter ---------------- */
 
+  /** Sollen Teaser für Lernfilter bzw. Bedeutungs-Filter gesammelt werden? */
   function learnHandleable() {
-    return active && learningHides();
+    return active && (learningHides() || semanticOn());
+  }
+
+  function semanticOn() {
+    return !!settings && settings.semantic && !semUnavailable;
   }
 
   function scheduleLearn() {
@@ -694,15 +702,58 @@
       scoredBlocks.add(block);
       const text = blockText(block);
       if (text.length >= 25) {
-        const s = L.score(model, text);
+        const s = learningHides() ? L.score(model, text) : null;
         if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
           hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true });
+        } else if (semanticOn()) {
+          semQueue.add(block);
         }
       }
       if (budget() <= 1) break;
     }
     if (learnCandidates.size) learnHandle = requestIdle(learnWork);
+    flushSem();
     reportCount();
+  }
+
+  /* ---------------- Bedeutungs-Filter (Stufe 2) ---------------- */
+
+  const SEM_BATCH = 24;
+  const semQueue = new Set();
+  let semBusy = false;
+  let semUnavailable = false; // Modell fehlt: auf dieser Seite nicht weiter nachfragen
+
+  /** Teaser gesammelt an das lokale Sprachmodell geben (immer nur eine Anfrage gleichzeitig). */
+  async function flushSem() {
+    if (semBusy || !semQueue.size || !semanticOn() || !active) return;
+    const blocks = [];
+    for (const b of semQueue) {
+      semQueue.delete(b);
+      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || b.closest('[data-sf-hit]') || clearedBlocks.has(b)) continue;
+      blocks.push(b);
+      if (blocks.length >= SEM_BATCH) break;
+    }
+    if (!blocks.length) return;
+    semBusy = true;
+    const gen = generation;
+    let res = null;
+    try {
+      res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
+    } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
+    semBusy = false;
+    if (gen !== generation || !active) return;
+    if (res && res.ok) {
+      res.results.forEach((r, i) => {
+        const b = blocks[i];
+        if (r.hide && b.isConnected) hit(b, 'Bedeutung', { block: b });
+      });
+      reportCount();
+    } else if (res && /nicht installiert|aus/.test(res.error || '')) {
+      semUnavailable = true;
+      semQueue.clear();
+      return;
+    }
+    if (semQueue.size) flushSem();
   }
 
   function train(block, label) {
