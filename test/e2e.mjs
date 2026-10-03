@@ -171,12 +171,24 @@ async function main() {
         const el = document.querySelector('#t-later');
         return el && el.classList.contains('sf-blurred') && getComputedStyle(el).filter.includes('blur');
       }, null, { timeout: 10000 });
-      // Kein Hinweis aufs Schlagwort, keine Knöpfe; Klick deckt auf, ohne Rückfrage-Leiste.
+      // Kein Hinweis aufs Schlagwort, keine Knöpfe sichtbar.
       assert.equal(await page.evaluate(() => document.querySelector('#t-later').getAttribute('title')), null);
-      assert.equal(await page.locator('.sf-placeholder').count(), 0);
+      assert.equal(await page.locator('.sf-placeholder, .sf-feedback').count(), 0);
+      // Klick: Bewertungsleiste erscheint, Block bleibt unscharf; ohne Schlagwort-Text.
       await page.click('#t-later');
-      await page.waitForFunction(() => !document.querySelector('#t-later').classList.contains('sf-blurred'));
+      await page.waitForSelector('.sf-feedback.sf-overlay');
+      assert.ok(await page.evaluate(() => document.querySelector('#t-later').classList.contains('sf-blurred')));
+      const barText = await page.textContent('.sf-feedback.sf-overlay');
+      assert.match(barText, /Passt so/);
+      assert.doesNotMatch(barText, /Lawine/);
+      // Nochmal klicken schließt die Leiste wieder.
+      await page.click('#t-later');
       assert.equal(await page.locator('.sf-feedback').count(), 0);
+      // „Nur anzeigen“ deckt auf und fragt danach.
+      await page.click('#t-later');
+      await page.click('.sf-overlay button:has-text("Nur anzeigen")');
+      await page.waitForFunction(() => !document.querySelector('#t-later').classList.contains('sf-blurred'));
+      assert.match(await page.textContent('.sf-overlay'), /War das Ausblenden richtig/);
       assert.ok(!(await page.evaluate(() => document.querySelector('#t-text').classList.contains('sf-blurred'))));
     });
 

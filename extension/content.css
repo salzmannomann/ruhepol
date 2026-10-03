@@ -60,6 +60,16 @@ html.sf-active .sf-feedback {
   font-size: 13px !important;
 }
 
+html.sf-active .sf-feedback.sf-overlay {
+  position: absolute !important;
+  z-index: 2147483646 !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22) !important;
+  background: #fff !important;
+}
+@media (prefers-color-scheme: dark) {
+  html.sf-active .sf-feedback.sf-overlay { background: #262a3d !important; }
+}
+
 html.sf-active .sf-btn {
   display: inline-block !important;
   padding: 3px 9px !important;

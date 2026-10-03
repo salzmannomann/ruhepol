@@ -705,6 +705,7 @@
   }
 
   function unhide(block) {
+    if (block.__sfBar && !block.__sfBar.contains(document.activeElement)) closeBar(block);
     block.classList.remove('sf-hidden', 'sf-blurred', 'sf-hidden-ph');
     block.removeEventListener('click', onBlurClick, true);
     if (block.__sfPlaceholder) { block.__sfPlaceholder.remove(); block.__sfPlaceholder = null; }
@@ -712,11 +713,89 @@
     hitBlocks.delete(block);
   }
 
+  /** Klick auf einen unscharfen Block: Bewertungsleiste über dem Block (Block bleibt unscharf). */
   function onBlurClick(ev) {
     const block = ev.currentTarget;
     ev.preventDefault();
     ev.stopPropagation();
-    reveal(block, null, { feedback: false });
+    if (block.__sfBar && block.__sfBar.isConnected) { closeBar(block); return; }
+    showChoices(block);
+  }
+
+  function closeBar(block) {
+    if (block.__sfBar) block.__sfBar.remove();
+    block.__sfBar = null;
+  }
+
+  /** Schwebende Leiste oben auf dem Block, damit das Seitenlayout (Grids usw.) unverändert bleibt. */
+  function overlayBar(block) {
+    closeBar(block);
+    const bar = document.createElement('div');
+    bar.className = 'sf-feedback sf-overlay';
+    bar.__sfBlock = block;
+    block.__sfBar = bar;
+    const r = block.getBoundingClientRect();
+    bar.style.setProperty('top', `${Math.max(0, r.top + window.scrollY + 6)}px`, 'important');
+    bar.style.setProperty('left', `${Math.max(0, r.left + window.scrollX + 6)}px`, 'important');
+    bar.style.setProperty('max-width', `${Math.max(220, r.width - 12)}px`, 'important');
+    (document.body || document.documentElement).appendChild(bar);
+    // Klick außerhalb schließt die Leiste.
+    const outside = (e) => {
+      if (!bar.isConnected) { document.removeEventListener('click', outside, true); return; }
+      if (bar.contains(e.target) || block.contains(e.target)) return;
+      document.removeEventListener('click', outside, true);
+      closeBar(block);
+    };
+    setTimeout(() => document.addEventListener('click', outside, true), 0);
+    return bar;
+  }
+
+  function showChoices(block) {
+    const kw = block.dataset.sfHit;
+    const bar = overlayBar(block);
+    const done = (text) => {
+      bar.textContent = text;
+      setTimeout(() => closeBar(block), 1300);
+    };
+    const keep = button('Passt so', () => { train(block, 'b'); done('Gemerkt – bleibt unscharf.'); });
+    keep.title = 'Richtig ausgeblendet – merken';
+    const want = button('Will ich sehen', () => {
+      train(block, 'o');
+      reveal(block, null, { feedback: false });
+      clearedBlocks.add(block);
+      done('Gemerkt.');
+    });
+    want.title = 'Falsch ausgeblendet – anzeigen und merken';
+    const show = button('Nur anzeigen', () => {
+      reveal(block, null, { feedback: false });
+      askAfterReveal(block, kw);
+    });
+    const close = button('×', () => closeBar(block));
+    close.title = 'Schließen';
+    bar.append(keep, want, show, close);
+  }
+
+  /** Nach „Nur anzeigen“: nachträglich bewerten. */
+  function askAfterReveal(block, kw) {
+    const bar = overlayBar(block);
+    const label = document.createElement('span');
+    label.textContent = 'War das Ausblenden richtig?';
+    const yes = button('Ja, wieder ausblenden', () => {
+      train(block, 'b');
+      closeBar(block);
+      delete block.dataset.sfRevealed;
+      for (const img of block.querySelectorAll('img')) delete img.dataset.sfRevealed;
+      hit(block, kw, { block, force: true });
+    });
+    const no = button('Nein, will ich sehen', () => {
+      train(block, 'o');
+      clearedBlocks.add(block);
+      bar.textContent = 'Gemerkt.';
+      setTimeout(() => closeBar(block), 1300);
+    });
+    const close = button('×', () => closeBar(block));
+    bar.append(label, yes, no, close);
+    setTimeout(() => { if (block.__sfBar === bar) closeBar(block); }, 30000);
   }
 
   function reveal(block, ph, opts) {
