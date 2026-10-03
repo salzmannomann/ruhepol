@@ -243,6 +243,27 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 (`test/make_tiny_model.py`, `test/semantik.mjs`). Die Schwellen für das echte Modell sind
 Startwerte und werden mit echten Teasern nachjustiert (`extension/lib/semantic.js`).
 
+### KI-Gegenprüfung von Schlagwort-Treffern
+
+Ist der Bedeutungs-Filter an, prüft das Modell Schlagwort-Treffer zusätzlich gegen
+(abschaltbar unter Erkennung → „Schlagwort-Treffer gegenprüfen“). Liegt der Text klar näher
+an neutralen Themen (Sport, Kultur, Alltag …) als an den gesperrten Themen und deinen
+„ausblenden“-Bewertungen, wird er wieder scharf.
+
+Gemessen:
+- **wieder gezeigt:** „Pleite gegen Salzburg“, „Drama in der Nachspielzeit“, „Rapid-Krise“,
+  „Explosion der Preise für Konzertkarten“
+- **unscharf geblieben (alle 8 echten Meldungen):** z. B. „Schüsse in Wiener Lokal“,
+  „Firmenpleite“, „Drama im Mittelmeer“
+
+Bis zur Prüfung bleibt der Treffer unscharf. Die eigenen Schlagwörter zählen dabei bewusst
+nicht als Themen-Anker, sonst wäre ein Treffer auf „Museum“ immer „nah an Museum“.
+
+### Artikelseiten: nur der betroffene Absatz
+
+Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze
+nebeneinander), wird nur dieser Absatz unscharf, nicht der ganze Textbereich samt Fotos.
+
 ### Gute Nachrichten trotzdem zeigen
 
 Optional (Einstellungen → Erkennung), braucht das Sprachmodell. Auch bei gesperrten Themen

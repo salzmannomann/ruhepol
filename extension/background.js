@@ -519,11 +519,14 @@ async function semReference(settings, model) {
   await chrome.storage.local.set({ semIndex: { model, vecs } });
   const b = [], o = [];
   for (const r of ratings) (r.label === 'b' ? b : o).push(SFSemantic.unpack(vecs[r.id]));
+  const topicTexts = SFPresets.aboutFor(settings.presets);
+  const anchorVecs = anchors.length ? await embedTexts(model, anchors) : [];
   semRef = {
     key,
     b,
     o,
-    anchors: anchors.length ? await embedTexts(model, anchors) : [],
+    anchors: anchorVecs,
+    topics: anchorVecs.slice(0, topicTexts.length), // anchorTexts beginnt mit den Themenbeschreibungen
     neutral: await embedTexts(model, SFSemantic.NEUTRAL),
   };
   return semRef;

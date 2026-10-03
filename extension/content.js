@@ -162,6 +162,9 @@
     semUnavailable = false;
     toneQueue.clear();
     toneUnavailable = false;
+    vetoQueue.clear();
+    clearTimeout(vetoTimer);
+    vetoTimer = null;
     clearTimeout(toneTimer);
     toneTimer = null;
     bgQueue.clear();
@@ -613,6 +616,13 @@
   }
 
   function findBlock(el) {
+    // Artikelseiten: Steht der Treffer in einem Absatz eines längeren Fließtexts, nur diesen
+    // Absatz nehmen – nicht den ganzen Textbereich samt Fotos.
+    const para = el.closest && el.closest('p');
+    if (para && para.parentElement && para.textContent.length > 40 &&
+        para.parentElement.querySelectorAll(':scope > p').length >= 3) {
+      return para;
+    }
     let primary = null, section = null, link = null;
     let depth = 0;
     for (let cur = el; cur && cur !== document.body && depth < 15; cur = cur.parentElement, depth++) {
@@ -718,6 +728,56 @@
     if (learnCandidates.size) learnHandle = requestIdle(learnWork);
     flushSem();
     reportCount();
+  }
+
+  /* ---------------- KI-Gegenprüfung von Schlagwort-Treffern ---------------- */
+
+  const vetoQueue = new Set();
+  let vetoBusy = false;
+  let vetoTimer = null;
+
+  function isKeywordReason(kw) {
+    return !NO_TONE_REASONS.has(kw) && kw !== 'Bedeutung' && !String(kw).startsWith('gelernt');
+  }
+
+  function scheduleVeto() {
+    if (!vetoTimer) vetoTimer = setTimeout(() => { vetoTimer = null; flushVeto(); }, 150);
+  }
+
+  /** Doppeldeutige Treffer (z. B. „Schüsse“ beim Fußball) wieder aufdecken, wenn klar harmlos. */
+  async function flushVeto() {
+    if (vetoBusy || !vetoQueue.size || !active || semUnavailable) return;
+    const blocks = [];
+    for (const b of vetoQueue) {
+      vetoQueue.delete(b);
+      if (b.isConnected && b.dataset.sfHit && !b.dataset.sfRevealed) blocks.push(b);
+      if (blocks.length >= SEM_BATCH) break;
+    }
+    if (!blocks.length) return;
+    vetoBusy = true;
+    const gen = generation;
+    let res = null;
+    try {
+      res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
+    } catch (_) { /* bleibt unscharf */ }
+    vetoBusy = false;
+    if (gen !== generation || !active) return;
+    if (res && res.ok) {
+      res.results.forEach((r, i) => {
+        const b = blocks[i];
+        if (!r.veto || !b.isConnected || !b.dataset.sfHit) return;
+        if (neverToneMatcher().find(blockText(b))) return;
+        unhide(b);
+        clearedBlocks.add(b);
+        b.dataset.sfVeto = String(Math.round((r.good - r.bad) * 1000) / 1000);
+      });
+      reportCount();
+    } else if (res && /nicht installiert|aus/.test(res.error || '')) {
+      semUnavailable = true;
+      vetoQueue.clear();
+      return;
+    }
+    if (vetoQueue.size) flushVeto();
   }
 
   /* ---------------- Gute Nachrichten trotz gesperrtem Thema ---------------- */
@@ -1178,6 +1238,11 @@
       }
     }
     block.dataset.sfHit = kw;
+    // Schlagwort-Treffer mit dem Sprachmodell gegenprüfen (bleibt bis dahin unscharf).
+    if (settings.semantic && settings.semanticVeto && !semUnavailable && !opts.noTone && isKeywordReason(kw)) {
+      vetoQueue.add(block);
+      scheduleVeto();
+    }
     // Gute Nachrichten trotz Thema: Ton nachträglich prüfen (bleibt bis dahin unscharf).
     if (settings.positiveShow && !toneUnavailable && !opts.noTone && !NO_TONE_REASONS.has(kw)) {
       toneQueue.add(block);

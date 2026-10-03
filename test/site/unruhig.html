@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Unruhige Seite</title>
+<style>body{font-family:sans-serif;padding:16px} figure{width:340px;border:1px solid #ccc;margin:8px 0;padding:8px}</style></head>
+<body>
+  <div id="ticker">Ticker 0</div>
+  <figure id="u-fig"><img id="u-img" src="{{IMG}}/ocr-kontrolle.png?unruhig" width="320" height="180" alt=""><figcaption>ÖFB-Teamchef war vom Rasen alles andere als angetan</figcaption></figure>
+  <script>
+    // Ständige Änderungen wie bei Tickern, Werbung oder Animationen.
+    let n = 0;
+    setInterval(() => { document.getElementById('ticker').textContent = 'Ticker ' + (++n); }, 40);
+  </script>
+</body>
+</html>

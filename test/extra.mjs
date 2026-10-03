@@ -125,6 +125,26 @@ async function main() {
       assert.notEqual(await page.evaluate(() => location.hash), '#navigiert');
     });
 
+    await step('Unruhige Seite (ständige Änderungen): Bild wird trotzdem geprüft und scharf', async () => {
+      const p2 = await ctx.newPage();
+      await p2.goto(srv.base + '/unruhig.html');
+      await p2.waitForFunction(() => document.querySelector('#u-img').dataset.sf === 'ok', null, { timeout: 15000 });
+      await p2.close();
+    });
+
+    await step('Artikelseite: nur der betroffene Absatz wird unscharf, nicht Foto und Rest', async () => {
+      await setSettings(sw, { presets: ['terror', 'unglueck'], display: 'blur' });
+      const p2 = await ctx.newPage();
+      await p2.goto(srv.base + '/artikel.html');
+      await p2.waitForFunction(() => document.querySelector('#a-p3').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await p2.waitForTimeout(800);
+      const state = await p2.evaluate(() => ['#a-artikel', '#a-fig', '#a-p1', '#a-p2', '#a-p4']
+        .map((s) => [s, document.querySelector(s).classList.contains('sf-blurred')]));
+      for (const [sel, blurred] of state) assert.equal(blurred, false, `${sel} unscharf`);
+      await p2.close();
+      await setSettings(sw, { presets: [] });
+    });
+
     let tabId;
     await step('Bereich sperren: Auswahl, Größer/Kleiner, Sperren', async () => {
       tabId = await sw.evaluate(async (url) => (await chrome.tabs.query({ url: url + '/*' }))[0].id, srv.base);
