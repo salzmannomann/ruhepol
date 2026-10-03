@@ -71,6 +71,7 @@ async function main() {
   try {
     await setSettings(sw, {
       keywords: ['Fußball', 'Hochwasser', 'Bürgermeister', 'Gemeinderat', 'Lawine'],
+      presets: [],
       display: 'hide',
       ocr: true,
     });
@@ -99,10 +100,15 @@ async function main() {
       assert.ok(!keys.some((k) => k.includes('alt-bild')), 'alt-Bild wurde trotzdem per OCR gelesen');
       assert.ok(!keys.some((k) => k.includes('teaser')), 'Teaser-Bild wurde trotzdem per OCR gelesen');
     });
+    await step('orf.at-artiger Aufbau: ganze div-Meldung weg, Ressort bleibt', async () => {
+      await hidden(page, '#t-orf1'); // Treffer in der Überschrift (Link)
+      await hidden(page, '#t-orf2'); // Treffer im Fließtext
+      for (const sel of ['#t-orf3', '#ressort', '#ticker']) assert.ok(await isVisible(page, sel), `${sel} sollte sichtbar sein`);
+    });
     await step('Nachgeladener Text ausgeblendet', () => hidden(page, '#t-later'));
     await step('Nachgeladenes Bild (lazy, src gesetzt) per OCR ausgeblendet', () => hidden(page, '#t-lazy'));
     await step('Unauffällige Inhalte und Spalten bleiben sichtbar', async () => {
-      for (const sel of ['#t-neutral', '#t-later-ok', '#t-control', '#col', '#col2', '#main', 'header']) {
+      for (const sel of ['#t-neutral', '#t-later-ok', '#t-control', '#t-icon', '#col', '#col2', '#main', 'header', 'nav']) {
         assert.ok(await isVisible(page, sel), `${sel} sollte sichtbar sein`);
       }
     });
@@ -125,7 +131,7 @@ async function main() {
       await popup.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
       await popup.waitForFunction(() => Number(document.getElementById('count').textContent) >= 5, null, { timeout: 5000 });
       const n = await popup.textContent('#count');
-      assert.equal(n, '6');
+      assert.equal(n, '8');
       assert.equal(await popup.textContent('#host'), '127.0.0.1');
       await popup.close();
     });
@@ -217,9 +223,29 @@ async function main() {
       // Lange Tasks durch das Seitenskript selbst (innerHTML von 4000 Einträgen) sind erwartbar;
       // die Erweiterung arbeitet in kleinen Idle-Häppchen.
       console.log(`    lange Tasks: ${long.length} (${long.map((d) => Math.round(d)).join(', ')} ms)`);
+      assert.ok(long.length <= 1, 'Erweiterung erzeugt eigene lange Tasks');
       const hiddenIds = await p2.evaluate(() => [...document.querySelectorAll('[data-sf-hit]')].map((e) => e.id));
       assert.deepEqual(hiddenIds, ['i7', 'i507', 'i1007', 'i1507', 'i2007', 'i2507', 'i3007', 'i3507']);
       await p2.close();
+    });
+
+    await step('Vorschlagsliste „Künstliche Intelligenz“ (über die Einstellungsseite aktiviert)', async () => {
+      const opt = await ctx.newPage();
+      await opt.goto(`chrome-extension://${extId}/options.html`);
+      await opt.waitForSelector('input[name="preset"][value="ki"]');
+      assert.equal(await opt.locator('input[name="preset"]').count(), 10);
+      await opt.check('input[name="preset"][value="ki"]');
+      await opt.click('#save');
+      await opt.waitForSelector('#status.ok');
+      await opt.close();
+      const presets = await sw.evaluate(async () => (await chrome.storage.sync.get('presets')).presets);
+      assert.deepEqual(presets, ['ki']);
+      await page.evaluate(() => {
+        document.getElementById('later').insertAdjacentHTML('beforeend',
+          '<article id="t-ki"><h2>Neues KI-Modell vorgestellt</h2></article><article id="t-kino"><h2>Kino-Tipp der Woche</h2></article>');
+      });
+      await hidden(page, '#t-ki');
+      assert.ok(await isVisible(page, '#t-kino'));
     });
 
     await step('Keine Skriptfehler auf der Seite', () => assert.deepEqual(consoleErrors, []));
