@@ -6,6 +6,12 @@ html.sf-active img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revea
   transition: filter 0.15s ease-out;
 }
 
+/* CSS-Hintergrundbilder und Video-Vorschaubilder während der Prüfung. */
+html.sf-active [data-sf-bg="pending"]:not([data-sf-revealed]),
+html.sf-active [data-sf-bg="err"]:not([data-sf-revealed]) {
+  filter: blur(18px) !important;
+}
+
 html.sf-active .sf-hidden,
 html.sf-active .sf-hidden-ph {
   display: none !important;
@@ -19,8 +25,8 @@ html.sf-active .sf-blurred {
 
 html.sf-active .sf-placeholder,
 html.sf-active .sf-placeholder *,
-html.sf-active .sf-feedback,
-html.sf-active .sf-feedback *,
+.sf-feedback,
+.sf-feedback *,
 .sf-toast {
   all: initial;
   box-sizing: border-box !important;
@@ -47,7 +53,7 @@ html.sf-active .sf-ph-text { cursor: pointer !important; }
 html.sf-active .sf-ph-text:focus { outline: 2px solid #6b8afd !important; border-radius: 3px !important; }
 html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !important; flex-wrap: wrap !important; font-size: 12.5px !important; }
 
-html.sf-active .sf-feedback {
+.sf-feedback {
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
@@ -60,17 +66,17 @@ html.sf-active .sf-feedback {
   font-size: 13px !important;
 }
 
-html.sf-active .sf-feedback.sf-overlay {
+.sf-feedback.sf-overlay {
   position: absolute !important;
   z-index: 2147483646 !important;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22) !important;
   background: #fff !important;
 }
 @media (prefers-color-scheme: dark) {
-  html.sf-active .sf-feedback.sf-overlay { background: #262a3d !important; }
+  .sf-feedback.sf-overlay { background: #262a3d !important; }
 }
 
-html.sf-active .sf-btn {
+.sf-btn {
   display: inline-block !important;
   padding: 3px 9px !important;
   border: 1px solid #b9b9b9 !important;
@@ -79,13 +85,13 @@ html.sf-active .sf-btn {
   font-size: 12.5px !important;
   cursor: pointer !important;
 }
-html.sf-active .sf-chips { display: inline-flex !important; flex-wrap: wrap !important; gap: 5px !important; }
-html.sf-active .sf-btn.sf-chip { border-radius: 999px !important; }
-html.sf-active .sf-btn.sf-chip.sf-on { background: #3d5afe !important; border-color: #3d5afe !important; color: #fff !important; }
-html.sf-active .sf-btn.sf-primary { font-weight: 600 !important; }
-html.sf-active .sf-btn:disabled { opacity: 0.45 !important; cursor: default !important; }
-html.sf-active .sf-btn:hover { background: #f0f3ff !important; border-color: #6b8afd !important; }
-html.sf-active .sf-btn:focus-visible { outline: 2px solid #6b8afd !important; }
+.sf-chips { display: inline-flex !important; flex-wrap: wrap !important; gap: 5px !important; }
+.sf-btn.sf-chip { border-radius: 999px !important; }
+.sf-btn.sf-chip.sf-on { background: #3d5afe !important; border-color: #3d5afe !important; color: #fff !important; }
+.sf-btn.sf-primary { font-weight: 600 !important; }
+.sf-btn:disabled { opacity: 0.45 !important; cursor: default !important; }
+.sf-btn:hover { background: #f0f3ff !important; border-color: #6b8afd !important; }
+.sf-btn:focus-visible { outline: 2px solid #6b8afd !important; }
 
 .sf-toast {
   position: fixed !important;
@@ -104,11 +110,57 @@ html.sf-active .sf-btn:focus-visible { outline: 2px solid #6b8afd !important; }
 @media (prefers-color-scheme: dark) {
   html.sf-active .sf-placeholder,
   html.sf-active .sf-placeholder *,
-  html.sf-active .sf-feedback,
-  html.sf-active .sf-feedback * { color: #ddd !important; }
+  .sf-feedback,
+  .sf-feedback * { color: #ddd !important; }
   html.sf-active .sf-placeholder { background: #2a2a2a !important; border-color: #666 !important; }
   html.sf-active .sf-placeholder:hover { background: #333 !important; }
-  html.sf-active .sf-feedback { background: #262a3d !important; border-color: #46507e !important; }
-  html.sf-active .sf-btn { background: #1e1e1e !important; border-color: #555 !important; }
-  html.sf-active .sf-btn:hover { background: #2b3050 !important; }
+  .sf-feedback { background: #262a3d !important; border-color: #46507e !important; }
+  .sf-btn { background: #1e1e1e !important; border-color: #555 !important; }
+  .sf-btn:hover { background: #2b3050 !important; }
+}
+
+/* Bereichsauswahl */
+.sf-pick {
+  outline: 3px dashed #3d5afe !important;
+  outline-offset: 2px !important;
+  background-color: rgba(61, 90, 254, 0.06) !important;
+}
+.sf-feedback.sf-picker {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  max-width: min(720px, calc(100vw - 24px)) !important;
+  background: #fff !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Aufdecken durch Gedrückthalten: Fortschrittsbalken (Pseudo-Element, damit die
+   !important-Hintergründe der Knöpfe die Animation nicht blockieren) */
+.sf-btn.sf-hold {
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+.sf-btn.sf-hold::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #c5cdfa;
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+.sf-btn.sf-hold.sf-holding::before {
+  animation: sf-fill 1s linear forwards;
+}
+@keyframes sf-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .sf-feedback.sf-picker { background: #262a3d !important; }
+  .sf-btn.sf-hold::before { background: #46507e; }
 }

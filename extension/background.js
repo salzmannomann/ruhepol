@@ -436,6 +436,7 @@ function createMenus() {
     chrome.contextMenus.create({ id: 'sf-add', title: '„%s“ zu den Schlagwörtern hinzufügen', contexts: ['selection'] });
     chrome.contextMenus.create({ id: 'sf-block', title: 'Will ich nicht sehen – unscharf stellen und merken', contexts });
     chrome.contextMenus.create({ id: 'sf-ok', title: 'Will ich sehen – nicht mehr ausblenden', contexts });
+    chrome.contextMenus.create({ id: 'sf-zone', title: 'Diesen Bereich auf dieser Seite immer sperren …', contexts });
   });
 }
 
@@ -458,7 +459,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     chrome.tabs.sendMessage(tab.id, { type: 'toast', text }, frame).catch(() => {});
     return;
   }
-  const action = info.menuItemId === 'sf-block' ? 'block' : info.menuItemId === 'sf-ok' ? 'ok' : null;
+  const action = { 'sf-block': 'block', 'sf-ok': 'ok', 'sf-zone': 'zone' }[info.menuItemId] || null;
   if (!action) return;
   chrome.tabs.sendMessage(tab.id, { type: 'ctx', action }, frame).catch(() => {});
 });

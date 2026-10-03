@@ -99,6 +99,9 @@
     <label class="radio"><input type="radio" name="siteMode" value="only"> Nur auf diesen Seiten filtern …</label>
     <textarea id="siteList" rows="5" placeholder="orf.at&#10;example.com"></textarea>
     <p class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen (orf.at gilt auch für sport.orf.at).</p>
+    <h2 style="margin-top:14px">Gesperrte Bereiche</h2>
+    <p class="hint">Rechtsklick auf einen Beitrag → „Diesen Bereich auf dieser Seite immer sperren …“, dann mit „Größer“/„Kleiner“ anpassen und „Sperren“. Der Bereich wird künftig immer unscharf gestellt, auch wenn kein Schlagwort vorkommt.</p>
+    <ul id="zones" class="recent"></ul>
   </section>
 
   <section>
@@ -107,6 +110,7 @@
     <label class="radio"><input type="radio" name="display" value="placeholder"> Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten</label>
     <label class="radio"><input type="radio" name="display" value="hide"> Komplett ausblenden</label>
     <p class="hint">Das Schlagwort wird nirgends angezeigt. Bewerten geht in jeder Darstellung per Rechtsklick auf einen Inhalt.</p>
+    <label class="check"><input type="checkbox" id="revealHold"><span>Aufdecken nur durch Gedrückthalten (1 Sekunde)<br><span class="hint">„Nur anzeigen“, „Will ich sehen“ und „Anzeigen“ müssen kurz gedrückt gehalten werden. Schützt vor dem reflexhaften Klick.</span></span></label>
   </section>
 
   <section>

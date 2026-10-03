@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Schlagwortfilter – Zusatztests</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 16px; }
+    .row { display: grid; grid-template-columns: repeat(3, 340px); gap: 16px; }
+    .teaser, article { border: 1px solid #ccc; padding: 8px; }
+    .ressort { border: 2px solid #999; padding: 8px; margin: 16px 0; }
+    .story { border: 1px solid #ddd; padding: 6px; margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <div class="teaser" id="x-bg">
+      <div id="bg" style="width:320px;height:180px;background-image:url('{{IMG}}/ocr-treffer.png');background-size:cover"></div>
+      <h3>Aktuelles</h3>
+    </div>
+    <div class="teaser" id="x-bg-ok">
+      <div id="bg-ok" style="width:320px;height:180px;background:url({{IMG}}/ocr-kontrolle.png) center/cover"></div>
+      <h3>Wetter</h3>
+    </div>
+    <article id="x-video">
+      <video id="vid" width="320" height="180" poster="{{IMG}}/ocr-nachgeladen.png"></video>
+      <h3>Video</h3>
+    </article>
+  </div>
+
+  <x-card id="x-shadow"></x-card>
+
+  <div id="ressorts">
+    <div class="ressort" id="r-ausland">
+      <h2>Ausland</h2>
+      <div class="story"><h3>Wahl in Frankreich</h3><p>Ergebnisse am Sonntag.</p></div>
+      <div class="story"><h3>Gipfel in Brüssel</h3><p>Die EU berät.</p></div>
+    </div>
+    <div class="ressort" id="r-sport">
+      <h2>Sport</h2>
+      <div class="story" id="sport-1"><h3>Derby in Wien</h3><p>Rapid gegen Austria.</p></div>
+      <div class="story"><h3>Skispringen</h3><p>Weltcup in Bischofshofen.</p></div>
+    </div>
+  </div>
+
+  <article id="x-hold"><h2>Lawine am Arlberg</h2><p>Straße gesperrt.</p></article>
+
+  <script>
+    customElements.define('x-card', class extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = `
+          <style>article { border: 1px solid #ccc; padding: 8px; margin: 8px 0; width: 340px; } img { display:block; }</style>
+          <article id="s-text"><h2>Lawine verschüttet Hütte</h2></article>
+          <article id="s-ok"><h2>Konzert im Park</h2></article>
+          <article id="s-img"><img id="s-pic" src="{{IMG}}/ocr-treffer.png" width="320" height="180"><h3>Bild</h3></article>`;
+      }
+    });
+  </script>
+</body>
+</html>
