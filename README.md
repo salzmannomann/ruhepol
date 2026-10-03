@@ -116,9 +116,14 @@ Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
 - **Klick auf einen unscharfen Block:** Bewertungsleiste wie oben beschrieben.
 - **Rechtsklick auf einen Artikel oder ein Bild** (in jeder Darstellung, auch auf
   unscharfe Blöcke):
-  - **„Will ich nicht sehen – ausblenden und merken“** blendet auch Inhalte ohne Schlagwort
-    sofort aus.
+  - **„Will ich nicht sehen – unscharf stellen und merken“** stellt auch Inhalte ohne
+    Schlagwort sofort unscharf. Danach schlägt eine Leiste die markanten Begriffe des
+    Artikels als Schlagwörter vor: Hauptwörter, bei Bildern auch aus alt-Text und OCR-Text,
+    bevorzugt Wörter, die der Lernfilter schon mit „ausblenden“ verbindet. Anklicken und
+    **Hinzufügen** übernimmt sie in die eigene Liste.
   - **„Will ich sehen – nicht mehr ausblenden“**.
+- **Text markieren → Rechtsklick → „„…“ zu den Schlagwörtern hinzufügen“** nimmt genau
+  diesen Begriff in die eigene Liste auf (anpassen, z. B. mit `*`, in den Einstellungen).
 - **Nur in der Darstellung „Platzhalter“:** zusätzlich die Knöpfe **Passt so**,
   **Will ich sehen** und **Anzeigen**, nach dem Anzeigen die Rückfrage „War das Ausblenden
   richtig?“.

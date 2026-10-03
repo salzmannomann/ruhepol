@@ -433,16 +433,34 @@ async function learnInfo() {
 function createMenus() {
   chrome.contextMenus.removeAll(() => {
     const contexts = ['page', 'link', 'image', 'selection'];
-    chrome.contextMenus.create({ id: 'sf-block', title: 'Will ich nicht sehen – ausblenden und merken', contexts });
+    chrome.contextMenus.create({ id: 'sf-add', title: '„%s“ zu den Schlagwörtern hinzufügen', contexts: ['selection'] });
+    chrome.contextMenus.create({ id: 'sf-block', title: 'Will ich nicht sehen – unscharf stellen und merken', contexts });
     chrome.contextMenus.create({ id: 'sf-ok', title: 'Will ich sehen – nicht mehr ausblenden', contexts });
   });
 }
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+/** Markierten Text als Schlagwort aufnehmen. Liefert {added, term}. */
+async function addKeyword(text) {
+  const term = String(text || '').replace(/\s+/g, ' ').trim().replace(/^[„“"'»«]+|[„“"'»«.,;:!?]+$/g, '').slice(0, 80);
+  if (!term) return { added: false, term };
+  const s = await SFSettings.load();
+  if (s.keywords.some((k) => k.toLowerCase() === term.toLowerCase())) return { added: false, term };
+  await SFSettings.save({ keywords: s.keywords.concat(term) });
+  return { added: true, term };
+}
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab || tab.id < 0) return;
+  const frame = { frameId: info.frameId || 0 };
+  if (info.menuItemId === 'sf-add') {
+    const r = await addKeyword(info.selectionText);
+    const text = r.added ? `„${r.term}“ ist jetzt ein Schlagwort` : `„${r.term}“ ist schon ein Schlagwort`;
+    chrome.tabs.sendMessage(tab.id, { type: 'toast', text }, frame).catch(() => {});
+    return;
+  }
   const action = info.menuItemId === 'sf-block' ? 'block' : info.menuItemId === 'sf-ok' ? 'ok' : null;
   if (!action) return;
-  chrome.tabs.sendMessage(tab.id, { type: 'ctx', action }, { frameId: info.frameId || 0 }).catch(() => {});
+  chrome.tabs.sendMessage(tab.id, { type: 'ctx', action }, frame).catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
