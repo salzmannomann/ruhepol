@@ -859,6 +859,53 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync' && changes.semantic && changes.semantic.newValue === true && !changes.semantic.oldValue) semWarm();
 });
 
+/* ---------------- Bewusst geöffnete Artikel ----------------
+ * Klickt man auf einen Teaser, der nicht unscharf war, merkt sich Ruhepol das Ziel (Adresse
+ * ohne Parameter, 30 Minuten) und den Tab (20 Sekunden – deckt Umleitungen und neue Tabs ab).
+ * Nur in chrome.storage.session: verschwindet beim Schließen des Browsers.
+ */
+const TRUST_URL_MS = 30 * 60 * 1000;
+const TRUST_TAB_MS = 20 * 1000;
+
+function trustKey(url) {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return '';
+    return u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/+$/, '');
+  } catch (_) { return ''; }
+}
+
+async function getTrust() {
+  const { trust } = await chrome.storage.session.get('trust');
+  const now = Date.now();
+  const t = trust || { urls: {}, tabs: {} };
+  for (const k of Object.keys(t.urls)) if (now - t.urls[k] > TRUST_URL_MS) delete t.urls[k];
+  for (const k of Object.keys(t.tabs)) if (!t.tabs[k] || now - t.tabs[k].ts > TRUST_TAB_MS) delete t.tabs[k];
+  return t;
+}
+
+async function trustLink(url, tab, from) {
+  const key = trustKey(url);
+  if (!key) return;
+  const t = await getTrust();
+  t.urls[key] = Date.now();
+  const keys = Object.keys(t.urls);
+  if (keys.length > 100) for (const k of keys.sort((a, b) => t.urls[a] - t.urls[b]).slice(0, keys.length - 100)) delete t.urls[k];
+  if (tab) t.tabs[tab.id] = { ts: Date.now(), from: trustKey(from || '') };
+  await chrome.storage.session.set({ trust: t });
+}
+
+async function isTrusted(url, tab) {
+  const t = await getTrust();
+  const key = trustKey(url);
+  if (!key) return false;
+  if (t.urls[key]) return true;
+  // Umleitung im selben Tab bzw. neuer Tab, kurz nach dem Klick – aber nicht die Ausgangsseite
+  // selbst (z. B. Startseite neu geladen).
+  const via = tab && (t.tabs[tab.id] || (tab.openerTabId != null && t.tabs[tab.openerTabId]));
+  return !!via && via.from !== key;
+}
+
 /* ---------------- Nachrichten ---------------- */
 
 const ADMIN_MESSAGES = new Set(['cacheClear', 'deleteRating', 'resetLearning', 'exportRatings', 'importRatings']);
@@ -898,6 +945,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'importRatings':
       importRatings(msg.ratings).then(sendResponse);
+      return true;
+    case 'trustLink':
+      if (typeof msg.url === 'string') trustLink(msg.url, sender.tab, sender.url).catch(() => {});
+      return false;
+    case 'isTrusted':
+      isTrusted(String(msg.url || ''), sender.tab).then((trusted) => sendResponse({ trusted }), () => sendResponse({ trusted: false }));
       return true;
     case 'semWarm':
       semWarm();

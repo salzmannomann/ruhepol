@@ -47,7 +47,7 @@
       name: 'Krieg und Militär',
       terms: [
         'Krieg', '*krieg', '*kriege', '*krieges', 'kriegs*', 'Luftangriff*',
-        'Raketenangriff*', 'Drohnenangriff*', 'Raketenbeschuss', 'Beschuss', 'Bombardement*',
+        'Raketenangriff*', 'Drohnenangriff*', 'Drohnenattacke*', 'Drohnenschlag*', 'Kampfdrohne*', 'Drohne getroffen', 'Drohnen getroffen', 'von Geschossen getroffen', 'ballistische Rakete*', 'Rakete abgefeuert', 'Raketen abgefeuert', 'Marschflugkörper*', 'Raketenbeschuss', 'Beschuss', 'Bombardement*',
         'Bombardierung*', 'Bombenangriff*', 'Invasion', 'Militäroffensive*', 'Gegenoffensive*',
         'Militärschlag', 'Waffenstillstand*', 'Waffenruhe', 'Kampfhandlungen', 'Frontlinie*',
         'Truppen', 'Soldaten', 'Gefechte', 'Genozid', 'Völkermord', 'Gaza*', 'Hamas', 'Hisbollah',

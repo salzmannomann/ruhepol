@@ -244,6 +244,67 @@ async function main() {
       await page.waitForFunction(() => !document.querySelector('#r-sport').classList.contains('sf-blurred'), null, { timeout: 5000 });
     });
 
+    const isBlurred = (pg, sel) => pg.evaluate((sel) => document.querySelector(sel).classList.contains('sf-blurred'), sel);
+    await step('Artikel direkt geöffnet: Treffer im Artikel werden wie gewohnt unscharf', async () => {
+      await setSettings(sw, { keywords: ['Bürgermeister', 'Gemeinderat', 'Lawine'], presets: [], display: 'blur', revealHold: false, trustOpened: true, zones: [] });
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/artikel2.html');
+      await p.waitForFunction(() => document.querySelector('#p2').classList.contains('sf-blurred')
+        && document.querySelector('#f1-img').dataset.sf === 'hit', null, { timeout: 20000 });
+      await p.close();
+    });
+
+    await step('Über sichtbaren Teaser geöffnet: Artikel lesbar, Teaser-Leisten weiter gefiltert', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/teaser.html');
+      await p.waitForFunction(() => document.querySelector('#t-hit').classList.contains('sf-blurred'));
+      await Promise.all([p.waitForURL('**/artikel2.html'), p.click('#t-ok a')]);
+      await p.waitForFunction(() => document.querySelector('#s1').classList.contains('sf-blurred')
+        && document.querySelector('#r1').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await p.waitForTimeout(1500);
+      assert.equal(await isBlurred(p, '#p2'), false, 'Absatz im Artikel unscharf');
+      assert.equal(await p.evaluate(() => document.querySelector('#f1-img').dataset.sf), 'ok', 'Foto im Artikel geprüft/unscharf');
+      await p.close();
+    });
+
+    await step('Unscharfer Teaser: erst aufdecken, dann öffnen → Artikel lesbar', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/teaser.html');
+      await p.waitForFunction(() => document.querySelector('#t-hit').classList.contains('sf-blurred'));
+      await p.click('#t-hit h2'); // deckt auf (ohne Gedrückthalten), öffnet nicht
+      await p.waitForFunction(() => !document.querySelector('#t-hit').classList.contains('sf-blurred'));
+      assert.match(p.url(), /teaser\.html/);
+      await p.keyboard.press('Escape');
+      await Promise.all([p.waitForURL('**/artikel3.html'), p.click('#t-hit a')]);
+      await p.waitForFunction(() => document.querySelector('#s1').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await p.waitForTimeout(1000);
+      assert.equal(await isBlurred(p, '#p2'), false);
+      await p.close();
+    });
+
+    await step('Mittelklick (neuer Tab) auf sichtbaren Teaser → Artikel im neuen Tab lesbar', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/teaser.html');
+      await p.waitForFunction(() => document.querySelector('#t-hit').classList.contains('sf-blurred'));
+      const [tab] = await Promise.all([ctx.waitForEvent('page'), p.click('#t-mid a', { button: 'middle' })]);
+      await tab.waitForLoadState('domcontentloaded');
+      await tab.waitForFunction(() => document.querySelector('#s1') && document.querySelector('#s1').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await tab.waitForTimeout(1000);
+      assert.equal(await isBlurred(tab, '#p2'), false);
+      await tab.close();
+      await p.close();
+    });
+
+    await step('Schalter aus → auch über Teaser geöffnete Artikel werden gefiltert', async () => {
+      await setSettings(sw, { trustOpened: false });
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/teaser.html');
+      await Promise.all([p.waitForURL('**/artikel2.html'), p.click('#t-ok a')]);
+      await p.waitForFunction(() => document.querySelector('#p2').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await p.close();
+      await setSettings(sw, { trustOpened: true, revealHold: true });
+    });
+
     await step('Kaltstart: Bildprüfungen kurz nach dem Start gehen nicht verloren', async () => {
       const res = await sw.evaluate(async () => {
         await chrome.offscreen.closeDocument().catch(() => {});

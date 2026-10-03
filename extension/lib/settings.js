@@ -41,6 +41,9 @@
     positiveLevel: 'mittel',
     // Aufdecken nur durch Gedrückthalten (2 s), schützt vor reflexhaftem Klicken
     revealHold: true,
+    // Artikel, die man über einen nicht gesperrten (oder selbst aufgedeckten) Teaser öffnet,
+    // vollständig zeigen – Teaser-Leisten daneben bleiben gefiltert
+    trustOpened: true,
     // Wünsche in eigenen Worten (ganze Sätze) für das Sprachmodell
     wishNo: [], // „Will ich nicht sehen“
     wishYes: [], // „Will ich trotzdem sehen“
@@ -102,7 +105,7 @@
     }
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.semanticLevel)) s.semanticLevel = raw.semanticLevel;
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.positiveLevel)) s.positiveLevel = raw.positiveLevel;
-    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow', 'nanoCheck']) {
+    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow', 'nanoCheck', 'trustOpened']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

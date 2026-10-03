@@ -346,6 +346,28 @@ beruhen aber darauf. Außerdem bräuchte Nano für jede Meldung eine eigene Antw
 Überschriften auf orf.at wäre das viel langsamer als das mitgelieferte Modell, das alle in
 Paketen vergleicht.
 
+### Bewusst geöffnete Artikel vollständig lesen
+
+Öffnest du einen Artikel über einen Teaser, der **nicht** unscharf war (oder den du selbst
+aufgedeckt hast), bleibt der Artikel lesbar, auch wenn darin Wörter wie „Krieg“ oder
+„Schüsse“ vorkommen (Einstellungen → Darstellung, standardmäßig an).
+
+- Ruhepol merkt sich beim Klick die Zieladresse (30 Minuten) und den Tab (20 Sekunden, für
+  Umleitungen und neue Tabs). Mittelklick, Strg-/Cmd-Klick und „Link in neuem Tab öffnen“
+  zählen auch, ebenso Teaser-Karten, bei denen die Überschrift nicht im Link steht
+  (derStandard). Gespeichert nur bis zum Schließen des Browsers.
+- Frei bleibt nur der Artikel selbst: der Bereich um die Hauptüberschrift (`article`/`main`).
+  Teaser-Leisten („Mehr zum Thema“, „Meistgelesen“), Navigation und Seitenleisten werden
+  weiter gefiltert.
+- Was du selbst gesperrt hast (👎, „Künftig ausblenden“, Bereiche), bleibt auch im Artikel
+  unscharf. Frei werden nur automatische Treffer (Schlagwörter, Bildtext, KI, Lernfilter).
+- Direkt geöffnete Artikel (Lesezeichen, Suche, geteilte Links) werden normal gefiltert – den
+  Teaser hast du dann ja nicht gesehen.
+
+Geprüft auf derStandard: Im Artikel „Ein Stück Beton in Prishtina“ waren beim direkten
+Öffnen vier Absätze zum Kosovo-Krieg unscharf; über den sichtbaren Teaser geöffnet ist er
+vollständig lesbar.
+
 ### Artikelseiten: nur der betroffene Absatz
 
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze
