@@ -1040,6 +1040,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (details && details.reason === 'update' && olderThan(details.previousVersion, '1.3.1')) {
     await chrome.storage.sync.set({ revealHold: true });
   }
+  // Ab 1.16: Lernfilter blendet erst ab 95 % aus (vorher 90 %, in Simulationen zu viele Fehltreffer).
+  if (details && details.reason === 'update' && olderThan(details.previousVersion, '1.16.0')) {
+    const { learnThreshold } = await chrome.storage.sync.get('learnThreshold');
+    if (learnThreshold === 0.9 || learnThreshold === 0.8) await chrome.storage.sync.set({ learnThreshold: 0.95 });
+  }
   pullSync().then(schedulePush).catch(() => {});
   // Fehlende Einstellungen mit Standardwerten auffüllen.
   // Nur fehlende Schlüssel schreiben, damit nichts Vorhandenes überschrieben wird.

@@ -18,7 +18,11 @@
   const IDLE_BUDGET_MS = 8;
   const OBSERVER_THROTTLE_MS = 100;
   const OCR_MARGIN = '1200px'; // vorausschauend prüfen, damit Bilder beim Hinscrollen schon fertig sind
-  const LEARN_KEEP = 0.2; // Schlagwort-Treffer zeigen, wenn das Modell sicher "will ich sehen" sagt
+  // Schlagwort-Treffer zeigen, wenn das Modell sehr sicher "will ich sehen" sagt. Früher 20 % bei
+  // 2 bekannten Wörtern – in Simulationen ließ das mit vielen Bewertungen belastende Meldungen
+  // durch (Standard-Nutzer nach 100 Bewertungen: 36 statt 52 von 56 erkannt).
+  const LEARN_KEEP = 0.05;
+  const LEARN_KEEP_KNOWN = 4;
   const LEARN_CANDIDATES = 'article, li, figure, h1, h2, h3, h4';
   const OWN_CLASSES = ['sf-placeholder', 'sf-feedback', 'sf-toast'];
   const HOLD_MS = 2000;
@@ -1515,7 +1519,7 @@
     // Lernfilter: Schlagwort trifft, aber laut Bewertungen will der Nutzer das sehen.
     if (!opts.force && learningActive()) {
       const s = L.score(model, blockText(block));
-      if (s && s.known >= 2 && s.p < LEARN_KEEP) {
+      if (s && s.known >= LEARN_KEEP_KNOWN && s.p < LEARN_KEEP) {
         clearedBlocks.add(block);
         block.dataset.sfLearnOk = String(Math.round(s.p * 100));
         return false;

@@ -73,6 +73,26 @@
     return b >= MIN_EACH && o >= MIN_EACH && b + o >= MIN_TOTAL;
   }
 
+  // Merkmale, die insgesamt seltener vorkamen, zählen nicht (Zufall statt Muster).
+  const MIN_FEATURE_COUNT = 2;
+  const M_ESTIMATE = 2; // Glättung Richtung Gesamthäufigkeit des Merkmals
+  const MAX_WEIGHT = 2.5; // kein einzelnes Wort entscheidet allein
+
+  /**
+   * Gewicht eines Merkmals (log-Verhältnis „ausblenden“ : „sehen“) oder null.
+   * Früher Laplace-Glättung (+1/+2): Bei ungleich vielen Bewertungen (meist viel mehr „sehen“)
+   * galt ein Wort, das nur einmal in einer „sehen“-Bewertung vorkam, als Hinweis auf
+   * „ausblenden“ – mit vielen Bewertungen wurden so immer mehr harmlose Meldungen unscharf.
+   * Die m-Schätzung glättet stattdessen Richtung der Gesamthäufigkeit des Merkmals.
+   */
+  function weight(c, b, o) {
+    if (!c || c[0] + c[1] < MIN_FEATURE_COUNT) return null;
+    const pf = (c[0] + c[1] + 1) / (b + o + 2);
+    const pb = (c[0] + M_ESTIMATE * pf) / (b + M_ESTIMATE);
+    const po = (c[1] + M_ESTIMATE * pf) / (o + M_ESTIMATE);
+    return Math.max(-MAX_WEIGHT, Math.min(MAX_WEIGHT, Math.log(pb / po)));
+  }
+
   /**
    * Wahrscheinlichkeit, dass der Nutzer den Text NICHT sehen will.
    * Liefert {p, known} oder null, wenn das Modell noch zu wenig gelernt hat.
@@ -84,16 +104,16 @@
     let sum = 0;
     let known = 0;
     for (const f of features(text)) {
-      const c = model.f[f];
-      if (!c) continue;
+      const w = weight(model.f[f], b, o);
+      if (w === null) continue;
       known++;
-      // Bernoulli-ähnlich mit Laplace-Glättung: Anteil der Texte je Klasse, die das Merkmal enthalten.
-      sum += Math.log((c[0] + 1) / (b + 2)) - Math.log((c[1] + 1) / (o + 2));
+      sum += w;
     }
-    if (!known) return { p: b / (b + o), known: 0 };
+    if (!known) return { p: 0.5, known: 0 };
     // Naive Bayes ist bei vielen Merkmalen übertrieben sicher; dämpfen mit sqrt(Anzahl).
-    const prior = Math.log(b / o);
-    const logit = prior + (sum / Math.sqrt(known)) * 1.5;
+    // Ohne Grundhäufigkeit (Prior): Bewertet wird vor allem, was falsch lief, und meist
+    // „will ich sehen“ – der Anteil sagt also nichts darüber, wie viel jemand ausblenden will.
+    const logit = (sum / Math.sqrt(known)) * 1.5;
     return { p: 1 / (1 + Math.exp(-logit)), known };
   }
 
@@ -104,8 +124,9 @@
     const { b, o } = model.docs;
     const list = [];
     for (const [f, c] of Object.entries(model.f)) {
-      if (c[0] + c[1] < 2 || f.includes('_')) continue;
-      const w = Math.log((c[0] + 1) / (b + 2)) - Math.log((c[1] + 1) / (o + 2));
+      if (f.includes('_')) continue;
+      const w = weight(c, b, o);
+      if (w === null) continue;
       list.push([f, w, c]);
     }
     list.sort((x, y) => y[1] - x[1]);
