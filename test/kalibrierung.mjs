@@ -30,6 +30,11 @@ export const BELASTEND = [
   'Neue KI kann Stimmen täuschend echt nachahmen',
   'Immer mehr Jugendliche leiden unter Angstzuständen',
   'Bekannter Schauspieler im Alter von 64 Jahren verstorben',
+  // echte Meldungen von orf.at (Oktober 2026)
+  'Vier Beschuldigte nach Hauseinsturz',
+  'Hitzetote im Sommer: AGES-Schätzung weist Höchstwert aus',
+  'Opfer musste sich bei Raub ausziehen',
+  'Niedrigste bisher verzeichnete Abflussmengen in Europas Flüssen',
 ];
 export const UNBEDENKLICH = [
   'Rapid gewinnt Derby gegen Austria mit 2:1',
@@ -48,9 +53,20 @@ export const UNBEDENKLICH = [
   'Bundespräsident empfängt Staatsgast',
   'Schulstart: Was Eltern wissen müssen',
   'Tiergarten Schönbrunn freut sich über Pandababy',
+  // echte Meldungen von orf.at (Oktober 2026), die früher fälschlich unscharf wurden
+  'Schmetterlinge: Muster auf Flügeln verwirren Angreifer',
+  'Vorschulkinder schaffen 18.000 Schritte',
+  'Wildcard für Hirscher bei Comeback fix',
+  'NS-Aufarbeitung: Vertriebene Veterinäre',
+  'Gregoritsch: „Iren haben uns überrumpelt“',
+  'Wimmer schwärmt von Xaver Schlager',
 ];
 
 const { sw, close } = await launch();
+// Gegenprüfung: Schlagwort-Treffer, die harmlos sind (erste Gruppe) bzw. es nicht sind
+const VETO_JA = ['Trotz Iran-Krieges: Saisonfinale soll in Abu Dhabi steigen', 'ÖFB-Team will Vorsprung im Kosovo ausbauen'];
+const VETO_NEIN = ['Drohnen treffen Kraftwerk, Millionen ohne Strom', 'Flut in Kärnten: Dörfer von der Außenwelt abgeschnitten',
+  'Schüsse vor Synagoge: Täter auf der Flucht', 'Künstlerin Ingrid Wiener verstorben'];
 try {
   await sw.evaluate(() => chrome.storage.local.remove('semModel'));
   await setSettings(sw, { keywords: [], presets: SFPresetsAll(), semantic: true });
@@ -72,6 +88,15 @@ try {
     const t = BELASTEND.concat(UNBEDENKLICH)[i];
     console.log(`${i < BELASTEND.length ? 'B' : 'U'} ${x.hide ? 'weg ' : '    '} ${x.bad.toFixed(3)} ${x.good.toFixed(3)}  ${t}`);
   });
+
+  const veto = await sw.evaluate(async (texts) => {
+    const settings = await SFSettings.load();
+    const model = await semModelId();
+    const ref = await semReference(settings, model);
+    return (await embedTexts(model, texts)).map((v) => SFSemantic.decide(v, ref, model, 'mittel').veto);
+  }, VETO_JA.concat(VETO_NEIN));
+  console.log(`\nGegenprüfung: harmlose aufgedeckt ${veto.slice(0, VETO_JA.length).filter(Boolean).length}/${VETO_JA.length}, `
+    + `belastende fälschlich aufgedeckt ${veto.slice(VETO_JA.length).filter(Boolean).length}/${VETO_NEIN.length}`);
 
   // Gute Nachrichten trotz gesperrtem Thema
   const GUT = [

@@ -215,3 +215,10 @@ test('Ton: gute Nachricht im selben Thema erkennen, Themen ohne gute Seite nie',
   assert.equal(t.topic, 'tod');
   assert.equal(t.positive, false);
 });
+
+test('Vorschlagslisten: Beispiel-Schlagzeilen je Thema für den Bedeutungs-Filter', () => {
+  const P = require('../extension/lib/presets.js');
+  for (const id of P.ALL_IDS) assert.ok(P.examplesFor([id]).length >= 2, id);
+  assert.deepEqual(P.examplesFor([]), []);
+  assert.ok(P.examplesFor(['klima']).every((t) => !P.examplesFor(['krieg']).includes(t)));
+});

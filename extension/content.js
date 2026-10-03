@@ -369,7 +369,7 @@
     if (learnHandleable() && el.matches(LEARN_CANDIDATES)) learnCandidates.add(el);
     for (const a of ATTRS) {
       const v = el.getAttribute(a);
-      if (v) {
+      if (v && !isTagList(v)) {
         const kw = matcher.find(v);
         if (kw) { hit(el, kw, { why: 'text' }); return; }
       }
@@ -503,8 +503,18 @@
     if (io) io.observe(el);
   }
 
+  /**
+   * Agenturfotos tragen oft eine Schlagwortliste als alt-Text („Geld, Münzen, Eurokrise,
+   * Finanzkrise, …“). Die beschreibt das Symbolbild, nicht die Meldung – daher ignorieren.
+   */
+  function isTagList(text) {
+    const items = String(text || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+    return items.length >= 6 && items.every((x) => x.split(/\s+/).length <= 3);
+  }
+
   function imageContextText(img) {
-    const parts = [img.getAttribute('alt'), img.getAttribute('title'), img.getAttribute('aria-label')];
+    const parts = [img.getAttribute('alt'), img.getAttribute('title'), img.getAttribute('aria-label')]
+      .filter((t) => !isTagList(t));
     const fig = img.closest('figure');
     if (fig) {
       const cap = fig.querySelector('figcaption');
@@ -715,7 +725,11 @@
     }
     const imgs = [...(block.matches('img, [data-sf-bg]') ? [block] : []), ...block.querySelectorAll('img, [data-sf-bg]')];
     for (const img of imgs) {
-      parts.push(img.getAttribute('alt') || '', img.getAttribute('title') || '', img.__sfOcr || '');
+      for (const a of ['alt', 'title']) {
+        const v = img.getAttribute(a);
+        if (v && !isTagList(v)) parts.push(v);
+      }
+      parts.push(img.__sfOcr || '');
     }
     return parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 3000);
   }
@@ -739,7 +753,8 @@
         const s = learningHides() ? L.score(model, text) : null;
         if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
           hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true, why: 'gelernt' });
-        } else if (semanticOn()) {
+        } else if (semanticOn() && wordCount(text) >= SEM_MIN_WORDS) {
+          // Sehr kurze Texte (Bildnachweise, Rubriknamen) liegen beim Modell zufällig nah an allem.
           semQueue.add(block);
         }
       }
@@ -755,6 +770,11 @@
   const vetoQueue = new Set();
   let vetoBusy = false;
   let vetoTimer = null;
+
+  /** Antwort des Hintergrunds: Funktion abgeschaltet oder Modell fehlt (nicht: vorübergehender Fehler). */
+  function isOffError(error) {
+    return error === 'aus' || error === 'Modell nicht installiert';
+  }
 
   function isKeywordReason(kw) {
     return !NO_TONE_REASONS.has(kw) && kw !== 'Bedeutung' && !String(kw).startsWith('gelernt');
@@ -792,7 +812,7 @@
         b.dataset.sfVeto = String(Math.round((r.good - r.bad) * 1000) / 1000);
       });
       reportCount();
-    } else if (res && /nicht installiert|aus/.test(res.error || '')) {
+    } else if (res && isOffError(res.error)) {
       semUnavailable = true;
       vetoQueue.clear();
       return;
@@ -850,7 +870,7 @@
         b.dataset.sfPositive = String(r.diff);
       });
       reportCount();
-    } else if (res && /nicht installiert|aus/.test(res.error || '')) {
+    } else if (res && isOffError(res.error)) {
       toneUnavailable = true;
       toneQueue.clear();
       return;
@@ -861,6 +881,11 @@
   /* ---------------- Bedeutungs-Filter (Stufe 2) ---------------- */
 
   const SEM_BATCH = 24;
+  const SEM_MIN_WORDS = 4;
+
+  function wordCount(text) {
+    return text.split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
+  }
   const semQueue = new Set();
   let semBusy = false;
   let semUnavailable = false; // Modell fehlt: auf dieser Seite nicht weiter nachfragen
@@ -890,7 +915,7 @@
         if (r.hide && b.isConnected) hit(b, 'Bedeutung', { block: b, why: 'ki' });
       });
       reportCount();
-    } else if (res && /nicht installiert|aus/.test(res.error || '')) {
+    } else if (res && isOffError(res.error)) {
       semUnavailable = true;
       semQueue.clear();
       return;

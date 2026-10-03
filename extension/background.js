@@ -500,7 +500,8 @@ function anchorTexts(settings) {
   const own = settings.keywords
     .map((k) => k.replace(/\*/g, '').trim())
     .filter((k) => k.length >= 4);
-  return SFPresets.aboutFor(settings.presets).concat(own);
+  // Reihenfolge wichtig: semReference nimmt die ersten (Themenbeschreibungen) für die Gegenprüfung.
+  return SFPresets.aboutFor(settings.presets).concat(SFPresets.examplesFor(settings.presets), own);
 }
 
 /** Bezugspunkte zusammenstellen; Bewertungs-Vektoren werden dauerhaft gespeichert. */
