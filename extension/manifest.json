@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ruhepol",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Stellt belastende Nachrichten sanft unscharf – Text und Bilder, nach Schlagwörtern, Themen und dem, was du ihm beibringst. Alles lokal.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjOX7xQc/rJm0itcvfRPZPHzMpnp/29uQJ8tknxQsnKjqMmAUlziCjQN4pQmJOkg/DGIivaw8t2wE0pVucuZTfXgWsHbNcd62rK9aJ/gnZphpVMOC2fGlMwZRzAQeQpeyOn3jNqMOXo6xgbHIIH9sGyfUX32QyIqnQpIe1Z5eBUjfEXw8UjJ2djtQVTYalSVLmUKbDsNzI77/ZePWkUe374XcaFNVbk2FkRtCMxR8p+Kig1WOx/iU/oPiLLdBxDF0r3C6wOpqW3O/TJt9vtNhszF2w8+rF1gq/xsRoXn2aXteJGUP/AFhx+9UwFyFtXrt1HHL60qAtkqD9bukvwpiCQIDAQAB",
   "permissions": [
