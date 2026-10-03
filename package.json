@@ -14,7 +14,8 @@
     "test:lernen": "node test/lernen.mjs",
     "test:extra": "node test/extra.mjs",
     "fetch-model": "node scripts/fetch-model.mjs",
-    "test:semantik": "node test/semantik.mjs"
+    "test:semantik": "node test/semantik.mjs",
+    "kalibrieren": "node test/kalibrierung.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",
