@@ -95,7 +95,34 @@ async function main() {
       await page.waitForTimeout(2300);
       await page.mouse.up();
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'Wegziehen hat nicht abgebrochen');
+    });
+
+    await step('Link im unscharfen Block: Gedrückthalten zeigt nur an, öffnet den Link nicht', async () => {
+      await page.waitForFunction(() => document.querySelector('#x-link').classList.contains('sf-blurred'));
+      await page.locator('#x-link').scrollIntoViewIfNeeded();
+      const box = await page.locator('#x-link h2').boundingBox();
+      await page.mouse.move(box.x + 20, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(2400);
+      await page.mouse.up();
+      await page.waitForFunction(() => !document.querySelector('#x-link').classList.contains('sf-blurred'));
+      await page.waitForTimeout(300);
+      assert.notEqual(await page.evaluate(() => location.hash), '#navigiert', 'Link wurde beim Loslassen geöffnet');
+      // Danach funktioniert der Link wieder normal.
+      await page.click('.sf-overlay button:has-text("×")');
+      await page.click('#x-link-a');
+      assert.equal(await page.evaluate(() => location.hash), '#navigiert');
+      await page.evaluate(() => history.replaceState(null, '', location.pathname));
+    });
+
+    await step('Ohne Gedrückthalten: Klick zeigt an, öffnet den Link nicht', async () => {
       await setSettings(sw, { revealHold: false });
+      await page.reload(); // aufgedeckte Inhalte bleiben sonst aufgedeckt
+      await page.waitForFunction(() => document.querySelector('#x-link').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await page.click('#x-link h2');
+      await page.waitForFunction(() => !document.querySelector('#x-link').classList.contains('sf-blurred'));
+      await page.waitForTimeout(300);
+      assert.notEqual(await page.evaluate(() => location.hash), '#navigiert');
     });
 
     let tabId;

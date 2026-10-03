@@ -1272,7 +1272,34 @@
     ev.stopPropagation();
   }
 
+  /**
+   * Nach dem Aufdecken kommt beim Loslassen noch ein Klick – der darf keinen Link hinter dem
+   * Bild/Text öffnen. Deshalb wird genau dieser eine Klick abgefangen (bis zur nächsten
+   * neuen Berührung bzw. höchstens 5 s lang).
+   */
+  function swallowNextClick() {
+    const stop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      done();
+    };
+    const fresh = () => setTimeout(done, 0); // neue Berührung: deren Klick normal durchlassen
+    const done = () => {
+      window.removeEventListener('click', stop, true);
+      window.removeEventListener('auxclick', stop, true);
+      window.removeEventListener('pointerdown', fresh, true);
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(done, 5000);
+    window.addEventListener('click', stop, true);
+    window.addEventListener('auxclick', stop, true);
+    // Erst nach dem aktuellen Ereignis lauschen, sonst zählt die laufende Berührung als „neu“.
+    setTimeout(() => window.addEventListener('pointerdown', fresh, true), 0);
+  }
+
   function revealBlurred(block) {
+    swallowNextClick();
     const kw = block.dataset.sfHit;
     const zone = block.__sfZone;
     reveal(block, null, { feedback: false });
