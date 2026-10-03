@@ -255,22 +255,41 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 **Speicher:** ca. 135 MB Modell + 27 MB Laufzeit auf der Festplatte, beim Rechnen ca.
 200–300 MB Arbeitsspeicher.
 
-**Stand:** Die ganze Kette ist mit einem winzigen Testmodell automatisch getestet
-(`test/make_tiny_model.py`, `test/semantik.mjs`). Die Schwellen für das echte Modell sind
-mit echten Schlagzeilen von sport.orf.at, wien.orf.at und science.orf.at kalibriert
-(`npm run kalibrieren`, `extension/lib/semantic.js`):
+**Wie entschieden wird:** Der Teaser-Text wird zuerst bereinigt (Postingzähler, Uhrzeiten,
+Videolängen, Bildnachweise). Dann zählt das Mittel aus zwei Vergleichen:
+1. Nähe zu den Themenbeschreibungen (und deinen Bewertungen, Schlagwörtern, Wünschen) minus
+   Nähe zu neutralen Vergleichstexten,
+2. Nähe zu den 3 ähnlichsten von rund 160 belastenden Beispiel-Schlagzeilen der aktivierten
+   Themen minus Nähe zu den 3 ähnlichsten von rund 125 harmlosen
+   (`extension/lib/examples.js`, selbst formuliert).
 
-| Stufe | belastende erkannt | Fehltreffer |
-|---|---|---|
-| vorsichtig | 16/20 | 0/22 |
-| mittel | 16/20 | 0/22 |
-| stark | 18/20 | 1/22 |
+**Gemessen** an echten Teasern von orf.at und derStandard vom 3. Oktober 2026, von Hand
+eingestuft (`test/fixtures/real-headlines.json`, `npm run kalibrieren`). Datensatz A
+(453 Teaser) diente zum Abstimmen; Datensatz B (391 Teaser von anderen Seiten: orf.at
+Bundesländer, FM4, Help, derStandard Inland/Panorama/Kultur/Etat/Lifestyle/Web/Gesundheit)
+wurde erst danach gesammelt und nur zur Prüfung verwendet. Zahlen: belastende erkannt ·
+harmlose fälschlich unscharf, Schlagwörter und Bedeutungs-Filter zusammen:
 
-Auf den echten Startseiten wurden auf sport.orf.at vorher 5 harmlose Meldungen unscharf
-(z. B. „Wildcard für Hirscher bei Comeback fix“), jetzt keine. Auf science.orf.at blieben
-von 8 Fehltreffern („Schmetterlinge: Muster auf Flügeln verwirren Angreifer“,
-„Vorschulkinder schaffen 18.000 Schritte“ …) keine übrig; erkannt werden weiterhin
-„Hitzetote im Sommer“, „Niedrigste Abflussmengen“, „Vier Beschuldigte nach Hauseinsturz“.
+| | vorsichtig | mittel | stark |
+|---|---|---|---|
+| A vorher | 81/96 · 12 | 88/96 · 25 | 92/96 · 47 |
+| A jetzt | 83/96 · 12 | 85/96 · 18 | 88/96 · 28 |
+| B vorher | 46/56 · 22 | 51/56 · 26 | 52/56 · 38 |
+| B jetzt | 51/56 · 24 | 52/56 · 29 | 53/56 · 33 |
+
+Der Bedeutungs-Filter allein (ohne Schlagwörter) erkennt auf A jetzt 73 statt 67 belastende
+bei 10 statt 21 Fehltreffern (Stufe mittel). Zusammen mit den Schlagwörtern ist der Gewinn
+kleiner: Das kleine Sprachmodell kann Teaser wie „Wie Unternehmen 2027 Gehälter erhöhen“
+und „Brücke in Kyjiw von Drohne getroffen“ nur begrenzt auseinanderhalten. Ein größeres
+Modell (multilingual-e5-base, 280 MB) war in derselben Messung schlechter, nicht besser.
+
+Ein Teil der Fehltreffer auf B kam von den Schlagwortlisten selbst („Die Toten Hosen“ →
+„Toten“, „Rosenkrieg“, „Katastrophenübung“); dafür gibt es jetzt eingebaute Ausnahmen. Weil
+diese erst nach Sichtung von B ergänzt wurden, ist dieser Teil der Verbesserung auf B nicht
+unabhängig gemessen.
+
+Die Kette selbst ist zusätzlich mit einem winzigen Testmodell automatisch getestet
+(`test/make_tiny_model.py`, `test/semantik.mjs`).
 
 ### KI-Gegenprüfung von Schlagwort-Treffern
 

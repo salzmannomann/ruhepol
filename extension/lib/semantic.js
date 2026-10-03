@@ -37,6 +37,11 @@
       veto: 0.015,
       // Knapp unter der Schwelle: Grenzfall, den ein Sprachmodell zusätzlich beurteilen darf.
       unsure: 0.03,
+      // Mit Beispielsammlung (lib/examples.js): Mittel aus „Themen − neutral“ und „3 nächste
+      // belastende − 3 nächste harmlose Beispiele“. Abgestimmt an 453 echten Teasern von orf.at
+      // und derStandard (Datensatz A), geprüft an 391 frischen (Datensatz B), siehe README.
+      examples: true,
+      combo: { vorsichtig: 0.026, mittel: 0.0215, stark: 0.019 },
     },
     // Winziges Testmodell (test/make_tiny_model.py), nur für automatische Tests.
     'test/tiny': {
@@ -179,7 +184,13 @@
     const lv = LEVELS.includes(level) ? level : 'mittel';
     const bad = Math.max(topK(vec, ref.b, 3), maxSim(vec, ref.anchors));
     const good = Math.max(topK(vec, ref.o, 3), maxSim(vec, ref.neutral));
-    let hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
+    let hide;
+    if (cfg.combo && ref.exBad && ref.exBad.length && ref.exGood && ref.exGood.length) {
+      const knn = topK(vec, ref.exBad, 3) - topK(vec, ref.exGood, 3);
+      hide = ((bad - good) + knn) / 2 >= cfg.combo[lv];
+    } else {
+      hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
+    }
     // Eigene Wünsche („will ich nicht sehen“) gehen den eingebauten neutralen Texten vor: Ein
     // Wunsch „Mieten und Wohnungsnot“ soll nicht daran scheitern, dass „Wohnen und Alltag“ als
     // neutral gilt. Gegengewicht sind dann nur die eigenen „anzeigen“-Bewertungen und Wünsche.
@@ -199,6 +210,24 @@
     const veto = canVeto && vetoMargin >= cfg.veto;
     const unsure = canVeto && !veto && vetoMargin >= cfg.veto - (cfg.unsure || 0);
     return { hide, veto, unsure, bad: round(bad), good: round(good) };
+  }
+
+  /**
+   * Teaser-Text vor dem Vergleich bereinigen: Postingzähler, Uhrzeiten/Datumsangaben,
+   * Videolängen, Bildnachweise und Bedienelemente rücken lange Teaser sonst „in die Nähe von
+   * allem“ (gemessen an derStandard-Teasern mit Rubrik und Postingzahl).
+   */
+  function cleanText(t) {
+    return String(t)
+      .replace(/\b\d{1,3}(?:\.\d{3})*\s+Postings?\b/g, ' ')
+      .replace(/\b\d{1,2}\.\d{1,2}\.(?:\d{4})?,?\s*\d{1,2}[.:]\d{2}\s*Uhr\b/g, ' ')
+      .replace(/\b\d{1,2}[.:]\d{2}\s*Uhr\b/g, ' ')
+      .replace(/\b\d{1,2}:\d{2}\b/g, ' ')
+      .replace(/Mein Forum: Diskutieren Sie dieses Thema mit der STANDARD-Community.*$/i, ' ')
+      .replace(/\b(?:Livebericht|Live|Teilen|Kolumne|Ö1 Mittagsjournal|Bildquelle:?)\b/g, ' ')
+      .replace(/\b(?:APA|AFP|Reuters|AP|dpa|EPA|GEPA|picturedesk\.com|colourbox\.de|ORF)(?:\/[\wÄÖÜäöüß.-]+)*\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   function round(x) {
@@ -238,7 +267,7 @@
     return typeof atob === 'function' ? atob(str) : Buffer.from(str, 'base64').toString('binary');
   }
 
-  const api = { DEFAULT_MODEL, MODELS, LEVELS, NEUTRAL, TONE, modelConfig, cosine, topK, maxSim, decide, tone, pack, unpack };
+  const api = { DEFAULT_MODEL, MODELS, LEVELS, NEUTRAL, TONE, modelConfig, cosine, topK, maxSim, decide, tone, pack, unpack, cleanText };
   root.SFSemantic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

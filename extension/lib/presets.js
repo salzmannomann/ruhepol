@@ -227,6 +227,13 @@
     return PRESETS.filter((p) => set.has(p.id) && p.about).map((p) => p.about);
   }
 
+  /*
+   * Eingebaute Ausnahmen für die Vorschlagslisten: Wendungen, in denen ein Listenwort nichts
+   * Belastendes bedeutet (gefunden in echten Teasern von orf.at/derStandard/FM4).
+   */
+  const ALLOW = ['Die Toten Hosen', 'Toten Hosen', 'Rosenkrieg*', 'Katastrophenübung*', 'Katastrophenschutzübung*',
+    'Vermisste und zugelaufene'];
+
   function examplesFor(ids) {
     const set = new Set(ids || []);
     const out = [];
@@ -234,6 +241,6 @@
     return out;
   }
 
-  root.SFPresets = { PRESETS, ALL_IDS, MILD_IDS, termsFor, aboutFor, examplesFor };
+  root.SFPresets = { PRESETS, ALL_IDS, MILD_IDS, ALLOW, termsFor, aboutFor, examplesFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFPresets;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -286,3 +286,45 @@ test('Krieg-Liste: Drohnen- und Raketenangriffe ohne Ortsnamen, zivile Drohnen/R
     assert.equal(m.find(t), null, t);
   }
 });
+
+test('Vorschlagslisten: eingebaute Ausnahmen (Toten Hosen, Rosenkrieg, Katastrophenübung)', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
+  for (const t of ['Die Toten Hosen treten beim Nova Rock auf', 'Rosenkrieg in der neuen Sky-Serie',
+    'Katastrophenübung: Bergstation in Vollbrand', 'Vermisste und zugelaufene Tiere']) {
+    assert.equal(m.find(t), null, t);
+  }
+  assert.ok(m.find('Zahl der Toten steigt weiter'));
+  assert.ok(m.find('Die Toten Hosen sagen Konzert ab, zwei Tote bei Unfall'), 'Ausnahme schützt nicht den Rest');
+});
+
+test('Bedeutungs-Filter: Teaser-Text bereinigen', () => {
+  assert.equal(SEM.cleanText('Russland/Ukraine 276 Postings Brücke getroffen Livebericht Live'), 'Russland/Ukraine Brücke getroffen');
+  assert.equal(SEM.cleanText('chronik 3.10. 11.29 Uhr Festnahme in Wien'), 'chronik Festnahme in Wien');
+  assert.ok(!/APA|AFP|1:24/.test(SEM.cleanText('1:24 Schwere Überschwemmungen APA/AFP/Omar Al-Qattaa')));
+  assert.equal(SEM.cleanText('Was ist euer Lieblingsbier? Mein Forum: Diskutieren Sie dieses Thema mit der STANDARD-Community Diskussion'), 'Was ist euer Lieblingsbier?');
+});
+
+test('Bedeutungs-Filter: Beispielsammlung fließt in die Entscheidung ein (echtes Modell)', () => {
+  const E5 = 'Xenova/multilingual-e5-small';
+  const a = norm([1, 0, 0, 0]), n = norm([0, 1, 0, 0]);
+  // Text liegt knapp auf der Seite der Themen, die Beispiele sprechen klar dagegen
+  const q = norm([0.52, 0.48, 0, 0.1]);
+  const ref = { b: [], o: [], anchors: [a], topics: [a], neutral: [n] };
+  const plain = SEM.decide(q, ref, E5, 'stark');
+  const withEx = SEM.decide(q, { ...ref, exBad: [norm([1, 0, 0.3, 0])], exGood: [norm([0.3, 1, 0, 0.2]), q] }, E5, 'stark');
+  assert.equal(withEx.hide, false);
+  // umgekehrt: Beispiele bestätigen
+  const q2 = norm([0.6, 0.4, 0, 0]);
+  const conf = SEM.decide(q2, { ...ref, exBad: [q2], exGood: [n] }, E5, 'mittel');
+  assert.equal(conf.hide, true);
+  assert.equal(typeof plain.hide, 'boolean');
+});
+
+test('Beispielsammlung: je Thema mehrere belastende, genug harmlose Beispiele', () => {
+  const E = require('../extension/lib/examples.js');
+  const P = require('../extension/lib/presets.js');
+  for (const id of P.ALL_IDS) assert.ok((E.BAD[id] || []).length >= 8, id);
+  assert.ok(E.NEUTRAL.length >= 100);
+  assert.deepEqual(E.badFor([]), []);
+});

@@ -6,7 +6,7 @@
  */
 'use strict';
 
-importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js', 'lib/semantic.js');
+importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js', 'lib/semantic.js', 'lib/examples.js');
 
 const OCR_TIMEOUT_MS = 10000;
 // Gleichzeitige Aufträge: Herunterladen läuft parallel, das Offscreen Document verteilt die
@@ -677,6 +677,13 @@ async function semReference(settings, model) {
     // „Will ich trotzdem sehen“-Wünsche zählen wie neutrale Vergleichstexte.
     neutral: await embedTexts(model, SFSemantic.NEUTRAL.concat(settings.wishYes)),
   };
+  // Beispielsammlung (nur für Modelle, die dafür abgestimmt sind); Vektoren werden dauerhaft
+  // gespeichert, das erste Berechnen (ca. 280 Texte) passiert also nur einmal.
+  if (SFSemantic.modelConfig(model).examples) {
+    const badEx = SFExamples.badFor(settings.presets);
+    ref.exBad = badEx.length ? await embedTexts(model, badEx) : [];
+    ref.exGood = await embedTexts(model, SFExamples.NEUTRAL);
+  }
   const nAbout = SFPresets.aboutFor(settings.presets).length;
   ref.wishNo = anchorVecs.slice(nAbout, nAbout + settings.wishNo.length);
   ref.wishYes = ref.neutral.slice(SFSemantic.NEUTRAL.length);
@@ -735,7 +742,7 @@ function semScore(texts) {
     const model = await semModelId();
     if (!(await semInstalled(model))) return { ok: false, error: 'Modell nicht installiert' };
     const ref = await semReference(settings, model);
-    const vecs = await embedTexts(model, texts.map((t) => String(t).slice(0, 600)));
+    const vecs = await embedTexts(model, texts.map((t) => SFSemantic.cleanText(String(t).slice(0, 600)) || String(t).slice(0, 600)));
     return { ok: true, results: vecs.map((v) => SFSemantic.decide(v, ref, model, settings.semanticLevel)) };
   }).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
 }
