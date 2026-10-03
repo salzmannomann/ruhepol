@@ -192,6 +192,14 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   to { stroke-dashoffset: 0; }
 }
 
+/* „Warum?“-Erklärung in der Leiste */
+.sf-feedback .sf-why {
+  display: block !important;
+  flex-basis: 100% !important;
+  font-size: 12.5px !important;
+  color: #555 !important;
+}
+
 /* 👍/👎 nach dem Anzeigen */
 .sf-feedback.sf-thumbs .sf-btn {
   font-size: 16px !important;

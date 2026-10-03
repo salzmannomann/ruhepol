@@ -125,6 +125,24 @@ async function main() {
       assert.notEqual(await page.evaluate(() => location.hash), '#navigiert');
     });
 
+    await step('„Warum?“: ⓘ in der Leiste und Rechtsklick erklären den Grund', async () => {
+      // #x-link wurde im Schritt davor per Klick aufgedeckt → Leiste mit ⓘ
+      await page.click('.sf-overlay button[aria-label="Warum war das unscharf?"]');
+      const why = await page.textContent('.sf-overlay .sf-why');
+      assert.match(why, /Schlagwort „Lawine“ aus deiner eigenen Schlagwortliste im Text/);
+      await page.click('.sf-overlay button:has-text("×")');
+      // Rechtsklick → „Warum unscharf?“ auf einen noch unscharfen Block
+      const tid = await sw.evaluate(async (url) => (await chrome.tabs.query({ url: url + '/*' }))[0].id, srv.base);
+      await page.locator('#x-hold').scrollIntoViewIfNeeded();
+      await page.click('#x-hold h2', { button: 'right' });
+      await sw.evaluate((id) => chrome.tabs.sendMessage(id, { type: 'ctx', action: 'why' }), tid);
+      await page.waitForFunction(() => /Schlagwort „Lawine“/.test(document.querySelector('.sf-toast')?.textContent || ''), null, { timeout: 3000 });
+      // … und auf etwas Sichtbares
+      await page.click('#r-ausland h2', { button: 'right' });
+      await sw.evaluate((id) => chrome.tabs.sendMessage(id, { type: 'ctx', action: 'why' }), tid);
+      await page.waitForFunction(() => /nichts unscharf/.test(document.querySelector('.sf-toast')?.textContent || ''), null, { timeout: 3000 });
+    });
+
     await step('Unruhige Seite (ständige Änderungen): Bild wird trotzdem geprüft und scharf', async () => {
       const p2 = await ctx.newPage();
       await p2.goto(srv.base + '/unruhig.html');

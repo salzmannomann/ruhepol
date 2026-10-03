@@ -47,7 +47,7 @@ try {
   console.log('Bilder:', report.images);
   console.log('lange Tasks (ms):', report.longTasks.join(', ') || 'keine');
   console.log('ganze Seite/Spalte ausgeblendet?', report.bodyHidden ? 'JA – Fehler!' : 'nein');
-  const cache = await sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ocr:')).length);
+  const cache = await sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ocr2:')).length);
   console.log(`OCR-Ergebnisse im Cache: ${cache}`);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: join(outDir, 'orf-oben.png') });

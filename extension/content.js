@@ -124,6 +124,8 @@
     observer.observe(document, OBSERVE_OPTS);
     document.addEventListener('load', onLoadCapture, true);
     document.addEventListener('error', onErrorCapture, true);
+    document.addEventListener('pointerdown', onPendingDown, true);
+    document.addEventListener('click', onPendingClick, true);
 
     // Bilder sofort markieren, Text dann im Leerlauf prüfen.
     enqueue(document.documentElement);
@@ -175,6 +177,8 @@
     idleHandle = learnHandle = null;
     document.removeEventListener('load', onLoadCapture, true);
     document.removeEventListener('error', onErrorCapture, true);
+    document.removeEventListener('pointerdown', onPendingDown, true);
+    document.removeEventListener('click', onPendingClick, true);
     document.documentElement.classList.remove('sf-active');
     for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback')) el.remove();
     for (const el of document.querySelectorAll('[data-sf-hit]')) {
@@ -352,7 +356,7 @@
     if (el.closest('[data-sf-hit], [data-sf-revealed]')) return;
     if (SKIP_TAGS.has(el.tagName.toUpperCase())) return;
     const kw = matcher.find(text);
-    if (kw) hit(el, kw);
+    if (kw) hit(el, kw, { why: 'text' });
   }
 
   function checkElementAttrs(el) {
@@ -367,7 +371,7 @@
       const v = el.getAttribute(a);
       if (v) {
         const kw = matcher.find(v);
-        if (kw) { hit(el, kw); return; }
+        if (kw) { hit(el, kw, { why: 'text' }); return; }
       }
     }
   }
@@ -403,7 +407,7 @@
     // das Bild geladen ist. Bei Treffer wird der Block gleich ausgeblendet; OCR entfällt dann,
     // und ausgeblendete Lazy-Bilder werden oft gar nicht erst geladen.
     const kw = matcher.find(imageContextText(img));
-    if (kw) { hitImage(img, kw); return; }
+    if (kw) { hitImage(img, kw, 'bildtext'); return; }
 
     const src = img.currentSrc || img.src || '';
     if (!src) { img.dataset.sf = 'wait'; return; }
@@ -419,6 +423,12 @@
     img.dataset.sfSrc = src;
     if (w < settings.minWidth || h < settings.minHeight) {
       img.dataset.sf = 'small';
+      return;
+    }
+    // Lazy-Loading-Platzhalter (z. B. 1×1-GIF, groß dargestellt): auf das echte Bild warten.
+    if (img.naturalWidth <= 4 && img.naturalHeight <= 4) {
+      img.dataset.sf = 'wait';
+      delete img.dataset.sfSrc;
       return;
     }
     img.dataset.sf = 'pending';
@@ -487,7 +497,7 @@
     if (w > window.innerWidth * 0.95 && h > window.innerHeight * 0.8) return;
     el.dataset.sfSrc = url;
     const kw = matcher.find([el.getAttribute('aria-label'), el.getAttribute('title')].filter(Boolean).join(' '));
-    if (kw) { hitImage(el, kw); return; }
+    if (kw) { hitImage(el, kw, 'bildtext'); return; }
     el.dataset.sfBg = 'pending';
     if (!settings.ocr) { el.dataset.sfBg = 'ok'; return; }
     if (io) io.observe(el);
@@ -553,7 +563,7 @@
     if (res && res.ok) {
       img.__sfOcr = res.text;
       const kw = matcher.find(res.text);
-      if (kw) hitImage(img, kw);
+      if (kw) hitImage(img, kw, 'ocr');
       else {
         setState(img, 'ok');
         // Der Bildtext kann für den Lernfilter den Ausschlag geben.
@@ -571,7 +581,7 @@
   }
 
   function onOcrError(img) {
-    if (settings.onError === 'hide') hitImage(img, 'Bild nicht prüfbar');
+    if (settings.onError === 'hide') hitImage(img, 'Bild nicht prüfbar', 'fehler');
     else if (settings.onError === 'blur') setState(img, 'err');
     else setState(img, 'ok');
   }
@@ -600,10 +610,11 @@
     if (t && t.tagName === 'IMG' && !t.naturalWidth) t.dataset.sf = 'small'; // kaputtes Bild: nichts zu prüfen
   }
 
-  function hitImage(img, kw) {
+  function hitImage(img, kw, why) {
     setState(img, 'hit');
-    hit(img, kw);
+    hit(img, kw, { why });
   }
+
 
   /* ---------------- Inhaltsblock finden und ausblenden ---------------- */
 
@@ -727,7 +738,7 @@
       if (text.length >= 25) {
         const s = learningHides() ? L.score(model, text) : null;
         if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
-          hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true });
+          hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true, why: 'gelernt' });
         } else if (semanticOn()) {
           semQueue.add(block);
         }
@@ -876,7 +887,7 @@
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
-        if (r.hide && b.isConnected) hit(b, 'Bedeutung', { block: b });
+        if (r.hide && b.isConnected) hit(b, 'Bedeutung', { block: b, why: 'ki' });
       });
       reportCount();
     } else if (res && /nicht installiert|aus/.test(res.error || '')) {
@@ -895,12 +906,13 @@
     } catch (_) { /* Erweiterung neu geladen */ }
   }
 
-  function toast(text) {
+  function toast(text, ms) {
+    for (const old of document.querySelectorAll('.sf-toast')) old.remove();
     const t = document.createElement('div');
     t.className = 'sf-toast';
     t.textContent = text;
     (document.body || document.documentElement).appendChild(t);
-    setTimeout(() => t.remove(), 2600);
+    setTimeout(() => t.remove(), ms || 2600);
   }
 
   /** Rechtsklickmenü: "Will ich nicht sehen" / "Will ich sehen". */
@@ -910,6 +922,7 @@
     const el = target.nodeType === 1 ? target : target.parentElement;
     if (!el) return;
     if (action === 'zone') { startZonePicker(el); return; }
+    if (action === 'why') { whyAt(el); return; }
     const ph = el.closest('.sf-placeholder');
     const hidden = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
     if (action === 'block') {
@@ -927,7 +940,7 @@
       if (active) {
         delete block.dataset.sfRevealed;
         clearedBlocks.delete(block);
-        hit(block, 'von dir ausgeblendet', { block, force: true });
+        hit(block, 'von dir ausgeblendet', { block, force: true, why: 'du' });
       }
       suggestBar(block);
     } else if (action === 'ok') {
@@ -1100,6 +1113,62 @@
     return b;
   }
 
+  /* ---------------- „Warum unscharf?“ ---------------- */
+
+  let presetMatchers = null;
+
+  /** Aus welcher Liste stammt ein Schlagwort? (Name der Vorschlagsliste oder „deine Liste“) */
+  function listOf(kw) {
+    const P = globalThis.SFPresets;
+    if (compile(settings.keywords).find(kw)) return 'deiner eigenen Schlagwortliste';
+    if (!presetMatchers) presetMatchers = P.PRESETS.map((p) => [p, compile(p.terms)]);
+    const hitP = presetMatchers.find(([p, m]) => settings.presets.includes(p.id) && m.find(kw));
+    return hitP ? `der Liste „${hitP[0].name}“` : 'einer Liste';
+  }
+
+  function explain(block) {
+    // Nach dem Aufdecken sind die Markierungen weg; dann den gemerkten Grund nehmen.
+    const last = block.__sfLast || {};
+    const kw = block.dataset.sfHit || last.kw || '';
+    switch (block.dataset.sfWhy || last.why) {
+      case 'text': return `Schlagwort „${kw}“ aus ${listOf(kw)} im Text.`;
+      case 'bildtext': return `Schlagwort „${kw}“ aus ${listOf(kw)} in der Bildbeschreibung.`;
+      case 'ocr': return `Schlagwort „${kw}“ aus ${listOf(kw)} als Schrift im Bild.`;
+      case 'ki': return 'Die KI hält den Inhalt für inhaltlich nah an einem gesperrten Thema oder an Inhalten, die du ausgeblendet hast.';
+      case 'gelernt': return `Gelernt aus deinen Bewertungen (${kw.replace('gelernt, ', '')} sicher).`;
+      case 'du': return 'Von dir mit 👎 ausgeblendet.';
+      case 'bereich': return 'Gesperrter Bereich dieser Seite.';
+      case 'fehler': return 'Das Bild konnte nicht geprüft werden (Einstellung: bei Fehlern ausblenden).';
+      default: return kw ? `Treffer: „${kw}“.` : 'Unbekannter Grund.';
+    }
+  }
+
+  function whyButton(block, bar) {
+    const b = button('ⓘ', () => {
+      const info = document.createElement('div');
+      info.className = 'sf-why';
+      info.textContent = explain(block);
+      b.replaceWith(info);
+    });
+    b.title = 'Warum war das unscharf?';
+    b.setAttribute('aria-label', b.title);
+    return b;
+  }
+
+  /** Rechtsklick → „Warum unscharf?“ */
+  function whyAt(el) {
+    const ph = el.closest('.sf-placeholder');
+    const block = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
+    if (block) { toast(explain(block), 6000); return; }
+    const img = el.tagName === 'IMG' ? el : el.querySelector && el.querySelector('img[data-sf]');
+    const st = img && img.dataset.sf;
+    if (st === 'pending' || st === 'wait') toast('Dieses Bild wird noch auf Schrift geprüft. Gedrückt halten zeigt es sofort.', 6000);
+    else if (st === 'err') toast('Dieses Bild konnte nicht geprüft werden und bleibt laut Einstellung unscharf.', 6000);
+    else if (el.closest('[data-sf-veto]')) toast('Ein Schlagwort traf, aber die KI hält den Inhalt für harmlos – daher sichtbar.', 6000);
+    else if (el.closest('[data-sf-positive]')) toast('Gesperrtes Thema, aber eine gute Nachricht – daher sichtbar.', 6000);
+    else toast('Hier ist nichts unscharf.', 3000);
+  }
+
   /* ---------------- Gesperrte Bereiche (Rubriken) ---------------- */
 
   function firstHeading(el) {
@@ -1117,7 +1186,7 @@
         if (el.dataset.sfHit || el.dataset.sfRevealed || el.closest('[data-sf-hit]')) continue;
         if (z.head && firstHeading(el) !== z.head) continue;
         el.__sfZone = z;
-        hit(el, 'Bereich', { block: el, force: true });
+        hit(el, 'Bereich', { block: el, force: true, why: 'bereich' });
       }
     }
   }
@@ -1247,6 +1316,7 @@
       }
     }
     block.dataset.sfHit = kw;
+    if (opts.why) block.dataset.sfWhy = opts.why;
     // Schlagwort-Treffer mit dem Sprachmodell gegenprüfen (bleibt bis dahin unscharf).
     if (settings.semantic && settings.semanticVeto && !semUnavailable && !opts.noTone && isKeywordReason(kw)) {
       vetoQueue.add(block);
@@ -1320,6 +1390,7 @@
     cancelHold();
     if (block.__sfPlaceholder) { block.__sfPlaceholder.remove(); block.__sfPlaceholder = null; }
     delete block.dataset.sfHit;
+    delete block.dataset.sfWhy;
     hitBlocks.delete(block);
   }
 
@@ -1336,13 +1407,40 @@
     const block = ev.currentTarget;
     ev.preventDefault();
     ev.stopPropagation();
-    if (!settings.revealHold) { revealBlurred(block); return; }
+    beginHold(ev, () => revealBlurred(block));
+  }
+
+  /** Bilder, die noch geprüft werden, lassen sich ebenso per Gedrückthalten aufdecken. */
+  function pendingImageAt(target) {
+    const img = target && target.tagName === 'IMG' ? target : null;
+    return img && ['wait', 'pending', 'err'].includes(img.dataset.sf) && !img.dataset.sfRevealed &&
+      !img.closest('[data-sf-hit]') ? img : null;
+  }
+
+  function onPendingDown(ev) {
+    if (!active || ev.button !== 0) return;
+    const img = pendingImageAt(ev.target);
+    if (!img) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    beginHold(ev, () => {
+      swallowNextClick();
+      img.dataset.sfRevealed = '1';
+    });
+  }
+
+  function onPendingClick(ev) {
+    // Kurzer Klick auf ein noch unscharfes Bild öffnet keinen Link dahinter.
+    if (active && pendingImageAt(ev.target)) { ev.preventDefault(); ev.stopPropagation(); }
+  }
+
+  function beginHold(ev, onDone) {
+    if (!settings.revealHold) { onDone(); return; }
     cancelHold();
     const ring = holdRing(ev.clientX, ev.clientY);
-    hold = { block, ring, x: ev.clientX, y: ev.clientY, timer: setTimeout(() => {
-      const b = hold && hold.block;
+    hold = { ring, x: ev.clientX, y: ev.clientY, timer: setTimeout(() => {
       cancelHold();
-      if (b) revealBlurred(b);
+      onDone();
     }, HOLD_MS) };
     window.addEventListener('pointerup', onHoldEnd, true);
     window.addEventListener('pointercancel', onHoldCancel, true);
@@ -1518,7 +1616,7 @@
     down.setAttribute('aria-label', down.title);
     const close = button('×', () => closeBar(block));
     close.title = 'Schließen, ohne zu bewerten';
-    bar.append(label, up, down, close);
+    bar.append(label, up, down, whyButton(block, bar), close);
     setTimeout(() => { if (block.__sfBar === bar) closeBar(block); }, 30000);
   }
 
@@ -1547,6 +1645,7 @@
 
   function reveal(block, ph, opts) {
     const kw = block.dataset.sfHit;
+    block.__sfLast = { kw, why: block.dataset.sfWhy };
     unhide(block);
     if (ph) ph.remove();
     block.dataset.sfRevealed = '1';
