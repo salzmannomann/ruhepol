@@ -97,12 +97,33 @@ async function prepare(dataUrl) {
   return canvas;
 }
 
+// Nur Wörter übernehmen, bei denen Tesseract ziemlich sicher ist. Fotos ohne Schrift
+// (Rasen, Laub, Stoff …) liefern sonst Buchstabensalat, der Schlagwort- und KI-Prüfung stört.
+const MIN_WORD_CONF = 70;
+
+function cleanWords(tsv) {
+  const lines = new Map();
+  for (const row of String(tsv || '').split('\n')) {
+    const c = row.split('\t');
+    if (c.length < 12 || c[0] !== '5') continue; // Ebene 5 = Wort
+    const conf = Number(c[10]);
+    const word = c.slice(11).join('\t').trim();
+    if (!word || conf < MIN_WORD_CONF) continue;
+    const letters = (word.match(/\p{L}/gu) || []).length;
+    if (letters < 2 || letters / word.length < 0.6) continue; // Zeichenmüll wie „‘<“, „=“
+    const key = `${c[2]}.${c[3]}.${c[4]}`; // Block.Absatz.Zeile
+    if (!lines.has(key)) lines.set(key, []);
+    lines.get(key).push(word);
+  }
+  return [...lines.values()].map((w) => w.join(' ')).join('\n');
+}
+
 async function recognize(dataUrl) {
   clearTimeout(idleTimer);
   const scheduler = await getScheduler();
   const canvas = await prepare(dataUrl);
-  const { data } = await scheduler.addJob('recognize', canvas);
-  return data.text || '';
+  const { data } = await scheduler.addJob('recognize', canvas, {}, { text: false, tsv: true });
+  return cleanWords(data.tsv);
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

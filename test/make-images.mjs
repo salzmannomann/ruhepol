@@ -13,12 +13,27 @@ const images = [
   ['ocr-kontrolle.png', ['Sonniges Wetter', 'am Wochenende'], ['#f7971e', '#ffd200']],
   ['ocr-nachgeladen.png', ['Streit im Gemeinderat', 'über neue Straße'], ['#134e5e', '#71b280']],
   ['alt-bild.png', ['', ''], ['#8e9eab', '#eef2f3']],
+  ['rasen.png', null, null], // Foto-ähnliches Rauschen ohne Schrift (wie Rasen)
 ];
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 for (const [file, lines, colors] of images) {
-  const dataUrl = await page.evaluate(({ lines, colors }) => {
+  const dataUrl = lines === null ? await page.evaluate(() => {
+    // Rasen-ähnliche Textur: viele feine Halme in Grüntönen, keine Schrift.
+    const c = document.createElement('canvas');
+    c.width = 640; c.height = 360;
+    const g = c.getContext('2d');
+    g.fillStyle = '#3f8f2f'; g.fillRect(0, 0, 640, 360);
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 26000; i++) {
+      const x = rnd() * 640, y = rnd() * 360, l = 3 + rnd() * 7;
+      g.strokeStyle = `hsl(${95 + rnd() * 30}, ${40 + rnd() * 30}%, ${20 + rnd() * 35}%)`;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 3, y - l); g.stroke();
+    }
+    return c.toDataURL('image/png');
+  }) : await page.evaluate(({ lines, colors }) => {
     const c = document.createElement('canvas');
     c.width = 640; c.height = 360;
     const g = c.getContext('2d');

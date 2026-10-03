@@ -11,7 +11,9 @@ importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js
 const OCR_TIMEOUT_MS = 10000;
 const MAX_PARALLEL = 2;
 const CACHE_MAX = 2000;
-const CACHE_PREFIX = 'ocr:';
+// Version 2: nur noch sicher erkannte Wörter (ältere Einträge „ocr:“ enthielten Buchstabensalat).
+const CACHE_PREFIX = 'ocr2:';
+const OLD_CACHE_PREFIXES = ['ocr:'];
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const MAX_TEXT_LEN = 4000;
 const ERROR_RETRY_MS = 5 * 60 * 1000;
@@ -586,6 +588,7 @@ function createMenus() {
     const add = (o) => chrome.contextMenus.create(o, () => void chrome.runtime.lastError);
     add({ id: 'sf-block', title: '👎  Künftig ausblenden', contexts: all });
     add({ id: 'sf-ok', title: '👍  Künftig anzeigen', contexts: all });
+    add({ id: 'sf-why', title: 'Warum unscharf?', contexts: all });
     add({ id: 'sf-sep1', type: 'separator', contexts: sel });
     add({ id: 'sf-add', title: '„%s“ als Schlagwort ausblenden', contexts: sel });
     add({ id: 'sf-allow', title: '„%s“ nie ausblenden', contexts: sel });
@@ -643,7 +646,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (r) toast(r.active ? `Ruhepol ist auf ${r.host} wieder an` : `Ruhepol ist auf ${r.host} aus`);
     return;
   }
-  const action = { 'sf-block': 'block', 'sf-ok': 'ok', 'sf-zone': 'zone' }[info.menuItemId] || null;
+  const action = { 'sf-block': 'block', 'sf-ok': 'ok', 'sf-zone': 'zone', 'sf-why': 'why' }[info.menuItemId] || null;
   if (!action) return;
   chrome.tabs.sendMessage(tab.id, { type: 'ctx', action }, frame).catch(() => {});
 });
@@ -722,6 +725,11 @@ function safeHost(url) {
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   createMenus();
+  // Alte OCR-Ergebnisse (vor der Wort-Sicherheitsprüfung) entfernen.
+  chrome.storage.local.get(null).then((all) => {
+    const old = Object.keys(all).filter((k) => OLD_CACHE_PREFIXES.some((p) => k.startsWith(p)));
+    if (old.length) chrome.storage.local.remove(old);
+  }).catch(() => {});
   // Ab 1.3.1 ist „Aufdecken durch Gedrückthalten“ Standard: einmalig auch bei Updates einschalten.
   if (details && details.reason === 'update' && olderThan(details.previousVersion, '1.3.1')) {
     await chrome.storage.sync.set({ revealHold: true });

@@ -138,11 +138,23 @@ async function main() {
     });
 
     await step('OCR-Ergebnisse im Cache (chrome.storage.local)', async () => {
-      const keys = await sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ocr:')));
+      const keys = await sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ocr2:')));
       assert.ok(keys.length >= 3, `nur ${keys.length} Einträge`);
       const entry = await sw.evaluate(async (k) => (await chrome.storage.local.get(k))[k], keys.find((k) => k.includes('ocr-treffer')));
       assert.match(entry.t, /B[üu]rgermeister/i);
       console.log(`    erkannter Text: ${JSON.stringify(entry.t.trim())}`);
+    });
+
+    await step('Foto ohne Schrift (Rasen): kein Buchstabensalat aus der Texterkennung', async () => {
+      await page.waitForFunction(() => document.querySelector('#img-rasen').dataset.sf === 'ok', null, { timeout: 20000 });
+      const t = await sw.evaluate(async () => {
+        const all = await chrome.storage.local.get(null);
+        const k = Object.keys(all).find((x) => x.startsWith('ocr2:') && x.includes('rasen'));
+        return k ? all[k].t : null;
+      });
+      assert.ok(t !== null, 'kein Cache-Eintrag');
+      console.log(`    gelesener Text: ${JSON.stringify(t)}`);
+      assert.ok(t.replace(/\s+/g, '').length <= 12, `zu viel Salat: ${JSON.stringify(t)}`);
     });
 
     await step('Nach Neuladen kommt das OCR-Ergebnis aus dem Cache (schnell)', async () => {

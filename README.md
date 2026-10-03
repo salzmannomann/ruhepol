@@ -137,8 +137,8 @@ Die einzelnen Optionen:
     2. Gedrückt halten, bis er voll ist (2 Sekunden): Der Inhalt wird angezeigt. Loslassen,
        Wegziehen oder Scrollen bricht ab.
     3. Danach fragt eine kleine Leiste „Künftig anzeigen?“: **👍** (so etwas künftig
-       zeigen), **👎** (künftig ausblenden, sofort wieder unscharf) oder **×** (nur dieses
-       Mal, nichts lernen).
+       zeigen), **👎** (künftig ausblenden, sofort wieder unscharf), **ⓘ** (warum war das
+       unscharf?) oder **×** (nur dieses Mal, nichts lernen).
   - Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten
   - komplett ausblenden
 - **Aufdecken nur durch Gedrückthalten** (Standard: an): Unscharfe Inhalte (und in der
@@ -163,6 +163,7 @@ Rechtsklick auf einen Artikel, ein Bild oder markierten Text → Untermenü **Ru
 |---|---|
 | 👎 Künftig ausblenden | stellt den Artikel unscharf, merkt es sich und schlägt Begriffe als Schlagwörter vor |
 | 👍 Künftig anzeigen | zeigt einen unscharfen Artikel an und merkt sich, dass so etwas passt |
+| Warum unscharf? | erklärt den Grund: welches Schlagwort aus welcher Liste, KI, gelernt, Bereich – oder dass ein Bild noch geprüft wird |
 | „…“ als Schlagwort ausblenden | nur bei markiertem Text: Begriff kommt auf die eigene Schlagwortliste |
 | „…“ nie ausblenden | nur bei markiertem Text: Begriff kommt auf „Nie ausblenden“ (für Fehltreffer) |
 | Ganzen Bereich auf dieser Seite sperren … | Auswahl wie bei Adblock, siehe „Gesperrte Bereiche“ |
@@ -339,17 +340,22 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
 5. Die Worker werden einmal erzeugt und wiederverwendet. Die Warteschlange arbeitet
    höchstens zwei Bilder parallel ab, Bilder außerhalb des sichtbaren Bereichs kommen erst
    beim Heranscrollen dran.
-6. Der erkannte Text wird pro Bild-URL in `chrome.storage.local` gecacht (höchstens 2000
+6. Übernommen werden nur Wörter, bei denen Tesseract ziemlich sicher ist (Sicherheit ≥ 70,
+   überwiegend Buchstaben). Fotos ohne Schrift – Rasen, Laub, Stoff – liefern sonst
+   Buchstabensalat, der die Schlagwort- und KI-Prüfung in die Irre führt.
+   Lazy-Loading-Platzhalter (1×1-GIFs) werden nicht gelesen.
+7. Der erkannte Text wird pro Bild-URL in `chrome.storage.local` gecacht (höchstens 2000
    Einträge, die ältesten werden zuerst gelöscht). Weil der Text gespeichert wird und nicht
    nur „Treffer ja/nein“, braucht eine geänderte Schlagwortliste keinen neuen OCR-Lauf.
-7. Bei einem Treffer wird der Block ausgeblendet, sonst wird das Bild wieder scharf.
-8. **CSS-Hintergrundbilder** (`background-image`) und **Video-Vorschaubilder**
+8. Bei einem Treffer wird der Block ausgeblendet, sonst wird das Bild wieder scharf. Ein Bild,
+   das noch geprüft wird, lässt sich per Gedrückthalten sofort aufdecken.
+9. **CSS-Hintergrundbilder** (`background-image`) und **Video-Vorschaubilder**
    (`<video poster>`) werden genauso per OCR geprüft und währenddessen unscharf gestellt.
    Erfasst werden Elemente wie `div`, `a`, `span`, `figure`, `li`, `article`, `section`.
    Die Prüfung läuft in einer eigenen Warteschlange nur in echter Leerlaufzeit, weil das
    Auslesen der Stile sonst das Laden bremsen würde. Seitenhintergründe in Fenstergröße
    werden ausgelassen.
-9. **Shadow-DOM**: Offene Shadow-Roots (Web-Komponenten) werden gefunden, beobachtet und
+10. **Shadow-DOM**: Offene Shadow-Roots (Web-Komponenten) werden gefunden, beobachtet und
    mit eigenen Regeln versehen, sodass Text, Bilder und Nachgeladenes darin genauso
    gefiltert werden.
 
