@@ -1,0 +1,5 @@
+node_modules/
+extension/vendor/
+test-results/
+*.log
+.DS_Store

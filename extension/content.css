@@ -1,0 +1,51 @@
+/* Schlagwortfilter – nur aktiv, wenn <html> die Klasse sf-active trägt. */
+
+/* Bilder, deren Prüfung noch läuft (oder noch nicht begonnen hat), unscharf stellen. */
+html.sf-active img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revealed]) {
+  filter: blur(18px) !important;
+  transition: filter 0.15s ease-out;
+}
+
+html.sf-active .sf-hidden,
+html.sf-active .sf-hidden-ph {
+  display: none !important;
+}
+
+html.sf-active .sf-blurred {
+  filter: blur(14px) !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+html.sf-active .sf-placeholder {
+  all: initial;
+  display: block !important;
+  box-sizing: border-box !important;
+  margin: 6px 0 !important;
+  padding: 10px 14px !important;
+  border: 1px dashed #9a9a9a !important;
+  border-radius: 6px !important;
+  background: #f3f3f3 !important;
+  color: #444 !important;
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  cursor: pointer !important;
+  list-style: none !important;
+}
+
+html.sf-active .sf-placeholder:hover,
+html.sf-active .sf-placeholder:focus {
+  background: #e6e6e6 !important;
+  outline: 2px solid #6b8afd !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html.sf-active .sf-placeholder {
+    background: #2a2a2a !important;
+    color: #ddd !important;
+    border-color: #666 !important;
+  }
+  html.sf-active .sf-placeholder:hover,
+  html.sf-active .sf-placeholder:focus {
+    background: #353535 !important;
+  }
+}
