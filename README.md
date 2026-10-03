@@ -142,6 +142,20 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
 - **Cache leeren**: löscht die gespeicherten OCR-Ergebnisse.
 - **Exportieren/Importieren**: speichert alle Einstellungen als JSON-Datei bzw. lädt sie.
 
+### Rechtsklickmenü
+
+Rechtsklick auf einen Artikel, ein Bild oder markierten Text → Untermenü **Ruhepol**:
+
+| Eintrag | Wirkung |
+|---|---|
+| 👎 Künftig ausblenden | stellt den Artikel unscharf, merkt es sich und schlägt Begriffe als Schlagwörter vor |
+| 👍 Künftig anzeigen | zeigt einen unscharfen Artikel an und merkt sich, dass so etwas passt |
+| „…“ als Schlagwort ausblenden | nur bei markiertem Text: Begriff kommt auf die eigene Schlagwortliste |
+| „…“ nie ausblenden | nur bei markiertem Text: Begriff kommt auf „Nie ausblenden“ (für Fehltreffer) |
+| Ganzen Bereich auf dieser Seite sperren … | Auswahl wie bei Adblock, siehe „Gesperrte Bereiche“ |
+| Auf dieser Seite ein/aus | schaltet Ruhepol für die Domain um |
+| Einstellungen … | öffnet die Einstellungen |
+
 ### Lernfilter: bewerten und lernen lassen
 
 Schlagwörter allein unterscheiden nicht, ob „Krise“ eine Klimakrise oder eine
