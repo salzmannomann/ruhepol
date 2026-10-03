@@ -45,6 +45,8 @@
 
   let settings = null;
   let matcher = null;
+  let mildMatcher = null; // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
+  let strongMatcher = null; // alles andere inkl. eigener Schlagwörter
   let active = false;
   let generation = 0; // erhöht sich bei jedem Neustart; alte OCR-Antworten werden verworfen
 
@@ -59,6 +61,7 @@
 
   let model = null; // Lernmodell (aus chrome.storage.local)
   let clearedBlocks = new WeakSet(); // vom Lernfilter freigegeben
+  let weakChecked = new WeakSet(); // Artikel-Absätze mit nur einem milden Treffer, schon geprüft
   let scoredBlocks = new WeakSet(); // vom Lernfilter schon bewertet
   const learnCandidates = new Set();
   let learnHandle = null;
@@ -113,8 +116,15 @@
       reportCount();
       return;
     }
-    matcher = compile(keywords, { partial: settings.partial, fuzzy: settings.fuzzy, allow: settings.allow });
+    const opts = { partial: settings.partial, fuzzy: settings.fuzzy, allow: settings.allow };
+    matcher = compile(keywords, opts);
+    // Für Artikel-Absätze: Treffer aus milden Listen getrennt zählen (siehe checkText).
+    const P = globalThis.SFPresets;
+    const mildIds = settings.presets.filter((id) => P.MILD_IDS.includes(id));
+    mildMatcher = compile(P.termsFor(mildIds), opts);
+    strongMatcher = compile(settings.keywords.concat(P.termsFor(settings.presets.filter((id) => !mildIds.includes(id)))), opts);
     clearedBlocks = new WeakSet();
+    weakChecked = new WeakSet();
     scoredBlocks = new WeakSet();
     active = true;
     generation++;
@@ -368,7 +378,30 @@
     if (el.closest('[data-sf-hit], [data-sf-revealed]')) return;
     if (SKIP_TAGS.has(el.tagName.toUpperCase())) return;
     const kw = matcher.find(text);
-    if (kw) hit(el, kw, { why: 'text' });
+    if (!kw) return;
+    const block = findBlock(el);
+    if (isArticleParagraph(block) && onlyOneMildHit(block)) {
+      // Einzelner Treffer aus einer milden Liste mitten im Fließtext (z. B. „Massenentlassungen“
+      // in einem historischen Rückblick): nur unscharf, wenn das Sprachmodell zustimmt.
+      if (!weakChecked.has(block)) {
+        weakChecked.add(block);
+        if (semanticOn()) { semQueue.add(block); flushSem(); }
+      }
+      return;
+    }
+    hit(el, kw, { why: 'text', block });
+  }
+
+  /** Absatz eines längeren Fließtexts (Artikelseite), keine Schlagzeile und kein Teaser. */
+  function isArticleParagraph(block) {
+    return block && block.tagName === 'P' && block.textContent.length > 200 && !!block.parentElement &&
+      block.parentElement.querySelectorAll(':scope > p').length >= 3;
+  }
+
+  function onlyOneMildHit(block) {
+    const text = blockText(block);
+    if (strongMatcher.find(text)) return false;
+    return mildMatcher.findAll(text, 2).length < 2;
   }
 
   function checkElementAttrs(el) {

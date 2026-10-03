@@ -287,6 +287,16 @@ nicht als Themen-Anker, sonst wäre ein Treffer auf „Museum“ immer „nah an
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze
 nebeneinander), wird nur dieser Absatz unscharf, nicht der ganze Textbereich samt Fotos.
 
+**Milde Listen im Fließtext:** Wörter aus „Wirtschaftskrise“ und „Krise & Skandal“
+(„Massenentlassungen“, „Skandal“, „Inflation“ …) stehen in Artikeln oft nur nebenbei, etwa
+in einem historischen Rückblick. In einem langen Artikel-Absatz (über 200 Zeichen) genügt
+deshalb ein einzelnes solches Wort nicht. Unscharf wird der Absatz erst, wenn
+- ein zweites Wort aus diesen Listen dazukommt, oder
+- ein Wort aus einer anderen Liste oder ein eigenes Schlagwort darin steht, oder
+- das Sprachmodell (falls eingeschaltet) den Absatz als belastend einstuft.
+
+Schlagzeilen, Teaser und kurze Texte bleiben so streng wie bisher.
+
 ### Gute Nachrichten trotzdem zeigen
 
 Optional (Einstellungen → Erkennung), braucht das Sprachmodell. Auch bei gesperrten Themen
