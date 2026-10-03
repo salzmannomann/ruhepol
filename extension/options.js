@@ -1,6 +1,7 @@
 'use strict';
 (async function () {
   const S = globalThis.SFSettings;
+  const P = globalThis.SFPresets;
   const $ = (id) => document.getElementById(id);
   let statusTimer = null;
 
@@ -8,7 +9,44 @@
     return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   }
 
+  function buildPresets() {
+    const box = $('presets');
+    for (const p of P.PRESETS) {
+      const wrap = document.createElement('div');
+      wrap.className = 'preset';
+      const label = document.createElement('label');
+      label.className = 'check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = p.id;
+      cb.name = 'preset';
+      const span = document.createElement('span');
+      span.textContent = `${p.name} (${p.terms.length} Begriffe)`;
+      label.append(cb, span);
+      const det = document.createElement('details');
+      const sum = document.createElement('summary');
+      sum.textContent = 'Begriffe anzeigen';
+      const terms = document.createElement('div');
+      terms.className = 'terms';
+      terms.textContent = p.terms.join(' · ');
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.textContent = 'In eigene Liste kopieren';
+      copy.addEventListener('click', () => {
+        const have = new Set(lines($('keywords').value).map((l) => l.toLowerCase()));
+        const add = p.terms.filter((t) => !have.has(t.toLowerCase()));
+        $('keywords').value = lines($('keywords').value).concat(add).join('\n');
+        status(`${add.length} Begriffe übernommen – Speichern nicht vergessen.`, 'ok');
+      });
+      terms.append(document.createElement('br'), copy);
+      det.append(sum, terms);
+      wrap.append(label, det);
+      box.append(wrap);
+    }
+  }
+
   function fill(s) {
+    for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = s.presets.includes(cb.value);
     $('keywords').value = s.keywords.join('\n');
     $('siteList').value = s.siteList.join('\n');
     document.querySelector(`input[name="siteMode"][value="${s.siteMode}"]`).checked = true;
@@ -24,6 +62,7 @@
   function read() {
     return {
       keywords: lines($('keywords').value),
+      presets: [...document.querySelectorAll('input[name="preset"]:checked')].map((cb) => cb.value),
       siteList: lines($('siteList').value),
       siteMode: document.querySelector('input[name="siteMode"]:checked').value,
       display: document.querySelector('input[name="display"]:checked').value,
@@ -102,6 +141,14 @@
     }
   });
 
+  $('presetsAll').addEventListener('click', () => {
+    for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = true;
+  });
+  $('presetsNone').addEventListener('click', () => {
+    for (const cb of document.querySelectorAll('input[name="preset"]')) cb.checked = false;
+  });
+
+  buildPresets();
   fill(await S.load());
   refreshCacheInfo();
 })();

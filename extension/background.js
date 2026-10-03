@@ -6,7 +6,7 @@
  */
 'use strict';
 
-importScripts('lib/settings.js');
+importScripts('lib/presets.js', 'lib/settings.js');
 
 const OCR_TIMEOUT_MS = 10000;
 const MAX_PARALLEL = 2;

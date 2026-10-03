@@ -20,6 +20,7 @@
       ],
       "js": [
         "lib/match.js",
+        "lib/presets.js",
         "lib/settings.js",
         "content.js"
       ],

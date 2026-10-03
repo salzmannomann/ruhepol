@@ -5,9 +5,13 @@
 (function (root) {
   'use strict';
 
+  const P = root.SFPresets || (typeof require === 'function' ? require('./presets.js') : null);
+
   const DEFAULTS = Object.freeze({
     enabled: true,
     keywords: [],
+    // aktivierte Vorschlagslisten (IDs aus lib/presets.js); Standard: alle
+    presets: P ? P.ALL_IDS.slice() : [],
     // 'all'  = auf allen Seiten außer denen in siteList
     // 'only' = nur auf den Seiten in siteList
     siteMode: 'all',
@@ -31,6 +35,9 @@
     if (typeof raw.enabled === 'boolean') s.enabled = raw.enabled;
     if (Array.isArray(raw.keywords)) {
       s.keywords = raw.keywords.map((k) => String(k).trim()).filter(Boolean);
+    }
+    if (Array.isArray(raw.presets) && P) {
+      s.presets = P.ALL_IDS.filter((id) => raw.presets.includes(id));
     }
     if (raw.siteMode === 'all' || raw.siteMode === 'only') s.siteMode = raw.siteMode;
     if (Array.isArray(raw.siteList)) {
@@ -86,6 +93,11 @@
     return list;
   }
 
+  /** Eigene Schlagwörter plus Begriffe der aktivierten Vorschlagslisten. */
+  function allKeywords(settings) {
+    return settings.keywords.concat(P ? P.termsFor(settings.presets) : []);
+  }
+
   async function load() {
     const raw = await chrome.storage.sync.get(KEYS);
     return sanitize(raw);
@@ -97,6 +109,6 @@
     return merged;
   }
 
-  root.SFSettings = { DEFAULTS, KEYS, sanitize, normalizeHost, hostInList, isActiveOn, toggleHost, load, save };
+  root.SFSettings = { DEFAULTS, KEYS, sanitize, normalizeHost, hostInList, isActiveOn, toggleHost, allKeywords, load, save };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFSettings;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

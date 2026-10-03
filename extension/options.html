@@ -18,6 +18,12 @@
     #status.err { color: var(--err); }
     .check { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
     .check input { margin-top: 3px; }
+    .preset { border-top: 1px solid var(--line); padding: 6px 0; }
+    .preset:first-child { border-top: 0; }
+    .preset summary { cursor: pointer; color: var(--muted); font-size: 12.5px; margin-left: 26px; }
+    .preset .terms { margin: 6px 0 4px 26px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+    .preset .terms button { margin-top: 6px; font-size: 12px; padding: 3px 8px; }
+    code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -31,6 +37,17 @@
     <p class="hint">Ein Begriff pro Zeile. Groß-/Kleinschreibung ist egal, Umlaute werden gleich behandelt (ä = ae, ß = ss). Mehrere Wörter in einer Zeile müssen als Wortfolge vorkommen.</p>
     <label class="check"><input type="checkbox" id="partial"><span>Auch Teilwörter finden<br><span class="hint">„ball“ findet dann auch „Fußballspiel“.</span></span></label>
     <label class="check"><input type="checkbox" id="fuzzy"><span>Unscharfer Abgleich (für OCR-Lesefehler)<br><span class="hint">Bei Wörtern ab 6 Zeichen reicht eine Abweichung von einem Buchstaben („Bürgermeisler“ → „Bürgermeister“). Kann mehr Fehltreffer erzeugen.</span></span></label>
+  </section>
+
+  <section>
+    <h2>Vorschlagslisten</h2>
+    <p class="hint">Fertige Listen zu vorwiegend negativen Themen. Angehakte Listen werden zusätzlich zu den eigenen Schlagwörtern verwendet. Einzelne Begriffe lassen sich mit „In eigene Liste kopieren“ übernehmen und anpassen (die Liste dann abhaken).</p>
+    <div class="row" style="margin:8px 0">
+      <button id="presetsAll">Alle</button>
+      <button id="presetsNone">Keine</button>
+    </div>
+    <div id="presets"></div>
+    <p class="hint">Schreibweise: <code>Wort*</code> = Wortanfang, <code>*wort</code> = Wortende, <code>*wort*</code> = Wortteil. Das gilt auch für die eigene Liste.</p>
   </section>
 
   <section>
@@ -84,6 +101,7 @@
     <span id="status"></span>
   </div>
 </main>
+<script src="lib/presets.js"></script>
 <script src="lib/settings.js"></script>
 <script src="options.js"></script>
 </body>

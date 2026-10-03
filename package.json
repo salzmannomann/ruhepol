@@ -12,7 +12,6 @@
     "test:orf": "node test/orf.mjs",
     "test": "npm run test:unit && npm run test:e2e"
   },
-  "license": "MIT",
   "dependencies": {
     "tesseract.js": "^7.0.0"
   },

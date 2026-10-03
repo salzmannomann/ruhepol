@@ -26,6 +26,7 @@
   const hitBlocks = new Set();
   const pendingRoots = new Set();
   let idleHandle = null;
+  let activeWalker = null;
   let observer = null;
   let io = null;
   let mutationTimer = null;
@@ -53,12 +54,13 @@
   function apply() {
     teardown();
     const host = location.hostname || (window.top !== window ? safeTopHost() : '');
-    const shouldRun = S.isActiveOn(settings, host) && settings.keywords.length > 0;
+    const keywords = S.allKeywords(settings);
+    const shouldRun = S.isActiveOn(settings, host) && keywords.length > 0;
     if (!shouldRun) {
       reportCount();
       return;
     }
-    matcher = compile(settings.keywords, { partial: settings.partial, fuzzy: settings.fuzzy });
+    matcher = compile(keywords, { partial: settings.partial, fuzzy: settings.fuzzy });
     active = true;
     generation++;
     document.documentElement.classList.add('sf-active');
@@ -97,6 +99,7 @@
     mutationTimer = null;
     mutationBuffer.length = 0;
     pendingRoots.clear();
+    activeWalker = null;
     ocrWaiting.clear();
     if (idleHandle) cancelIdle(idleHandle);
     idleHandle = null;
@@ -135,12 +138,25 @@
     if (!active) return;
     const start = performance.now();
     const budget = () => (deadline.didTimeout ? IDLE_BUDGET_MS - (performance.now() - start) : deadline.timeRemaining());
-    for (const node of pendingRoots) {
-      pendingRoots.delete(node);
-      if (node.isConnected) scanNode(node);
+    // Große Teilbäume werden über einen fortsetzbaren TreeWalker in Häppchen abgearbeitet.
+    outer: while (true) {
+      if (!activeWalker) {
+        const next = pendingRoots.values().next();
+        if (next.done) break;
+        pendingRoots.delete(next.value);
+        if (next.value.isConnected) activeWalker = scanNode(next.value);
+        if (!activeWalker) { if (budget() <= 1) break; continue; }
+      }
+      let n, i = 0;
+      while ((n = activeWalker.nextNode())) {
+        if (n.nodeType === 3) checkText(n.parentElement, n.nodeValue);
+        else checkElementAttrs(n);
+        if (++i % 64 === 0 && budget() <= 1) break outer;
+      }
+      activeWalker = null;
       if (budget() <= 1) break;
     }
-    if (pendingRoots.size) idleHandle = requestIdle(work);
+    if (pendingRoots.size || activeWalker) idleHandle = requestIdle(work);
     else flushOcr();
     reportCount();
   }
@@ -189,17 +205,18 @@
 
   /* ---------------- Text ---------------- */
 
+  /** Prüft den Knoten selbst und liefert einen TreeWalker für seine Nachfahren (oder null). */
   function scanNode(root) {
     if (root.nodeType === 3) {
       checkText(root.parentElement, root.nodeValue);
-      return;
+      return null;
     }
-    if (root.nodeType !== 1 && root.nodeType !== 9) return;
+    if (root.nodeType !== 1 && root.nodeType !== 9) return null;
     const start = root.nodeType === 9 ? root.documentElement : root;
-    if (!start || skipElement(start)) return;
+    if (!start || skipElement(start)) return null;
 
     checkElementAttrs(start);
-    const walker = document.createTreeWalker(start, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    return document.createTreeWalker(start, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
       acceptNode(n) {
         if (n.nodeType === 1) {
           if (SKIP_TAGS.has(n.tagName.toUpperCase()) || n.isContentEditable || n.dataset.sfHit || n.dataset.sfRevealed || isOwn(n)) {
@@ -210,11 +227,6 @@
         return n.nodeValue.length > 2 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
       },
     });
-    let n;
-    while ((n = walker.nextNode())) {
-      if (n.nodeType === 3) checkText(n.parentElement, n.nodeValue);
-      else checkElementAttrs(n);
-    }
   }
 
   function skipElement(el) {
@@ -322,7 +334,7 @@
    * ist der Block bereits ausgeblendet und das Bild muss nicht gelesen werden.
    */
   function flushOcr() {
-    if (pendingRoots.size || mutationTimer) return; // work()/flushMutations() rufen erneut auf
+    if (pendingRoots.size || activeWalker || mutationTimer) return; // work()/flushMutations() rufen erneut auf
     for (const img of ocrWaiting) {
       ocrWaiting.delete(img);
       if (!img.isConnected || img.closest('[data-sf-hit], [data-sf-revealed]')) continue;
@@ -421,15 +433,33 @@
       }
     }
     if (primary) return primary;
-    if (section && !link) return section;
-    if (link) return link;
-    if (section) return section;
-    // Kein passender Container: nächstes Block-Element sinnvoller Größe oder das Element selbst.
-    for (let cur = el, d = 0; cur && cur !== document.body && d < 4; cur = cur.parentElement, d++) {
-      const disp = getComputedStyle(cur).display;
-      if ((disp === 'block' || disp === 'flex' || disp === 'grid' || disp === 'list-item') && blockOk(cur)) return cur;
+    // Kein article/li/figure (z. B. orf.at: div-Teaser mit Überschrift + Text):
+    // vom Link bzw. vom Element aus bis zum Teaser-Container erweitern.
+    let base = link || el;
+    if (base === el && el.tagName !== 'IMG') {
+      for (let cur = el, d = 0; cur && cur !== document.body && d < 4; cur = cur.parentElement, d++) {
+        const disp = getComputedStyle(cur).display;
+        if ((disp === 'block' || disp === 'flex' || disp === 'grid' || disp === 'list-item') && blockOk(cur)) { base = cur; break; }
+      }
     }
-    return el;
+    const teaser = expandTeaser(base);
+    if (teaser !== base) return teaser;
+    if (section && !link && section.contains(base)) return section;
+    return base;
+  }
+
+  /** Größter Vorfahre (max. 6 Ebenen), der höchstens eine Überschrift und wenige Links enthält. */
+  function expandTeaser(el) {
+    let best = el;
+    for (let cur = el.parentElement, d = 0; cur && d < 6; cur = cur.parentElement, d++) {
+      if (cur === document.body || cur === document.documentElement || cur.tagName === 'MAIN') break;
+      if (cur.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 1) break;
+      if (cur.querySelectorAll('a[href]').length > 6) break;
+      if (cur.querySelectorAll('img').length > 3) break;
+      if (!blockOk(cur)) break;
+      best = cur;
+    }
+    return best;
   }
 
   function hit(el, kw) {
