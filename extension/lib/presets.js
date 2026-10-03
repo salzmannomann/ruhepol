@@ -63,7 +63,7 @@
         'Attentat*', 'Attentäter*', 'Amok*', 'Geiselnahme*', 'Geiseln', 'Islamist*', 'Dschihad*',
         'Extremist*', 'Rechtsextrem*', 'Linksextrem*', 'Messerangriff*', 'Messerattacke*',
         'Schießerei*', 'Schüsse auf', 'Schüsse gefallen', 'Schüsse abgegeben', 'Schüsse abgefeuert',
-        'Schusswechsel', 'Schussverletzung*', 'erschossen', 'angeschossen', 'niedergeschossen', 'Schusswaffe*', 'Massaker*', 'Lynch*', 'Gewalttat*', 'Gewaltverbrechen',
+        'Schusswechsel', 'Schussverletzung*', 'erschossen', 'angeschossen', 'niedergeschossen', 'Schusswaffe*', 'Massaker*', 'Lynchjustiz', 'Lynchmord*', 'gelyncht', 'Gewalttat*', 'Gewaltverbrechen',
         'Ausschreitung*', 'Krawalle',
       ],
     },
@@ -128,7 +128,7 @@
       name: 'Drogen und Sucht',
       terms: [
         'Drogen*', 'Drogentod*', 'Drogentote*', 'Überdosis', 'Heroin', 'Kokain', 'Crystal Meth', 'Fentanyl',
-        'Opioid*', 'Sucht', 'süchtig*', 'Alkoholsucht', 'Alkoholiker*', 'Spielsucht', 'Glücksspielsucht',
+        'Opioid*', 'süchtig*', 'Suchtkrank*', 'Drogensucht', 'Handysucht', 'Kaufsucht', 'Alkoholsucht', 'Alkoholiker*', 'Spielsucht', 'Glücksspielsucht',
         'Komasaufen', 'Entzug*', 'Rauschgift*',
       ],
     },

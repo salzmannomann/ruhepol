@@ -35,15 +35,18 @@ test('Silbentrennung aus OCR', () => {
   assert.equal(m.find('Bürger-\nmeister tritt zurück'), 'Bürgermeister');
 });
 
-test('Unscharfer Abgleich: Distanz 1 ab 6 Zeichen, Standard aus', () => {
+test('Unscharfer Abgleich: Distanz 1 ab 8 Zeichen, gleicher Anfangsbuchstabe, Standard aus', () => {
   assert.equal(compile(['Bürgermeister']).find('Burgermeisler'), null);
-  const f = compile(['Bürgermeister', 'Hund', 'Skandal'], { fuzzy: true });
+  const f = compile(['Bürgermeister', 'Hund', 'Skandal', 'Truppen', 'Explosion'], { fuzzy: true });
   assert.equal(f.find('Buergermeisler tritt'), 'Bürgermeister');
   assert.equal(f.find('Hand'), null, 'kurze Wörter nicht unscharf');
-  assert.equal(f.find('Skandol'), 'Skandal');
-  assert.equal(f.find('Skxndxl'), null, 'Distanz 2 kein Treffer');
-  const fp = compile(['Skandal'], { fuzzy: true, partial: true });
-  assert.equal(fp.find('Riesenskondal'), 'Skandal');
+  assert.equal(f.find('Skandol'), null, 'unter 8 Zeichen nicht unscharf');
+  assert.equal(f.find('Gruppen'), null, '„Gruppen“ ist nicht „Truppen“');
+  assert.equal(f.find('Explosiom'), 'Explosion');
+  assert.equal(f.find('Fxplosion'), null, 'Anfangsbuchstabe muss stimmen');
+  assert.equal(f.find('Exxlosixn'), null, 'Distanz 2 kein Treffer');
+  const fp = compile(['Explosion'], { fuzzy: true, partial: true });
+  assert.equal(fp.find('Gasexplosiom'), 'Explosion');
 });
 
 test('withinDistance', () => {
@@ -198,6 +201,10 @@ test('Bedeutungs-Filter: Entscheidung nach Abstand zu Unerwünschtem und Neutral
   const mixed = norm([0.7, 0, 0, 0.6]);
   assert.equal(SEM.decide(mixed, ref, 'test/tiny', 'vorsichtig').hide, false);
   assert.equal(SEM.decide(mixed, ref, 'test/tiny', 'stark').hide, true);
+  // Gegenprüfung ohne Themen und ohne „ausblenden“-Bewertungen: nie aufdecken
+  const leer = { b: [], o: [], anchors: [], topics: [], neutral: [kultur] };
+  assert.equal(SEM.decide(norm([0.05, 0, 0, 1]), leer, 'test/tiny', 'mittel').veto, false);
+  assert.equal(SEM.decide(norm([0.05, 0, 0, 1]), { ...leer, topics: [klima] }, 'test/tiny', 'mittel').veto, true);
 });
 
 test('Bedeutungs-Filter: Vektoren kompakt speichern', () => {
@@ -221,4 +228,33 @@ test('Vorschlagslisten: Beispiel-Schlagzeilen je Thema für den Bedeutungs-Filte
   for (const id of P.ALL_IDS) assert.ok(P.examplesFor([id]).length >= 2, id);
   assert.deepEqual(P.examplesFor([]), []);
   assert.ok(P.examplesFor(['klima']).every((t) => !P.examplesFor(['krieg']).includes(t)));
+});
+
+test('Zusammensetzen nur über Bindestrich, kurze Begriffe im Teilwort-Modus nur als Wort', () => {
+  const m = compile(['Fußball', 'Überfall', 'Amok*', 'Notstand*', 'Heroin']);
+  assert.equal(m.find('Fuß- ball'), 'Fußball');
+  assert.equal(m.find('Fuß-\nball'), 'Fußball');
+  assert.equal(m.find('Fuß ball'), null);
+  assert.equal(m.find('entscheidet über Fall Müller'), null);
+  assert.equal(m.find('Treffen am Oktoberfest'), null);
+  assert.equal(m.find('Die Not stand im Vordergrund'), null);
+  assert.equal(m.find('Hero in town'), null);
+  const a = compile(['Fußball'], { allow: ['Zwischen'] });
+  assert.equal(a.find('Fuß- ball'), 'Fußball', 'Bindestrich-Merker überlebt die Nie-Liste');
+  const p = compile(['KI', 'Krieg'], { partial: true });
+  assert.equal(p.find('Im Mai beim Kaiser'), null);
+  assert.equal(p.find('KI-Modell'), 'KI');
+  assert.equal(p.find('Weltkriege'), 'Krieg');
+});
+
+test('Zerlegte Umlaute (NFD) werden erkannt', () => {
+  assert.ok(compile(['Mörder']).find('Der Mörder'.normalize('NFD')));
+  assert.ok(compile(['Überdosis']).find('Überdosis'.normalize('NFD')));
+});
+
+test('Vorschlagslisten: Alltagswörter lösen nichts aus', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS));
+  for (const t of ['Polizei sucht Zeugen', 'Firma sucht Mitarbeiter', 'Film von David Lynch']) assert.equal(m.find(t), null, t);
+  assert.ok(m.find('Spielsucht ruiniert Familien'));
 });

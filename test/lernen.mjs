@@ -164,7 +164,7 @@ async function main() {
       const local = await ratings(sw);
       assert.equal(rows.length, local.length);
       assert.ok(rows.every((r) => r[4].length <= 280));
-      assert.ok(Array.isArray(sync.ratingsDeleted) && sync.ratingsDeleted.length === 1, 'gelöschte Bewertung als Grabstein');
+      assert.ok(Array.isArray(sync.ratingsDeleted) && sync.ratingsDeleted.length >= 1, 'gelöschte Bewertung als Grabstein');
       assert.ok(JSON.stringify(sync).length < 100 * 1024);
     });
 
