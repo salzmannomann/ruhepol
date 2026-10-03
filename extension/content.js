@@ -181,6 +181,8 @@
     toneQueue.clear();
     toneUnavailable = false;
     vetoQueue.clear();
+    nanoQueue.clear();
+    nanoUnavailable = false;
     clearTimeout(vetoTimer);
     vetoTimer = null;
     clearTimeout(toneTimer);
@@ -856,8 +858,13 @@
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
-        if (!r.veto || !b.isConnected || !b.dataset.sfHit) return;
+        if (!b.isConnected || !b.dataset.sfHit) return;
         if (neverToneMatcher().find(blockText(b))) return;
+        if (!r.veto) {
+          // Knapp nicht harmlos genug: Chromes eingebautes Modell darf noch einmal urteilen.
+          if (r.unsure && settings.nanoCheck && !nanoUnavailable) { nanoQueue.add(b); flushNano(); }
+          return;
+        }
         unhide(b);
         clearedBlocks.add(b);
         b.dataset.sfVeto = String(Math.round((r.good - r.bad) * 1000) / 1000);
@@ -869,6 +876,47 @@
       return;
     }
     if (vetoQueue.size) flushVeto();
+  }
+
+  /* ---------------- Zweite Meinung: Chromes eingebautes Modell (Gemini Nano) ---------------- */
+
+  const NANO_BATCH = 4;
+  const nanoQueue = new Set();
+  let nanoBusy = false;
+  let nanoUnavailable = false; // Modell fehlt: auf dieser Seite nicht weiter fragen
+
+  async function flushNano() {
+    if (nanoBusy || !nanoQueue.size || !active || nanoUnavailable) return;
+    const blocks = [];
+    for (const b of nanoQueue) {
+      nanoQueue.delete(b);
+      if (b.isConnected && b.dataset.sfHit && !b.dataset.sfRevealed) blocks.push(b);
+      if (blocks.length >= NANO_BATCH) break;
+    }
+    if (!blocks.length) return;
+    nanoBusy = true;
+    const gen = generation;
+    let res = null;
+    try {
+      res = await withTimeout(chrome.runtime.sendMessage({ type: 'nanoJudge', texts: blocks.map((b) => blockText(b).slice(0, 1200)) }), 90000);
+    } catch (_) { /* bleibt unscharf */ }
+    nanoBusy = false;
+    if (gen !== generation || !active) { if (active) flushNano(); return; }
+    if (res && res.ok) {
+      res.harmless.forEach((harmless, i) => {
+        const b = blocks[i];
+        if (!harmless || !b.isConnected || !b.dataset.sfHit) return;
+        unhide(b);
+        clearedBlocks.add(b);
+        b.dataset.sfNano = 'harmlos';
+      });
+      reportCount();
+    } else {
+      nanoUnavailable = true; // nicht verfügbar oder abgeschaltet
+      nanoQueue.clear();
+      return;
+    }
+    if (nanoQueue.size) flushNano();
   }
 
   /* ---------------- Gute Nachrichten trotz gesperrtem Thema ---------------- */

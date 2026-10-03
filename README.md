@@ -282,6 +282,61 @@ dass eine echte Meldung aufgedeckt wird.
 Bis zur Prüfung bleibt der Treffer unscharf. Die eigenen Schlagwörter zählen dabei bewusst
 nicht als Themen-Anker, sonst wäre ein Treffer auf „Museum“ immer „nah an Museum“.
 
+### Wünsche in eigenen Worten
+
+Unter Themen → „In eigenen Worten“ stehen zwei Felder für ganze Sätze, einer pro Zeile:
+- **Will ich nicht sehen**, z. B. „Streit in der Innenpolitik und im Wahlkampf“
+- **Will ich trotzdem sehen**, z. B. „Sportberichte, auch wenn ein Krieg erwähnt wird“
+
+Jeder Satz wird für den Bedeutungs-Filter zu einem zusätzlichen Vergleichspunkt. Ähnelt
+eine Meldung einem „nicht sehen“-Satz, wird sie unscharf, auch ohne Schlagwort. Ähnelt sie
+einem „trotzdem sehen“-Satz, bleibt sie sichtbar bzw. wird nach einem Schlagwort-Treffer
+wieder aufgedeckt. Eigene Wünsche gehen den eingebauten neutralen Vergleichstexten vor.
+Wirkt nur mit eingeschaltetem Bedeutungs-Filter; Regeln wie „nur auf orf.at“ versteht er
+nicht, nur Themen. Die Sätze werden wie alle Einstellungen synchronisiert.
+
+Gemessen mit dem echten Modell: Mit dem Wunsch „Streit in der Innenpolitik und im
+Wahlkampf“ werden „Koalition zerstreitet sich über das Budget“ und „Parteien liefern sich
+heftigen Schlagabtausch im Wahlkampf“ unscharf. „Neue Straßenbahnlinie“, das Derby und
+Sportmeldungen bleiben sichtbar, „Russische Truppen rücken vor“ bleibt trotz des
+Sport-Wunsches unscharf.
+
+### Chromes eingebautes Modell (Gemini Nano, optional)
+
+Neuere Chrome-Versionen bringen ein eigenes kleines Sprachmodell mit, das lokal läuft. Wo es
+vorhanden ist, nutzt Ruhepol es für zwei Dinge; wo nicht, funktioniert alles andere wie bisher.
+
+**Assistent** (Themen → Assistent): Du schreibst, was du ändern willst, etwa „Fußball soll nie
+unscharf sein, außer bei Gewalt im Stadion“. Das Modell schlägt Änderungen vor (Schlagwörter,
+Nie-Liste, Themenlisten, Wünsche in eigenen Worten, Seiten ein/aus, Empfindlichkeit). Du
+siehst sie als Liste und übernimmst oder verwirfst sie. Ungültige Vorschläge (unbekannte
+Listen, nicht vorhandene Wörter) werden vorher aussortiert.
+
+**Zweite Meinung bei Grenzfällen** (Erkennung → „Grenzfälle zusätzlich … prüfen“, an):
+Schlagwort-Treffer, die die KI-Gegenprüfung nur knapp nicht als harmlos einstuft, beurteilt
+Gemini Nano noch einmal: aktuelle belastende Meldung oder nur nebenbei (Sport, Rückblick,
+Kultur)? Nur bei „harmlos“ wird der Treffer scharf, im Zweifel bleibt er unscharf. Das
+betrifft wenige Meldungen je Seite und läuft in einer eigenen Warteschlange, damit der
+schnelle Bedeutungs-Filter nicht wartet. Braucht den Bedeutungs-Filter.
+
+**Voraussetzungen** (laut Chrome): Chrome 138 oder neuer, Windows 10/11, macOS 13+, Linux
+oder Chromebook Plus; mindestens 22 GB frei auf dem Laufwerk des Chrome-Profils; eine
+Grafikkarte mit mehr als 4 GB Speicher oder 16 GB Arbeitsspeicher und 4 Kerne. Das Modell
+(einige GB) lädt Chrome selbst herunter; der Knopf „Chrome-Modell herunterladen“ stößt das
+an. Nicht auf Android/iOS. Die Einstellungsseite zeigt an, ob es bereitsteht.
+
+**Grenzen:** Gemini Nano ist für Englisch optimiert; Ruhepol fragt Deutsch an und weicht auf
+Englisch aus, wenn Chrome Deutsch nicht anbietet – die Antworten können dann ungenauer sein.
+Antworten eines Sprachmodells sind nicht bei jedem Durchlauf exakt gleich. Getestet ist die
+Anbindung automatisch mit einem Ersatzmodell (`test/nano.mjs`); mit dem echten Gemini Nano
+konnte ich mangels passender Hardware nicht testen.
+
+Warum nicht Gemini Nano statt des mitgelieferten Modells? Chrome bietet keine Funktion, um
+Texte in Vergleichsvektoren umzurechnen – Lernfilter, Gegenprüfung und „gute Nachrichten“
+beruhen aber darauf. Außerdem bräuchte Nano für jede Meldung eine eigene Antwort; bei 85
+Überschriften auf orf.at wäre das viel langsamer als das mitgelieferte Modell, das alle in
+Paketen vergleicht.
+
 ### Artikelseiten: nur der betroffene Absatz
 
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze
@@ -429,7 +484,7 @@ npm install
 npm run setup        # vendor/ und Sprachdaten
 npm test             # Unit-Tests (Abgleich, Listen, Lernmodell, Bedeutungs-Logik) + Playwright-Tests
                      # (Testseite, Lernfilter, Hintergrundbilder/Shadow-DOM/Gedrückthalten/Bereiche,
-                     #  Bedeutungs-Filter mit Testmodell)
+                     #  Bedeutungs-Filter mit Testmodell, Wünsche und Chrome-Modell mit Ersatzmodell)
 npm run test:orf     # Praxistest gegen https://orf.at (braucht Internet; HEADED=1 für sichtbares Fenster)
 ```
 
@@ -467,6 +522,7 @@ extension/
   lib/learn.js       Lernfilter (Naive Bayes)
   lib/semantic.js    Bedeutungs-Filter: Entscheidung, Schwellen, Vektor-Speicherung
   semantic.js        Sprachmodell im Offscreen Document (transformers.js)
+  lib/nano.js        Chromes eingebautes Modell (Gemini Nano): Assistent, zweite Meinung
   lib/settings.js    Einstellungen und Seitenregeln
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole

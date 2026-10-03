@@ -107,7 +107,7 @@ async function ensureOffscreen() {
 function scheduleOffscreenClose() {
   clearTimeout(offscreenIdleTimer);
   offscreenIdleTimer = setTimeout(async () => {
-    if (active > 0 || queue.length || semActive > 0) return;
+    if (active > 0 || queue.length || semActive > 0 || nanoActive > 0) return;
     try { await chrome.offscreen.closeDocument(); } catch (_) { /* schon zu */ }
   }, OFFSCREEN_IDLE_MS);
 }
@@ -548,14 +548,19 @@ function anchorTexts(settings) {
   const own = settings.keywords
     .map((k) => k.replace(/\*/g, '').trim())
     .filter((k) => k.length >= 4);
-  // Reihenfolge wichtig: semReference nimmt die ersten (Themenbeschreibungen) für die Gegenprüfung.
-  return SFPresets.aboutFor(settings.presets).concat(SFPresets.examplesFor(settings.presets), own);
+  // Reihenfolge wichtig: semReference nimmt die ersten (Themen + „will ich nicht sehen“-Wünsche)
+  // für die Gegenprüfung, siehe topicCount.
+  return SFPresets.aboutFor(settings.presets).concat(settings.wishNo, SFPresets.examplesFor(settings.presets), own);
+}
+
+function topicCount(settings) {
+  return SFPresets.aboutFor(settings.presets).length + settings.wishNo.length;
 }
 
 /** Bezugspunkte zusammenstellen; Bewertungs-Vektoren werden dauerhaft gespeichert. */
 async function semReference(settings, model) {
   const anchors = anchorTexts(settings);
-  const key = JSON.stringify([model, anchors]);
+  const key = JSON.stringify([model, anchors, settings.wishYes]);
   if (semRef && semRef.key === key) return semRef;
   const gen = semRefGen;
   const ratings = await getRatings();
@@ -571,18 +576,55 @@ async function semReference(settings, model) {
   await chrome.storage.local.set({ semIndex: { model, vecs } });
   const b = [], o = [];
   for (const r of ratings) (r.label === 'b' ? b : o).push(SFSemantic.unpack(vecs[r.id]));
-  const topicTexts = SFPresets.aboutFor(settings.presets);
   const anchorVecs = anchors.length ? await embedTexts(model, anchors) : [];
   const ref = {
     key,
     b,
     o,
     anchors: anchorVecs,
-    topics: anchorVecs.slice(0, topicTexts.length), // anchorTexts beginnt mit den Themenbeschreibungen
-    neutral: await embedTexts(model, SFSemantic.NEUTRAL),
+    topics: anchorVecs.slice(0, topicCount(settings)), // anchorTexts beginnt mit Themen und Wünschen
+    // „Will ich trotzdem sehen“-Wünsche zählen wie neutrale Vergleichstexte.
+    neutral: await embedTexts(model, SFSemantic.NEUTRAL.concat(settings.wishYes)),
   };
+  const nAbout = SFPresets.aboutFor(settings.presets).length;
+  ref.wishNo = anchorVecs.slice(nAbout, nAbout + settings.wishNo.length);
+  ref.wishYes = ref.neutral.slice(SFSemantic.NEUTRAL.length);
   if (gen === semRefGen) semRef = ref;
   return ref;
+}
+
+/* ---------------- Chromes eingebautes Modell: zweite Meinung zu Grenzfällen ---------------- */
+
+let nanoActive = 0;
+let nanoChain = Promise.resolve(); // eigene Warteschlange: langsame Urteile halten e5 nicht auf
+
+async function nanoCall(msg) {
+  nanoActive++;
+  try {
+    await ensureOffscreen();
+    return (await chrome.runtime.sendMessage(Object.assign({ target: 'offscreen' }, msg))) || { ok: false, error: 'keine Antwort' };
+  } finally {
+    nanoActive--;
+    scheduleOffscreenClose();
+  }
+}
+
+function nanoJudge(texts) {
+  const p = nanoChain.then(async () => {
+    const settings = await SFSettings.load();
+    if (!settings.nanoCheck) return { ok: false, error: 'aus' };
+    const names = SFPresets.PRESETS.filter((p) => settings.presets.includes(p.id)).map((p) => p.name);
+    const ctx = { topics: names.concat(settings.keywords.slice(0, 30)), wishNo: settings.wishNo, wishYes: settings.wishYes };
+    const { nanoFake } = await chrome.storage.local.get('nanoFake'); // nur automatische Tests
+    return nanoCall({ type: 'nanoJudge', texts: texts.map((t) => String(t).slice(0, 1200)), ctx, fake: !!nanoFake });
+  });
+  nanoChain = p.catch(() => {});
+  return p.catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
+}
+
+async function nanoStatus() {
+  const { nanoFake } = await chrome.storage.local.get('nanoFake');
+  return nanoCall({ type: 'nanoStatus', fake: !!nanoFake }).catch(() => ({ ok: true, availability: 'unavailable' }));
 }
 
 function semScore(texts) {
@@ -752,6 +794,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'toneScore':
       toneScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
+      return true;
+    case 'nanoJudge':
+      nanoJudge(Array.isArray(msg.texts) ? msg.texts.slice(0, 8) : []).then(sendResponse);
+      return true;
+    case 'nanoStatus':
+      nanoStatus().then(sendResponse);
       return true;
     case 'semStatus':
       semStatus().then(sendResponse);

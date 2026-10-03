@@ -201,10 +201,25 @@ test('Bedeutungs-Filter: Entscheidung nach Abstand zu Unerwünschtem und Neutral
   const mixed = norm([0.7, 0, 0, 0.6]);
   assert.equal(SEM.decide(mixed, ref, 'test/tiny', 'vorsichtig').hide, false);
   assert.equal(SEM.decide(mixed, ref, 'test/tiny', 'stark').hide, true);
+  // Grenzfall knapp unter der Veto-Schwelle wird als „unsicher“ markiert (für Chromes Modell)
+  const r = SEM.decide(norm([0.7, 0, 0, 0.6]), { ...ref, topics: [klima] }, 'test/tiny', 'mittel');
+  assert.equal(typeof r.unsure, 'boolean');
   // Gegenprüfung ohne Themen und ohne „ausblenden“-Bewertungen: nie aufdecken
   const leer = { b: [], o: [], anchors: [], topics: [], neutral: [kultur] };
   assert.equal(SEM.decide(norm([0.05, 0, 0, 1]), leer, 'test/tiny', 'mittel').veto, false);
   assert.equal(SEM.decide(norm([0.05, 0, 0, 1]), { ...leer, topics: [klima] }, 'test/tiny', 'mittel').veto, true);
+});
+
+test('Bedeutungs-Filter: eigener Wunsch geht eingebauten neutralen Texten vor', () => {
+  const wohnen = norm([0, 1, 0.1, 0]);
+  const klima = norm([1, 0.1, 0, 0]);
+  const text = norm([0, 1, 0.05, 0]);
+  // Wohnen ist (wie im echten Modell „Wohnen und Alltag“) auch ein neutraler Vergleichstext.
+  const base = { b: [], o: [], anchors: [klima, wohnen], topics: [klima, wohnen], neutral: [wohnen] };
+  assert.equal(SEM.decide(text, base, 'test/tiny', 'mittel').hide, false, 'ohne Wunsch-Regel Gleichstand');
+  assert.equal(SEM.decide(text, { ...base, wishNo: [wohnen], wishYes: [] }, 'test/tiny', 'mittel').hide, true);
+  // „Will ich trotzdem sehen“ oder eine „anzeigen“-Bewertung hebt den Wunsch wieder auf
+  assert.equal(SEM.decide(text, { ...base, wishNo: [wohnen], wishYes: [text] }, 'test/tiny', 'mittel').hide, false);
 });
 
 test('Bedeutungs-Filter: Vektoren kompakt speichern', () => {
