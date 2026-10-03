@@ -167,6 +167,18 @@ async function main() {
       await setSettings(sw, { presets: [] });
     });
 
+    await step('Artikel-Absatz: ein einzelner milder Treffer („Massenentlassungen“) reicht nicht, zwei schon; Teaser bleibt streng', async () => {
+      await setSettings(sw, { presets: ['wirtschaft', 'krise'], display: 'blur' });
+      const p2 = await ctx.newPage();
+      await p2.goto(srv.base + '/artikel.html');
+      await p2.waitForFunction(() => document.querySelector('#b-p3').classList.contains('sf-blurred')
+        && document.querySelector('#c-teaser').classList.contains('sf-blurred'), null, { timeout: 10000 });
+      await p2.waitForTimeout(800);
+      assert.equal(await p2.evaluate(() => document.querySelector('#b-p1').classList.contains('sf-blurred')), false, 'Rückblick-Absatz unscharf');
+      await p2.close();
+      await setSettings(sw, { presets: [] });
+    });
+
     let tabId;
     await step('Bereich sperren: Auswahl, Größer/Kleiner, Sperren', async () => {
       tabId = await sw.evaluate(async (url) => (await chrome.tabs.query({ url: url + '/*' }))[0].id, srv.base);

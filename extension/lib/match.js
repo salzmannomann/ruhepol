@@ -200,16 +200,34 @@
       return w.charAt(0).toUpperCase() + w.slice(1);
     }
 
-    function findIndexed(toks, joins) {
+    /** Sammelt Treffer (verschiedene Wörter) bis `limit`; false = genug gefunden. */
+    function collector(limit) {
+      const seen = new Set();
+      const out = [];
+      return {
+        out,
+        add(e, label) {
+          // Nach Wort zählen: "Krise" passt auf "Krise*" und "*krise", ist aber ein Treffer.
+          const key = normalize(label);
+          if (!seen.has(key)) { seen.add(key); out.push(label); }
+          return out.length < limit;
+        },
+      };
+    }
+
+    function scanIndexed(toks, joins, c) {
       for (let i = 0; i < toks.length; i++) {
-        for (const e of candidates(toks[i])) if (seqAt(toks, i, e.pats)) return shown(e, toks.slice(i, i + e.pats.length));
+        for (const e of candidates(toks[i])) {
+          if (seqAt(toks, i, e.pats) && !c.add(e, shown(e, toks.slice(i, i + e.pats.length)))) return;
+        }
       }
       // Zwei per Bindestrich getrennte Wörter ergeben zusammen den Begriff ("Fuß-ball", OCR-Trennung).
       for (const i of joins) {
-        const c = toks[i] + toks[i + 1];
-        for (const e of candidates(c)) if (e.pats.length === 1 && tokenEq(c, e.pats[0])) return shown(e, [c]);
+        const w = toks[i] + toks[i + 1];
+        for (const e of candidates(w)) {
+          if (e.pats.length === 1 && tokenEq(w, e.pats[0]) && !c.add(e, shown(e, [w]))) return;
+        }
       }
-      return null;
     }
 
     function allowEq(textTok, p) {
@@ -241,42 +259,50 @@
       return { toks: out, joins: outJoins };
     }
 
-    function find(text) {
-      if (!entries.length || !text) return null;
+    function entryHits(e, toks, joins, joined, compact) {
+      const k = e.pats;
+      if (partial && e.compact.length < PARTIAL_MIN_LEN) return matchSequence(toks, k); // kurze Begriffe nur als Wort
+      if (partial) {
+        if (joined.includes(e.joined)) return true;
+        // Silbentrennung/Zeilenumbruch aus OCR ("Fuß- ball") abfangen.
+        if (compact.includes(e.compact)) return true;
+        if (k.length === 1) return toks.some((t) => tokenContains(t, k[0]));
+        return matchSequence(toks, k);
+      }
+      if (matchSequence(toks, k)) return true;
+      if (k.length === 1) for (const i of joins) if (tokenEq(toks[i] + toks[i + 1], k[0])) return true;
+      return false;
+    }
+
+    function scan(text, limit) {
+      const c = collector(limit);
+      if (!entries.length || !text) return c.out;
       let { toks, joins } = tokenizeJoins(text);
       if (allowList.length) ({ toks, joins } = stripAllowed(toks, joins));
-      if (!toks.length) return null;
-
-      if (!partial && !fuzzy) return findIndexed(toks, joins);
-
+      if (!toks.length) return c.out;
+      if (!partial && !fuzzy) {
+        scanIndexed(toks, joins, c);
+        return c.out;
+      }
       const joined = toks.join(' ');
       const compact = joined.replace(/ /g, '');
       for (const e of entries) {
-        const k = e.pats;
-        if (partial && e.compact.length < PARTIAL_MIN_LEN) {
-          if (matchSequence(toks, k)) return e.label; // kurze Begriffe nur als ganzes Wort
-        } else if (partial) {
-          if (joined.includes(e.joined)) return e.label;
-          // Silbentrennung/Zeilenumbruch aus OCR ("Fuß- ball") abfangen.
-          if (compact.includes(e.compact)) return e.label;
-          if (k.length === 1) {
-            for (const t of toks) if (tokenContains(t, k[0])) return e.label;
-          } else if (matchSequence(toks, k)) {
-            return e.label;
-          }
-        } else {
-          if (matchSequence(toks, k)) return e.label;
-          if (k.length === 1) {
-            for (const i of joins) {
-              if (tokenEq(toks[i] + toks[i + 1], k[0])) return e.label;
-            }
-          }
-        }
+        if (entryHits(e, toks, joins, joined, compact) && !c.add(e, e.label)) break;
       }
-      return null;
+      return c.out;
     }
 
-    return { find, empty: entries.length === 0 };
+    /** Erster Treffer (Anzeigename) oder null. */
+    function find(text) {
+      return scan(text, 1)[0] || null;
+    }
+
+    /** Alle verschiedenen getroffenen Begriffe (höchstens `limit`). */
+    function findAll(text, limit) {
+      return scan(text, limit || 50);
+    }
+
+    return { find, findAll, empty: entries.length === 0 };
   }
 
   const api = { normalize, tokenize, parseTerm, withinDistance, compile, FUZZY_MIN_LEN };

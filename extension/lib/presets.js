@@ -187,6 +187,13 @@
   const ALL_IDS = PRESETS.map((p) => p.id);
 
   /*
+   * Milde Listen: Wörter wie „Massenentlassungen“ oder „Skandal“ tauchen in Fließtexten oft
+   * nebenbei auf (Rückblicke, Hintergrund). In langen Artikeltexten genügt ein einzelner
+   * Treffer daraus nicht; Schlagzeilen und Teaser bleiben streng.
+   */
+  const MILD_IDS = ['wirtschaft', 'krise'];
+
+  /*
    * Beispiel-Schlagzeilen je Thema: zusätzliche Bezugspunkte für den Bedeutungs-Filter.
    * Das Sprachmodell vergleicht Sätze mit Sätzen genauer als Sätze mit Wortlisten.
    */
@@ -227,6 +234,6 @@
     return out;
   }
 
-  root.SFPresets = { PRESETS, ALL_IDS, termsFor, aboutFor, examplesFor };
+  root.SFPresets = { PRESETS, ALL_IDS, MILD_IDS, termsFor, aboutFor, examplesFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFPresets;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
