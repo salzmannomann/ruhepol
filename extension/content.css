@@ -1,9 +1,14 @@
-/* Schlagwortfilter – nur aktiv, wenn <html> die Klasse sf-active trägt. */
+/* Ruhepol – nur aktiv, wenn <html> die Klasse sf-active trägt. */
 
 /* Bilder, deren Prüfung noch läuft (oder noch nicht begonnen hat), unscharf stellen. */
 html.sf-active img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revealed]) {
   filter: blur(18px) !important;
-  transition: filter 0.15s ease-out;
+}
+
+/* CSS-Hintergrundbilder und Video-Vorschaubilder während der Prüfung. */
+html.sf-active [data-sf-bg="pending"]:not([data-sf-revealed]),
+html.sf-active [data-sf-bg="err"]:not([data-sf-revealed]) {
+  filter: blur(18px) !important;
 }
 
 html.sf-active .sf-hidden,
@@ -17,35 +22,193 @@ html.sf-active .sf-blurred {
   user-select: none !important;
 }
 
-html.sf-active .sf-placeholder {
+html.sf-active .sf-placeholder,
+html.sf-active .sf-placeholder *,
+.sf-feedback,
+.sf-feedback *,
+.sf-toast {
   all: initial;
-  display: block !important;
   box-sizing: border-box !important;
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  color: #444 !important;
+}
+
+html.sf-active .sf-placeholder {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px 12px !important;
   margin: 6px 0 !important;
-  padding: 10px 14px !important;
+  padding: 8px 12px !important;
   border: 1px dashed #9a9a9a !important;
   border-radius: 6px !important;
   background: #f3f3f3 !important;
-  color: #444 !important;
-  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   list-style: none !important;
 }
+html.sf-active .sf-placeholder:hover { background: #e9e9e9 !important; }
+html.sf-active .sf-ph-text { cursor: pointer !important; }
+html.sf-active .sf-ph-text:focus { outline: 2px solid #5aa0ea !important; border-radius: 3px !important; }
+html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !important; flex-wrap: wrap !important; font-size: 12.5px !important; }
 
-html.sf-active .sf-placeholder:hover,
-html.sf-active .sf-placeholder:focus {
-  background: #e6e6e6 !important;
-  outline: 2px solid #6b8afd !important;
+.sf-feedback {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px 10px !important;
+  margin: 4px 0 !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  background: #eef6ff !important;
+  border: 1px solid #bcd8f5 !important;
+  font-size: 13px !important;
+}
+
+.sf-feedback.sf-overlay {
+  position: absolute !important;
+  z-index: 2147483646 !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22) !important;
+  background: #fff !important;
+}
+@media (prefers-color-scheme: dark) {
+  .sf-feedback.sf-overlay { background: #1f2a36 !important; }
+}
+
+.sf-btn {
+  display: inline-block !important;
+  padding: 3px 9px !important;
+  border: 1px solid #b9b9b9 !important;
+  border-radius: 5px !important;
+  background: #fff !important;
+  font-size: 12.5px !important;
+  cursor: pointer !important;
+}
+.sf-chips { display: inline-flex !important; flex-wrap: wrap !important; gap: 5px !important; }
+.sf-btn.sf-chip { border-radius: 999px !important; }
+.sf-btn.sf-chip.sf-on { background: #2f7fd6 !important; border-color: #2f7fd6 !important; color: #fff !important; }
+.sf-btn.sf-primary { font-weight: 600 !important; }
+.sf-btn:disabled { opacity: 0.45 !important; cursor: default !important; }
+.sf-btn:hover { background: #eef6ff !important; border-color: #5aa0ea !important; }
+.sf-btn:focus-visible { outline: 2px solid #5aa0ea !important; }
+
+.sf-toast {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  left: 50% !important;
+  bottom: 24px !important;
+  transform: translateX(-50%) !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  background: #222 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  pointer-events: none !important;
 }
 
 @media (prefers-color-scheme: dark) {
-  html.sf-active .sf-placeholder {
-    background: #2a2a2a !important;
-    color: #ddd !important;
-    border-color: #666 !important;
-  }
-  html.sf-active .sf-placeholder:hover,
-  html.sf-active .sf-placeholder:focus {
-    background: #353535 !important;
-  }
+  html.sf-active .sf-placeholder,
+  html.sf-active .sf-placeholder *,
+  .sf-feedback,
+  .sf-feedback * { color: #ddd !important; }
+  html.sf-active .sf-placeholder { background: #2a2a2a !important; border-color: #666 !important; }
+  html.sf-active .sf-placeholder:hover { background: #333 !important; }
+  .sf-feedback { background: #1f2a36 !important; border-color: #3b5f86 !important; }
+  .sf-btn { background: #1e1e1e !important; border-color: #555 !important; }
+  .sf-btn:hover { background: #24384d !important; }
+}
+
+/* Bereichsauswahl */
+.sf-pick {
+  outline: 3px dashed #2f7fd6 !important;
+  outline-offset: 2px !important;
+  background-color: rgba(47, 127, 214, 0.07) !important;
+}
+.sf-feedback.sf-picker {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  max-width: min(720px, calc(100vw - 24px)) !important;
+  background: #fff !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Aufdecken durch Gedrückthalten: Ladekreis an der Druckstelle bzw. im Knopf */
+.sf-holdring {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  width: 46px !important;
+  height: 46px !important;
+  margin: -23px 0 0 -23px !important;
+  padding: 5px !important;
+  box-sizing: border-box !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25) !important;
+  pointer-events: none !important;
+}
+.sf-holdring .sf-ring {
+  width: 36px !important;
+  height: 36px !important;
+}
+.sf-btn.sf-hold {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.sf-ring {
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex: none !important;
+  transform: rotate(-90deg) !important;
+  overflow: visible !important;
+}
+.sf-ring circle {
+  /* r/cx/cy sind CSS-Eigenschaften und würden von „all: initial“ auf 0 gesetzt */
+  display: inline !important;
+  cx: 10px !important;
+  cy: 10px !important;
+  r: 8px !important;
+  fill: none !important;
+  stroke-width: 3px !important;
+}
+.sf-ring-bg { stroke: #d6d9e6 !important; }
+.sf-ring-fg {
+  stroke: #2f7fd6 !important;
+  stroke-linecap: round !important;
+  /* Umfang 2·π·8 ≈ 50.3; ohne !important, damit die Animation den Wert ändern kann */
+  stroke-dasharray: 50.3 !important;
+  stroke-dashoffset: 50.3;
+}
+.sf-holding .sf-ring-fg {
+  animation: sf-ring 2s linear forwards;
+}
+@keyframes sf-ring {
+  from { stroke-dashoffset: 50.3; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* „Warum?“-Erklärung in der Leiste */
+.sf-feedback .sf-why {
+  display: block !important;
+  flex-basis: 100% !important;
+  font-size: 12.5px !important;
+  color: #555 !important;
+}
+
+/* 👍/👎 nach dem Anzeigen */
+.sf-feedback.sf-thumbs .sf-btn {
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+  padding: 2px 10px !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sf-feedback.sf-picker { background: #1f2a36 !important; }
+  .sf-ring-bg { stroke: #4a4f66 !important; }
+  .sf-ring-fg { stroke: #7db7ff !important; }
+  .sf-holdring { background: rgba(30, 30, 34, 0.92) !important; }
 }

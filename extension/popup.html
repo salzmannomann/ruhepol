@@ -2,27 +2,30 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>Schlagwortfilter</title>
+  <title>Ruhepol</title>
   <link rel="stylesheet" href="ui.css">
   <style>
     body { width: 280px; padding: 14px 16px; }
     .count { margin: 10px 0; padding: 10px 12px; background: var(--card); border-radius: 8px; }
     .count strong { font-size: 22px; display: block; }
     .host { color: var(--muted); font-size: 12px; word-break: break-all; }
-    .footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .footer .hint { text-align: right; }
     .warn { color: var(--err); font-size: 12.5px; margin-top: 6px; }
   </style>
 </head>
 <body>
-  <h1>Schlagwortfilter</h1>
+  <h1 class="brand"><img src="icons/icon.svg" alt="" width="24" height="24">Ruhepol</h1>
   <label class="switch">Filter aktiv <input type="checkbox" id="global"></label>
   <label class="switch"><span>Auf dieser Seite<br><span class="host" id="host">–</span></span> <input type="checkbox" id="site"></label>
   <div class="count"><strong id="count">0</strong><span id="countLabel">ausgeblendete Elemente auf dieser Seite</span></div>
+  <div class="hint" id="learnInfo"></div>
   <div class="warn" id="warn" hidden></div>
   <div class="footer">
     <a href="#" id="options">Einstellungen</a>
     <span class="hint" id="kwInfo"></span>
   </div>
+  <script src="lib/presets.js"></script>
   <script src="lib/settings.js"></script>
   <script src="popup.js"></script>
 </body>

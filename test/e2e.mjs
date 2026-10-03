@@ -71,8 +71,10 @@ async function main() {
   try {
     await setSettings(sw, {
       keywords: ['Fußball', 'Hochwasser', 'Bürgermeister', 'Gemeinderat', 'Lawine'],
+      presets: [],
       display: 'hide',
       ocr: true,
+      revealHold: false,
     });
 
     const page = await ctx.newPage();
@@ -99,10 +101,15 @@ async function main() {
       assert.ok(!keys.some((k) => k.includes('alt-bild')), 'alt-Bild wurde trotzdem per OCR gelesen');
       assert.ok(!keys.some((k) => k.includes('teaser')), 'Teaser-Bild wurde trotzdem per OCR gelesen');
     });
+    await step('orf.at-artiger Aufbau: ganze div-Meldung weg, Ressort bleibt', async () => {
+      await hidden(page, '#t-orf1'); // Treffer in der Überschrift (Link)
+      await hidden(page, '#t-orf2'); // Treffer im Fließtext
+      for (const sel of ['#t-orf3', '#ressort', '#ticker']) assert.ok(await isVisible(page, sel), `${sel} sollte sichtbar sein`);
+    });
     await step('Nachgeladener Text ausgeblendet', () => hidden(page, '#t-later'));
     await step('Nachgeladenes Bild (lazy, src gesetzt) per OCR ausgeblendet', () => hidden(page, '#t-lazy'));
     await step('Unauffällige Inhalte und Spalten bleiben sichtbar', async () => {
-      for (const sel of ['#t-neutral', '#t-later-ok', '#t-control', '#col', '#col2', '#main', 'header']) {
+      for (const sel of ['#t-neutral', '#t-later-ok', '#t-control', '#t-icon', '#col', '#col2', '#main', 'header', 'nav']) {
         assert.ok(await isVisible(page, sel), `${sel} sollte sichtbar sein`);
       }
     });
@@ -125,17 +132,29 @@ async function main() {
       await popup.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
       await popup.waitForFunction(() => Number(document.getElementById('count').textContent) >= 5, null, { timeout: 5000 });
       const n = await popup.textContent('#count');
-      assert.equal(n, '6');
+      assert.equal(n, '8');
       assert.equal(await popup.textContent('#host'), '127.0.0.1');
       await popup.close();
     });
 
     await step('OCR-Ergebnisse im Cache (chrome.storage.local)', async () => {
-      const keys = await sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ocr:')));
+      const keys = await sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ocr2:')));
       assert.ok(keys.length >= 3, `nur ${keys.length} Einträge`);
       const entry = await sw.evaluate(async (k) => (await chrome.storage.local.get(k))[k], keys.find((k) => k.includes('ocr-treffer')));
       assert.match(entry.t, /B[üu]rgermeister/i);
       console.log(`    erkannter Text: ${JSON.stringify(entry.t.trim())}`);
+    });
+
+    await step('Foto ohne Schrift (Rasen): kein Buchstabensalat aus der Texterkennung', async () => {
+      await page.waitForFunction(() => document.querySelector('#img-rasen').dataset.sf === 'ok', null, { timeout: 20000 });
+      const t = await sw.evaluate(async () => {
+        const all = await chrome.storage.local.get(null);
+        const k = Object.keys(all).find((x) => x.startsWith('ocr2:') && x.includes('rasen'));
+        return k ? all[k].t : null;
+      });
+      assert.ok(t !== null, 'kein Cache-Eintrag');
+      console.log(`    gelesener Text: ${JSON.stringify(t)}`);
+      assert.ok(t.replace(/\s+/g, '').length <= 12, `zu viel Salat: ${JSON.stringify(t)}`);
     });
 
     await step('Nach Neuladen kommt das OCR-Ergebnis aus dem Cache (schnell)', async () => {
@@ -150,10 +169,10 @@ async function main() {
     await step('Darstellung „Platzhalter“: Klick zeigt den Inhalt', async () => {
       await setSettings(sw, { display: 'placeholder' });
       await page.waitForFunction(() => document.querySelectorAll('.sf-placeholder').length >= 3, null, { timeout: 10000 });
-      const txt = await page.textContent('.sf-placeholder');
-      assert.match(txt, /^Ausgeblendet \(.+\)/);
+      const txt = await page.textContent('.sf-placeholder .sf-ph-text');
+      assert.equal(txt, 'Ausgeblendet', 'kein Schlagwort im Platzhalter');
       const ph = page.locator('#t-text').locator('xpath=preceding-sibling::*[1]');
-      assert.match(await ph.textContent(), /Ausgeblendet \(Fußball\)/);
+      assert.doesNotMatch(await ph.textContent(), /Fußball/);
       await ph.click();
       assert.ok(await isVisible(page, '#t-text'));
     });
@@ -165,6 +184,19 @@ async function main() {
         const el = document.querySelector('#t-later');
         return el && el.classList.contains('sf-blurred') && getComputedStyle(el).filter.includes('blur');
       }, null, { timeout: 10000 });
+      // Kein Hinweis aufs Schlagwort, keine Knöpfe sichtbar.
+      assert.equal(await page.evaluate(() => document.querySelector('#t-later').getAttribute('title')), null);
+      assert.equal(await page.locator('.sf-placeholder, .sf-feedback').count(), 0);
+      // Ohne Gedrückthalten-Option: Klick zeigt sofort an, danach 👍/👎 ohne Schlagwort-Text.
+      await page.click('#t-later');
+      await page.waitForFunction(() => !document.querySelector('#t-later').classList.contains('sf-blurred'));
+      const barText = await page.textContent('.sf-feedback.sf-overlay');
+      assert.match(barText, /Künftig anzeigen\?/);
+      assert.match(barText, /👍/);
+      assert.doesNotMatch(barText, /Lawine/);
+      // 👎 stellt wieder unscharf.
+      await page.click('.sf-overlay button:has-text("👎")');
+      await page.waitForFunction(() => document.querySelector('#t-later').classList.contains('sf-blurred'));
       assert.ok(!(await page.evaluate(() => document.querySelector('#t-text').classList.contains('sf-blurred'))));
     });
 
@@ -215,11 +247,55 @@ async function main() {
       await p2.waitForFunction(() => document.querySelectorAll('[data-sf-hit]').length === 8, null, { timeout: 10000 });
       const long = await p2.evaluate(() => window.__long);
       // Lange Tasks durch das Seitenskript selbst (innerHTML von 4000 Einträgen) sind erwartbar;
-      // die Erweiterung arbeitet in kleinen Idle-Häppchen.
+      // die Erweiterung arbeitet in kleinen Idle-Häppchen (keine Funktion > 25 ms, gemessen).
+      // Ausblenden eines Eintrags zwingt den Browser aber, die ganze 4000er-Liste neu zu
+      // setzen – das dauert hier knapp um die 50-ms-Grenze (gemessen: in 1–2 von 10 Läufen
+      // 50–62 ms, ohne Erweiterung nie). Erlaubt ist daher höchstens ein solcher Neuaufbau,
+      // und der muss deutlich unter 80 ms bleiben.
       console.log(`    lange Tasks: ${long.length} (${long.map((d) => Math.round(d)).join(', ')} ms)`);
+      const own = long.slice(1);
+      assert.ok(own.length <= 1 && own.every((d) => d < 80), 'Erweiterung erzeugt eigene lange Tasks');
       const hiddenIds = await p2.evaluate(() => [...document.querySelectorAll('[data-sf-hit]')].map((e) => e.id));
       assert.deepEqual(hiddenIds, ['i7', 'i507', 'i1007', 'i1507', 'i2007', 'i2507', 'i3007', 'i3507']);
       await p2.close();
+    });
+
+    await step('Vorschlagsliste „Künstliche Intelligenz“ (über die Einstellungsseite aktiviert)', async () => {
+      const opt = await ctx.newPage();
+      await opt.goto(`chrome-extension://${extId}/options.html`);
+      await opt.waitForSelector('input[name="preset"][value="ki"]');
+      assert.equal(await opt.locator('input[name="preset"]').count(), 15);
+      await opt.check('input[name="preset"][value="ki"]');
+      await opt.waitForSelector('#status.ok'); // speichert sofort, ohne Knopf
+      await opt.close();
+      const presets = await sw.evaluate(async () => (await chrome.storage.sync.get('presets')).presets);
+      assert.deepEqual(presets, ['ki']);
+      await page.evaluate(() => {
+        document.getElementById('later').insertAdjacentHTML('beforeend',
+          '<article id="t-ki"><h2>Neues KI-Modell vorgestellt</h2></article><article id="t-kino"><h2>Kino-Tipp der Woche</h2></article>');
+      });
+      await hidden(page, '#t-ki');
+      assert.ok(await isVisible(page, '#t-kino'));
+    });
+
+    await step('Einstellungsseite: Navigation und automatisches Speichern beim Tippen', async () => {
+      const opt = await ctx.newPage();
+      await opt.goto(`chrome-extension://${extId}/options.html`);
+      assert.ok(await opt.isVisible('#page-themen'), 'Themen nicht Startseite');
+      assert.ok(!(await opt.isVisible('#page-erweitert')));
+      await opt.fill('#allow', 'Wohnungskrise\nMidlife-Krise');
+      await opt.waitForSelector('#status.ok', { timeout: 3000 });
+      const allow = await sw.evaluate(async () => (await chrome.storage.sync.get('allow')).allow);
+      assert.deepEqual(allow, ['Wohnungskrise', 'Midlife-Krise']);
+      await opt.click('nav a[data-page="erweitert"]');
+      await opt.waitForSelector('#page-erweitert', { state: 'visible', timeout: 3000 });
+      assert.ok(!(await opt.isVisible('#page-themen')));
+      await opt.check('#fuzzy');
+      await opt.waitForFunction(async () => true);
+      await new Promise((r) => setTimeout(r, 400));
+      assert.equal(await sw.evaluate(async () => (await chrome.storage.sync.get('fuzzy')).fuzzy), true);
+      await sw.evaluate(() => SFSettings.save({ allow: [], fuzzy: false }));
+      await opt.close();
     });
 
     await step('Keine Skriptfehler auf der Seite', () => assert.deepEqual(consoleErrors, []));

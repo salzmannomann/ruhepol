@@ -1,5 +1,7 @@
-node_modules/
-extension/vendor/
-test-results/
 *.log
 .DS_Store
+extension/vendor/
+node_modules/
+test-results/
+# Eingestufte echte Teaser (fremde Texte): nur lokal
+test/fixtures/real-headlines.json

@@ -4,7 +4,7 @@
   --muted: #6b6b70;
   --line: #dcdce0;
   --card: #f6f6f8;
-  --accent: #3d5afe;
+  --accent: #2f7fd6;
   --ok: #2e7d32;
   --err: #c62828;
   color-scheme: light dark;
@@ -16,7 +16,7 @@
     --muted: #a0a0a6;
     --line: #3a3a3e;
     --card: #2a2a2e;
-    --accent: #8c9eff;
+    --accent: #7db7ff;
     --ok: #81c784;
     --err: #ef9a9a;
   }
@@ -29,6 +29,8 @@ body {
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 h1 { font-size: 20px; margin: 0 0 4px; }
+h1.brand { display: flex; align-items: center; gap: 10px; }
+h1.brand img { flex: none; border-radius: 22%; }
 h2 { font-size: 15px; margin: 0 0 8px; }
 p.hint, .hint { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
 a { color: var(--accent); }
