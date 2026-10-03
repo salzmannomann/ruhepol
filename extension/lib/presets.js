@@ -62,7 +62,8 @@
         'Terror*', 'Anschlag', 'Anschlags', 'Anschläge*', 'Terroranschlag*', 'Bombenanschlag*',
         'Attentat*', 'Attentäter*', 'Amok*', 'Geiselnahme*', 'Geiseln', 'Islamist*', 'Dschihad*',
         'Extremist*', 'Rechtsextrem*', 'Linksextrem*', 'Messerangriff*', 'Messerattacke*',
-        'Schießerei*', 'Schüsse', 'Schusswaffe*', 'Massaker*', 'Lynch*', 'Gewalttat*', 'Gewaltverbrechen',
+        'Schießerei*', 'Schüsse auf', 'Schüsse gefallen', 'Schüsse abgegeben', 'Schüsse abgefeuert',
+        'Schusswechsel', 'Schussverletzung*', 'erschossen', 'angeschossen', 'niedergeschossen', 'Schusswaffe*', 'Massaker*', 'Lynch*', 'Gewalttat*', 'Gewaltverbrechen',
         'Ausschreitung*', 'Krawalle',
       ],
     },
@@ -167,7 +168,7 @@
       name: 'Wirtschaftskrise',
       terms: [
         'Inflation*', 'Teuerung*', 'Rezession*', 'Wirtschaftskrise*', 'Finanzkrise*', 'Energiekrise*',
-        'Pleite*', 'Insolvenz*', 'Konkurs*', 'Stellenabbau*', 'Jobabbau*', 'Kündigungswelle*',
+        'Firmenpleite*', 'Pleitewelle*', 'pleitegegangen', 'Insolvenz*', 'Konkurs*', 'Stellenabbau*', 'Jobabbau*', 'Kündigungswelle*',
         'Massenentlassung*', 'Arbeitslosigkeit', 'Börsencrash*', 'Kurssturz*', 'Kurseinbruch*',
         'Staatsschulden', 'Sparpaket*', 'Strafzoll*', 'Strafzölle*', 'Zollstreit*', 'Handelskrieg*',
       ],
@@ -177,8 +178,8 @@
       about: 'Krise, Skandal, Eskalation, Tragödie, Schock und Panik, Korruption, Notstand. Crisis, scandal, escalation.',
       name: 'Krisen und Skandale allgemein',
       terms: [
-        '*krise', '*krisen', 'Skandal*', 'Eskalation*', 'eskaliert', 'Tragödie*', 'Schock*', 'Horror*',
-        'Panik*', 'Drama', 'Dramen', 'Korruption*', 'Affäre', 'Bedrohung*', 'Notstand*', 'Alarmstufe*',
+        '*krise', '*krisen', 'Skandal*', 'Eskalation*', 'eskaliert', 'Tragödie*',
+        'Korruption*', 'Affäre', 'Bedrohung*', 'Notstand*', 'Alarmstufe*',
       ],
     },
   ];

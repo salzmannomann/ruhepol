@@ -97,6 +97,9 @@ test('Vorschlagslisten: typische Treffer', () => {
     'Corona-Zahlen steigen',
     'Regierungskrise in Wien',
     'Zwei Tote bei Brand',
+    'Schüsse auf Polizisten in Linz',
+    'Mann in Wohnung erschossen',
+    'Firmenpleite: 300 Jobs weg',
   ];
   for (const t of hits) assert.ok(m.find(t), `kein Treffer: ${t}`);
 });
@@ -118,6 +121,10 @@ test('Vorschlagslisten: keine typischen Fehltreffer', () => {
     'Bombenstimmung beim Fest',
     'Wetter: sonnig und mild',
     'Neue Wohnungen am Stadtrand',
+    'Warum im Kosovo-Spiel so viele Schüsse vorbeigegangen sind',
+    'Pleite gegen Salzburg: Austria verliert 0:3',
+    'Drama in der Nachspielzeit',
+    'Schock für Sturm: Kapitän verletzt',
     'Konzertkritik: Großer Applaus in der Staatsoper',
   ];
   for (const t of misses) assert.equal(m.find(t), null, `Fehltreffer: ${t} → ${m.find(t)}`);

@@ -34,6 +34,8 @@
     semantic: false,
     // 'vorsichtig' | 'mittel' | 'stark'
     semanticLevel: 'mittel',
+    // Schlagwort-Treffer mit dem Sprachmodell gegenprüfen (Doppeldeutigkeiten wie „Schüsse“ im Sport)
+    semanticVeto: true,
     // Gute Nachrichten zu gesperrten Themen trotzdem zeigen (braucht das Sprachmodell)
     positiveShow: false,
     positiveLevel: 'mittel',
@@ -71,7 +73,7 @@
     }
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.semanticLevel)) s.semanticLevel = raw.semanticLevel;
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.positiveLevel)) s.positiveLevel = raw.positiveLevel;
-    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'positiveShow']) {
+    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

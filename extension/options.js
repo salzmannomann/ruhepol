@@ -110,6 +110,7 @@
     $('revealHold').checked = s.revealHold;
     $('semantic').checked = s.semantic;
     $('semanticLevel').value = s.semanticLevel;
+    $('semanticVeto').checked = s.semanticVeto;
     $('positiveShow').checked = s.positiveShow;
     $('positiveLevel').value = s.positiveLevel;
     renderZones(s.zones);
@@ -135,6 +136,7 @@
       revealHold: $('revealHold').checked,
       semantic: $('semantic').checked,
       semanticLevel: $('semanticLevel').value,
+      semanticVeto: $('semanticVeto').checked,
       positiveShow: $('positiveShow').checked,
       positiveLevel: $('positiveLevel').value,
       zones: currentZones,

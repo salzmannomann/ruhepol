@@ -160,6 +160,7 @@
         <p class="hint">Ein kleines Sprachmodell vergleicht die <em>Bedeutung</em> von Überschrift und Vorspann mit den aktivierten Themen und deinen Bewertungen. So werden auch Artikel ohne Schlagwort erkannt („Flut“ statt „Hochwasser“, englische Texte).</p>
         <div id="semStatus" class="status-box">…</div>
         <label class="check"><input type="checkbox" id="semantic"><span>Bedeutungs-Filter verwenden<br><span class="hint">Braucht beim Rechnen etwa 200–300 MB Arbeitsspeicher; nach 5 Minuten ohne Arbeit wird das Modell entladen.</span></span></label>
+        <label class="check" style="margin-left:28px"><input type="checkbox" id="semanticVeto"><span>Schlagwort-Treffer gegenprüfen<br><span class="hint">Deckt doppeldeutige Treffer wieder auf, wenn das Modell sie klar als harmlos erkennt – etwa „Pleite gegen Salzburg“ oder „Drama in der Nachspielzeit“ beim Fußball.</span></span></label>
         <div class="row" style="margin:2px 0 0 28px">
           <label>Empfindlichkeit
             <select id="semanticLevel">

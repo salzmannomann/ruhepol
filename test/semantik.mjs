@@ -83,6 +83,26 @@ async function main() {
       await setSettings(sw, { semantic: true, presets: ['klima'] });
     });
 
+    await step('KI-Gegenprüfung: harmloser Schlagwort-Treffer wird wieder gezeigt', async () => {
+      await setSettings(sw, { keywords: ['Museum', 'Gletscher'], presets: ['klima'], semantic: true, semanticVeto: true, positiveShow: false });
+      await page.reload();
+      // „Konzert im Museum“ trifft das Schlagwort, liegt aber klar bei „Kultur“ → wieder sichtbar.
+      await page.waitForFunction(() => document.querySelector('#s-kultur').dataset.sfVeto !== undefined, null, { timeout: 15000 });
+      assert.ok(await visible(page, '#s-kultur'));
+      // „Gletscher schmelzen …“ trifft ebenfalls, liegt aber beim Thema Klima → bleibt unscharf.
+      await page.waitForTimeout(500);
+      assert.ok(!(await visible(page, '#s-klima')));
+    });
+
+    await step('Ohne Gegenprüfung bleibt auch der harmlose Treffer unscharf', async () => {
+      await setSettings(sw, { semanticVeto: false });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#s-kultur').dataset.sfHit, null, { timeout: 15000 });
+      await page.waitForTimeout(1000);
+      assert.ok(!(await visible(page, '#s-kultur')));
+      await setSettings(sw, { keywords: [], semanticVeto: true });
+    });
+
     await step('Einstellungsseite zeigt Modellstatus', async () => {
       const opt = await ctx.newPage();
       await opt.goto(`chrome-extension://${extId}/options.html`);

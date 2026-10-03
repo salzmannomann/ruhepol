@@ -30,12 +30,16 @@
       prefix: 'query: ',
       floor: { vorsichtig: 0.82, mittel: 0.8, stark: 0.78 },
       margin: { vorsichtig: 0.03, mittel: 0.015, stark: 0.005 },
+      // Gegenprüfung von Schlagwort-Treffern: harmlos, wenn Erwünschtes/Neutrales um so viel
+      // näher liegt (gemessen: doppeldeutige Sportmeldungen ≥ +0,011, echte ≤ −0,021).
+      veto: 0.005,
     },
     // Winziges Testmodell (test/make_tiny_model.py), nur für automatische Tests.
     'test/tiny': {
       prefix: '',
       floor: { vorsichtig: 0.7, mittel: 0.6, stark: 0.5 },
       margin: { vorsichtig: 0.3, mittel: 0.2, stark: 0.1 },
+      veto: 0.1,
     },
   };
 
@@ -146,7 +150,8 @@
 
   /**
    * Entscheidung für einen Text-Vektor.
-   * ref = {b: [...], o: [...], anchors: [...], neutral: [...]} (Listen von Vektoren)
+   * ref = {b: [...], o: [...], anchors: [...], topics: [...], neutral: [...]} (Listen von Vektoren);
+   * topics = nur die Themenbeschreibungen (ohne eigene Schlagwörter), für die Gegenprüfung.
    */
   function decide(vec, ref, modelId, level) {
     const cfg = modelConfig(modelId);
@@ -154,7 +159,10 @@
     const bad = Math.max(topK(vec, ref.b, 3), maxSim(vec, ref.anchors));
     const good = Math.max(topK(vec, ref.o, 3), maxSim(vec, ref.neutral));
     const hide = bad >= cfg.floor[lv] && bad - good >= cfg.margin[lv];
-    return { hide, bad: round(bad), good: round(good) };
+    // Gegenprüfung ohne die eigenen Schlagwörter als Anker – sonst läge ein Treffer auf
+    // „Museum“ immer nah am Anker „Museum“ und könnte nie als harmlos gelten.
+    const badTopic = Math.max(topK(vec, ref.b, 3), maxSim(vec, ref.topics || ref.anchors));
+    return { hide, veto: good - badTopic >= cfg.veto, bad: round(bad), good: round(good) };
   }
 
   function round(x) {
