@@ -101,17 +101,21 @@ try {
   // Echte Teaser (orf.at, derStandard): Schlagwörter + Bedeutungs-Filter zusammen, je Stufe.
   // A wurde zum Abstimmen verwendet, B erst danach gesammelt und nur zur Prüfung.
   {
-    const { readFileSync } = await import('node:fs');
+    const { readFileSync, existsSync } = await import('node:fs');
     const { createRequire } = await import('node:module');
     const require = createRequire(import.meta.url);
     const P = require('../extension/lib/presets.js');
     const M = require('../extension/lib/match.js');
     const m = M.compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
-    const data = JSON.parse(readFileSync(join(here, 'fixtures', 'real-headlines.json'))).daten.filter((x) => x.y !== 'X');
-    console.log('\nEchte Teaser (Schlagwörter + KI; in Klammern KI allein).');
-    console.log('Achtung: A steckt (als Vektoren, lib/real-vectors.json) selbst in der Beispielsammlung –');
-    console.log('aussagekräftig ist nur B (A ohne Selbsttreffer gemessen: siehe README).');
-    for (const set of ['A', 'B']) {
+    const file = join(here, 'fixtures', 'real-headlines.json');
+    const data = existsSync(file) ? JSON.parse(readFileSync(file)).daten.filter((x) => x.y !== 'X') : [];
+    if (!data.length) console.log('\nEchte Teaser: test/fixtures/real-headlines.json fehlt (nicht im Repo), übersprungen.');
+    else {
+      console.log('\nEchte Teaser (Schlagwörter + KI; in Klammern KI allein).');
+      console.log('Achtung: A steckt (als Vektoren, lib/real-vectors.json) selbst in der Beispielsammlung –');
+      console.log('aussagekräftig ist nur B (A ohne Selbsttreffer gemessen: siehe README).');
+    }
+    for (const set of data.length ? ['A', 'B'] : []) {
       const lab = data.filter((x) => x.set === set);
       const nB = lab.filter((x) => x.y === 'B').length, nU = lab.length - nB;
       const kw = lab.map((x) => !!m.find(x.t));
