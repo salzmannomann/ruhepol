@@ -145,7 +145,7 @@ async function main() {
 
     await step('Einstellungsseite: Status, Wörter, Bewertung löschen', async () => {
       const opt = await ctx.newPage();
-      await opt.goto(`chrome-extension://${extId}/options.html`);
+      await opt.goto(`chrome-extension://${extId}/options.html#erkennung`);
       await opt.waitForFunction(() => /Lernfilter ist aktiv/.test(document.getElementById('learnStatus').textContent));
       const topB = await opt.textContent('#topB');
       assert.match(topB, /klimakrise|gletscher/);
