@@ -541,6 +541,29 @@ function semScore(texts) {
   }).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
 }
 
+/** Gute Nachrichten trotz gesperrtem Thema: Ton der Texte bestimmen. */
+function toneScore(texts) {
+  return serialSem(async () => {
+    const settings = await SFSettings.load();
+    if (!settings.positiveShow) return { ok: false, error: 'aus' };
+    const model = await semModelId();
+    if (!(await semInstalled(model))) return { ok: false, error: 'Modell nicht installiert' };
+    const keys = Object.keys(SFSemantic.TONE);
+    const posTexts = keys.map((k) => SFSemantic.TONE[k][0]).filter(Boolean);
+    const negTexts = keys.map((k) => SFSemantic.TONE[k][1]);
+    const posVecs = await embedTexts(model, posTexts);
+    const negVecs = await embedTexts(model, negTexts);
+    let pi = 0;
+    const pairs = keys.map((k, i) => ({
+      topic: k,
+      pos: SFSemantic.TONE[k][0] ? posVecs[pi++] : null,
+      neg: negVecs[i],
+    }));
+    const vecs = await embedTexts(model, texts.map((t) => String(t).slice(0, 600)));
+    return { ok: true, results: vecs.map((v) => SFSemantic.tone(v, pairs, model, settings.positiveLevel)) };
+  }).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
+}
+
 async function semStatus() {
   const model = await semModelId();
   const stored = (await chrome.storage.local.get('semIndex')).semIndex;
@@ -665,6 +688,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'semScore':
       semScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
+      return true;
+    case 'toneScore':
+      toneScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
       return true;
     case 'semStatus':
       semStatus().then(sendResponse);

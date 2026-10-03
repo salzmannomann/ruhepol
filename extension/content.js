@@ -160,6 +160,10 @@
     learnCandidates.clear();
     semQueue.clear();
     semUnavailable = false;
+    toneQueue.clear();
+    toneUnavailable = false;
+    clearTimeout(toneTimer);
+    toneTimer = null;
     bgQueue.clear();
     if (bgHandle) cancelIdle(bgHandle);
     bgHandle = null;
@@ -716,6 +720,64 @@
     reportCount();
   }
 
+  /* ---------------- Gute Nachrichten trotz gesperrtem Thema ---------------- */
+
+  // Treffer, die nie wegen guten Tons aufgedeckt werden: selbst gesperrt, Bereich, Bildfehler.
+  const NO_TONE_REASONS = new Set(['von dir ausgeblendet', 'Bereich', 'Bild nicht prüfbar']);
+  const toneQueue = new Set();
+  let toneBusy = false;
+  let toneTimer = null;
+  let toneUnavailable = false;
+
+  let neverTone = null;
+  function neverToneMatcher() {
+    if (!neverTone) neverTone = compile(globalThis.SFPresets.termsFor(['tod', 'missbrauch']));
+    return neverTone;
+  }
+
+  function scheduleTone() {
+    if (!toneTimer) toneTimer = setTimeout(() => { toneTimer = null; flushTone(); }, 150);
+  }
+
+  async function flushTone() {
+    if (toneBusy || !toneQueue.size || !active) return;
+    const blocks = [];
+    for (const b of toneQueue) {
+      toneQueue.delete(b);
+      if (b.isConnected && b.dataset.sfHit && !b.dataset.sfRevealed) blocks.push(b);
+      if (blocks.length >= SEM_BATCH) break;
+    }
+    if (!blocks.length) return;
+    toneBusy = true;
+    const gen = generation;
+    let res = null;
+    try {
+      res = await withTimeout(chrome.runtime.sendMessage({ type: 'toneScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
+    } catch (_) { /* bleibt unscharf */ }
+    toneBusy = false;
+    if (gen !== generation || !active) return;
+    if (res && res.ok) {
+      res.results.forEach((r, i) => {
+        const b = blocks[i];
+        if (!r.positive || !b.isConnected || !b.dataset.sfHit) return;
+        // Tod/Suizid und Missbrauch: nie aufdecken, auch wenn die Meldung positiv ist.
+        if (neverToneMatcher().find(blockText(b))) return;
+        // Wer so etwas laut Lernfilter klar nicht sehen will, bekommt es auch positiv nicht.
+        const s = learningActive() ? L.score(model, blockText(b)) : null;
+        if (s && s.known >= 2 && s.p >= 0.9) return;
+        unhide(b);
+        clearedBlocks.add(b);
+        b.dataset.sfPositive = String(r.diff);
+      });
+      reportCount();
+    } else if (res && /nicht installiert|aus/.test(res.error || '')) {
+      toneUnavailable = true;
+      toneQueue.clear();
+      return;
+    }
+    if (toneQueue.size) flushTone();
+  }
+
   /* ---------------- Bedeutungs-Filter (Stufe 2) ---------------- */
 
   const SEM_BATCH = 24;
@@ -898,7 +960,7 @@
       bar.remove();
       delete block.dataset.sfRevealed;
       for (const img of block.querySelectorAll('img')) delete img.dataset.sfRevealed;
-      hit(block, kw, { block, force: true });
+      hit(block, kw, { block, force: true, noTone: true });
     });
     const no = button('Nein, will ich sehen', () => {
       train(block, 'o');
@@ -1116,6 +1178,11 @@
       }
     }
     block.dataset.sfHit = kw;
+    // Gute Nachrichten trotz Thema: Ton nachträglich prüfen (bleibt bis dahin unscharf).
+    if (settings.positiveShow && !toneUnavailable && !opts.noTone && !NO_TONE_REASONS.has(kw)) {
+      toneQueue.add(block);
+      scheduleTone();
+    }
     // Bereits markierte Treffer im Inneren zählen nicht doppelt.
     for (const inner of hitBlocks) if (block.contains(inner)) unhide(inner);
     hitBlocks.add(block);
@@ -1370,7 +1437,7 @@
       closeBar(block);
       delete block.dataset.sfRevealed;
       for (const img of block.querySelectorAll('img')) delete img.dataset.sfRevealed;
-      hit(block, kw, { block, force: true });
+      hit(block, kw, { block, force: true, noTone: true });
       toast('Gemerkt: wird künftig ausgeblendet');
     });
     down.title = 'Nein – so etwas künftig ausblenden';

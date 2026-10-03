@@ -34,6 +34,9 @@
     semantic: false,
     // 'vorsichtig' | 'mittel' | 'stark'
     semanticLevel: 'mittel',
+    // Gute Nachrichten zu gesperrten Themen trotzdem zeigen (braucht das Sprachmodell)
+    positiveShow: false,
+    positiveLevel: 'mittel',
     // Aufdecken nur durch Gedrückthalten (2 s), schützt vor reflexhaftem Klicken
     revealHold: true,
     // Gesperrte Bereiche: [{host, sel (CSS-Selektor), head (erste Überschrift, optional)}]
@@ -67,7 +70,8 @@
         .slice(0, 200);
     }
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.semanticLevel)) s.semanticLevel = raw.semanticLevel;
-    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic']) {
+    if (['vorsichtig', 'mittel', 'stark'].includes(raw.positiveLevel)) s.positiveLevel = raw.positiveLevel;
+    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'positiveShow']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

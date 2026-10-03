@@ -72,6 +72,27 @@ try {
     const t = BELASTEND.concat(UNBEDENKLICH)[i];
     console.log(`${i < BELASTEND.length ? 'B' : 'U'} ${x.hide ? 'weg ' : '    '} ${x.bad.toFixed(3)} ${x.good.toFixed(3)}  ${t}`);
   });
+
+  // Gute Nachrichten trotz gesperrtem Thema
+  const GUT = [
+    'Solarstrom deckt erstmals die Hälfte des Strombedarfs', 'Ozonloch schließt sich schneller als erwartet',
+    'Waffenstillstand hält: Familien kehren in ihre Dörfer zurück', 'Neues Medikament senkt Krebsrisiko deutlich',
+    'Bergretter bergen verschütteten Skifahrer lebend aus Lawine', 'Arbeitslosigkeit sinkt auf Rekordtief',
+    'Inflation geht weiter zurück', 'Forscher entwickeln wirksamen Impfstoff gegen Malaria',
+    'Spendenrekord für die Hochwasseropfer in Kärnten', 'Gemeinden einigen sich auf Plan zum Gletscherschutz',
+    'KI hilft Ärzten, Tumore früher zu erkennen', 'Erstmals seit Jahren keine Verkehrstoten an Ostern',
+  ];
+  const SCHLECHT = BELASTEND.concat(['Hitzewelle fordert erste Todesopfer', 'Inflation steigt erneut deutlich an',
+    'Waffenruhe gebrochen: neue Angriffe auf Wohngebiete', 'Lawine verschüttet Skifahrer – Suche eingestellt']);
+  console.log('\nGute Nachrichten trotz gesperrtem Thema (Ton):');
+  await setSettings(sw, { positiveShow: true });
+  for (const lv of ['vorsichtig', 'mittel', 'stark']) {
+    await setSettings(sw, { positiveLevel: lv });
+    const r = (await sw.evaluate((t) => toneScore(t), GUT.concat(SCHLECHT))).results;
+    const tp = r.slice(0, GUT.length).filter((x) => x.positive).length;
+    const fp = r.slice(GUT.length).filter((x) => x.positive).length;
+    console.log(`${lv.padEnd(10)} gute gezeigt ${tp}/${GUT.length}, schlechte fälschlich gezeigt ${fp}/${SCHLECHT.length}`);
+  }
 } finally {
   await close();
 }

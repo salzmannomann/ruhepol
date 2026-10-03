@@ -2,7 +2,7 @@
 
 Aufbau wie ein echtes transformers.js-Modell (config.json, tokenizer.json, onnx/…),
 aber mit 16 Dimensionen und einem kleinen Wortschatz, dessen Wörter in Themen-Gruppen
-liegen (Klima, Wohnen, Krieg, Neutral). So lässt sich die ganze Kette in Chrome testen:
+liegen (Klima, Wohnen, Krieg, Neutral, Frieden). So lässt sich die ganze Kette in Chrome testen:
 Laufzeit laden → Tokenizer → ONNX → Mean-Pooling → Entscheidung.
 
 Aufruf: python3 test/make_tiny_model.py   (braucht: pip install onnx numpy)
@@ -22,6 +22,7 @@ GROUPS = {
     1: 'wohnungskrise wohnungen mieten miete wohnbau familien leistbare',
     2: 'krieg soldaten panzer front raketen luftangriffe war bombardierung',
     3: 'kultur konzert theater museum musik sport wetter sonnig ausflug radwege bahnstrecke',
+    4: 'frieden waffenstillstand einigung',
 }
 
 special = ['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
@@ -40,7 +41,7 @@ emb = np.zeros((len(vocab), DIM), dtype=np.float32)
 for w, i in vocab.items():
     if w in group_of:
         emb[i, group_of[w]] = 1.0
-        emb[i, 4:] = rng.normal(0, 0.05, DIM - 4)
+        emb[i, 5:] = rng.normal(0, 0.05, DIM - 5)
 
 ids = helper.make_tensor_value_info('input_ids', TensorProto.INT64, ['batch', 'seq'])
 mask = helper.make_tensor_value_info('attention_mask', TensorProto.INT64, ['batch', 'seq'])

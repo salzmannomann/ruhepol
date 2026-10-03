@@ -61,6 +61,28 @@ async function main() {
       assert.equal(st.indexed, 4);
     });
 
+    await step('Gute Nachricht trotz gesperrtem Thema wird gezeigt, schlechte bleibt unscharf', async () => {
+      await setSettings(sw, { semantic: false, presets: ['krieg', 'tod'], positiveShow: true, positiveLevel: 'mittel' });
+      await page.reload();
+      // Alle drei treffen das Schlagwort „Waffenstillstand*“ (Liste Krieg) …
+      await page.waitForFunction(() => document.querySelector('#s-krieg2').dataset.sfHit, null, { timeout: 15000 });
+      // … die gute Nachricht wird nach der Ton-Prüfung wieder sichtbar.
+      await page.waitForFunction(() => document.querySelector('#s-frieden').dataset.sfPositive !== undefined, null, { timeout: 15000 });
+      assert.ok(await visible(page, '#s-frieden'));
+      assert.ok(!(await visible(page, '#s-krieg2')), 'schlechte Nachricht sichtbar');
+      await page.waitForTimeout(800);
+      assert.ok(!(await visible(page, '#s-suizid')), 'Suizid-Erwähnung darf nie aufgedeckt werden');
+    });
+
+    await step('Ohne die Option bleiben alle Treffer unscharf', async () => {
+      await setSettings(sw, { positiveShow: false });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#s-frieden').dataset.sfHit, null, { timeout: 15000 });
+      await page.waitForTimeout(800);
+      assert.ok(!(await visible(page, '#s-frieden')));
+      await setSettings(sw, { semantic: true, presets: ['klima'] });
+    });
+
     await step('Einstellungsseite zeigt Modellstatus', async () => {
       const opt = await ctx.newPage();
       await opt.goto(`chrome-extension://${extId}/options.html`);

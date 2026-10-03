@@ -243,6 +243,28 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 (`test/make_tiny_model.py`, `test/semantik.mjs`). Die Schwellen für das echte Modell sind
 Startwerte und werden mit echten Teasern nachjustiert (`extension/lib/semantic.js`).
 
+### Gute Nachrichten trotzdem zeigen
+
+Optional (Einstellungen → Erkennung), braucht das Sprachmodell. Auch bei gesperrten Themen
+werden eindeutig positive Meldungen angezeigt, z. B. „Waffenstillstand hält“, „Impfstoff
+gegen Malaria“, „Arbeitslosigkeit sinkt“ oder „KI hilft Ärzten“.
+
+**Ablauf:**
+1. Ein Treffer wird wie immer sofort unscharf; Negatives blitzt nie auf.
+2. Danach vergleicht das Modell den Text mit Gut/Schlecht-Beschreibungen je Thema, z. B.
+   „Klimaschutz wirkt, Emissionen sinken“ gegen „Klimakrise verschärft sich“. Weil beide
+   Seiten dasselbe Thema beschreiben, hebt sich das Thema heraus und der Ton bleibt übrig.
+3. Klar positive Meldungen werden wieder scharf.
+
+**Nie aufgedeckt werden:**
+- Meldungen zu Tod/Suizid und Missbrauch, auch wenn sie positiv sind (dort belastet oft
+  schon die Erwähnung)
+- selbst gesperrte Inhalte (👎) und gesperrte Bereiche
+- Inhalte, die der Lernfilter klar als unerwünscht kennt
+
+Gemessen mit 32 Schlagzeilen: mittel 8 von 12 guten gezeigt, 0 von 20 schlechten;
+vorsichtig 6/12, stark 9/12, jeweils ohne Fehlanzeige.
+
 ### Synchronisieren zwischen Rechnern
 
 - **Einstellungen** liegen in `chrome.storage.sync`.

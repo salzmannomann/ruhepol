@@ -52,6 +52,71 @@
     'Wohnen und Alltag: Wohnungen, Mieten, Familie, Einkaufen.',
   ];
 
+  /*
+   * Gute Nachrichten trotz gesperrtem Thema: je Thema eine gute und eine schlechte
+   * Beschreibung. Das Thema eines Textes ist das Paar, dem er am nächsten liegt; innerhalb
+   * dieses Paars entscheidet der Abstand gut − schlecht über den Ton. Weil beide Seiten
+   * dasselbe Thema beschreiben, hebt sich das Thema heraus und der Ton bleibt übrig.
+   * Themen ohne gute Seite (Tod/Suizid, Missbrauch) werden nie aufgedeckt – dort belastet
+   * oft schon die Erwähnung (zusätzlich prüft content.js deren Begriffslisten).
+   * Kalibriert mit test/kalibrierung.mjs: vorsichtig 6/12, mittel 8/12, stark 9/12 gute
+   * Nachrichten gezeigt, jeweils 0/20 schlechte.
+   */
+  const TONE = {
+    ki: ['KI hilft Menschen: Ärzte erkennen Krankheiten früher, Fortschritt und Nutzen im Alltag.',
+      'KI als Gefahr: Fälschungen, Betrug, Jobs fallen weg, Kontrollverlust.'],
+    klima: ['Klimaschutz wirkt: Emissionen sinken, erneuerbare Energie wächst, die Natur erholt sich.',
+      'Klimakrise verschärft sich: Hitze, Dürre, Gletscher schmelzen, Forscher warnen.'],
+    krieg: ['Frieden: Waffenstillstand hält, Einigung erzielt, Soldaten ziehen ab, Menschen kehren heim.',
+      'Krieg eskaliert: Angriffe, Raketen, Opfer, zerstörte Städte.'],
+    terror: ['Anschlag verhindert: Polizei fasst Verdächtige rechtzeitig, niemand verletzt.',
+      'Terroranschlag: Schüsse, Explosion, Tote und Verletzte, Täter flüchtig.'],
+    verbrechen: ['Verbrechen aufgeklärt: Täter gefasst, Opfer gerettet, Kriminalität sinkt.',
+      'Gewaltverbrechen: Mord, Opfer, erstochen, Täter flüchtig.'],
+    unglueck: ['Glück im Unglück: alle gerettet, lebend geborgen, Helfer und Spenden, Wiederaufbau.',
+      'Unglück: Tote und Verletzte, Vermisste, Zerstörung, Suche eingestellt.'],
+    verkehr: ['Sicher unterwegs: keine Verkehrstoten, weniger Unfälle.',
+      'Schwerer Unfall: Tote und Verletzte im Verkehr.'],
+    psyche: ['Psychische Gesundheit: Hilfe wirkt, Therapie hilft, Betroffene finden Unterstützung.',
+      'Psychische Krise: immer mehr Betroffene, Angst, Depression, keine Hilfe.'],
+    sucht: ['Weg aus der Sucht: Hilfsangebote wirken, weniger Drogentote, erfolgreicher Entzug.',
+      'Drogenkrise: Überdosis, Drogentote, Sucht breitet sich aus.'],
+    diskriminierung: ['Zusammenhalt: Solidarität, Gleichberechtigung, Menschen stehen füreinander ein.',
+      'Hass und Hetze: rassistische Angriffe, Diskriminierung, Beleidigungen.'],
+    tierleid: ['Tierschutz: Tiere gerettet, Auswilderung, bessere Haltung, Bestände erholen sich.',
+      'Tierleid: Tierquälerei, verendete Tiere, Missstände in Ställen.'],
+    krankheit: ['Medizinischer Durchbruch: neues Medikament wirkt, Impfstoff, Heilung, Patienten genesen.',
+      'Krankheit breitet sich aus: Infektionen steigen, Todesfälle, neue Variante.'],
+    wirtschaft: ['Wirtschaft erholt sich: Arbeitslosigkeit sinkt, Inflation geht zurück, neue Jobs.',
+      'Wirtschaftskrise: Inflation steigt, Jobabbau, Pleiten, Rezession.'],
+    krise: ['Lösung gefunden: Einigung, Entspannung, Krise überwunden, Erfolg.',
+      'Krise spitzt sich zu: Skandal, Eskalation, Chaos, Schock.'],
+    tod: [null, 'Tod und Trauer: gestorben, Begräbnis, Suizid.'],
+    missbrauch: [null, 'Missbrauch und sexuelle Gewalt gegen Frauen und Kinder.'],
+  };
+  const TONE_MARGIN = {
+    'Xenova/multilingual-e5-small': { vorsichtig: 0.03, mittel: 0.02, stark: 0.012 },
+    'test/tiny': { vorsichtig: 0.3, mittel: 0.2, stark: 0.1 },
+  };
+
+  /**
+   * Ton eines Textes. pairs = [{topic, pos (Vektor|null), neg (Vektor)}].
+   * Liefert {positive, topic, diff}.
+   */
+  function tone(vec, pairs, modelId, level) {
+    let best = null, bestSim = -Infinity;
+    for (const p of pairs) {
+      const m = Math.max(p.pos ? cosine(vec, p.pos) : -1, cosine(vec, p.neg));
+      if (m > bestSim) { bestSim = m; best = p; }
+    }
+    if (!best) return { positive: false, topic: null, diff: 0 };
+    if (!best.pos) return { positive: false, topic: best.topic, diff: 0 };
+    const diff = cosine(vec, best.pos) - cosine(vec, best.neg);
+    const margins = TONE_MARGIN[modelId] || TONE_MARGIN[DEFAULT_MODEL];
+    const lv = LEVELS.includes(level) ? level : 'mittel';
+    return { positive: diff >= margins[lv], topic: best.topic, diff: round(diff) };
+  }
+
   function modelConfig(id) {
     return MODELS[id] || MODELS[DEFAULT_MODEL];
   }
@@ -129,7 +194,7 @@
     return typeof atob === 'function' ? atob(str) : Buffer.from(str, 'base64').toString('binary');
   }
 
-  const api = { DEFAULT_MODEL, MODELS, LEVELS, NEUTRAL, modelConfig, cosine, topK, maxSim, decide, pack, unpack };
+  const api = { DEFAULT_MODEL, MODELS, LEVELS, NEUTRAL, TONE, modelConfig, cosine, topK, maxSim, decide, tone, pack, unpack };
   root.SFSemantic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
