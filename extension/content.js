@@ -615,7 +615,7 @@
     bar.className = 'sf-feedback';
     bar.__sfBlock = block;
     const label = document.createElement('span');
-    label.textContent = `Ausgeblendet wegen „${kw}“. War das richtig?`;
+    label.textContent = 'War das Ausblenden richtig?';
     const yes = button('Ja, ausblenden', () => {
       train(block, 'b');
       bar.remove();
@@ -667,8 +667,8 @@
     if (settings.display === 'hide') {
       block.classList.add('sf-hidden');
     } else if (settings.display === 'blur') {
+      // Nur unscharf, ohne Hinweis auf das Schlagwort und ohne Knöpfe; Klick zeigt den Inhalt.
       block.classList.add('sf-blurred');
-      block.title = `Ausgeblendet (${kw}) – klicken zum Anzeigen (Rechtsklick: bewerten)`;
       block.addEventListener('click', onBlurClick, true);
     } else {
       const ph = document.createElement(block.tagName === 'LI' ? 'li' : 'div');
@@ -679,7 +679,7 @@
       label.setAttribute('role', 'button');
       label.tabIndex = 0;
       label.title = 'Klicken zum Anzeigen';
-      label.textContent = `Ausgeblendet (${kw})`;
+      label.textContent = 'Ausgeblendet';
       const actions = document.createElement('span');
       actions.className = 'sf-ph-actions';
       const keep = button('Passt so', () => {
@@ -716,14 +716,13 @@
     const block = ev.currentTarget;
     ev.preventDefault();
     ev.stopPropagation();
-    reveal(block, null);
+    reveal(block, null, { feedback: false });
   }
 
   function reveal(block, ph, opts) {
     const kw = block.dataset.sfHit;
     unhide(block);
     if (ph) ph.remove();
-    block.removeAttribute('title');
     block.dataset.sfRevealed = '1';
     for (const img of block.querySelectorAll('img')) img.dataset.sfRevealed = '1';
     if (block.tagName === 'IMG') block.dataset.sfRevealed = '1';

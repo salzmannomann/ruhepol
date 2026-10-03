@@ -21,7 +21,7 @@
     minWidth: 120,
     minHeight: 80,
     // 'hide' | 'blur' | 'placeholder'
-    display: 'placeholder',
+    display: 'blur',
     ocr: true,
     partial: false,
     fuzzy: false,

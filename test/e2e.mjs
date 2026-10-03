@@ -156,10 +156,10 @@ async function main() {
     await step('Darstellung „Platzhalter“: Klick zeigt den Inhalt', async () => {
       await setSettings(sw, { display: 'placeholder' });
       await page.waitForFunction(() => document.querySelectorAll('.sf-placeholder').length >= 3, null, { timeout: 10000 });
-      const txt = await page.textContent('.sf-placeholder');
-      assert.match(txt, /^Ausgeblendet \(.+\)/);
+      const txt = await page.textContent('.sf-placeholder .sf-ph-text');
+      assert.equal(txt, 'Ausgeblendet', 'kein Schlagwort im Platzhalter');
       const ph = page.locator('#t-text').locator('xpath=preceding-sibling::*[1]');
-      assert.match(await ph.textContent(), /Ausgeblendet \(Fußball\)/);
+      assert.doesNotMatch(await ph.textContent(), /Fußball/);
       await ph.click();
       assert.ok(await isVisible(page, '#t-text'));
     });
@@ -171,6 +171,12 @@ async function main() {
         const el = document.querySelector('#t-later');
         return el && el.classList.contains('sf-blurred') && getComputedStyle(el).filter.includes('blur');
       }, null, { timeout: 10000 });
+      // Kein Hinweis aufs Schlagwort, keine Knöpfe; Klick deckt auf, ohne Rückfrage-Leiste.
+      assert.equal(await page.evaluate(() => document.querySelector('#t-later').getAttribute('title')), null);
+      assert.equal(await page.locator('.sf-placeholder').count(), 0);
+      await page.click('#t-later');
+      await page.waitForFunction(() => !document.querySelector('#t-later').classList.contains('sf-blurred'));
+      assert.equal(await page.locator('.sf-feedback').count(), 0);
       assert.ok(!(await page.evaluate(() => document.querySelector('#t-text').classList.contains('sf-blurred'))));
     });
 

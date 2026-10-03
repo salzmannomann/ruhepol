@@ -91,9 +91,12 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
 - **Seiten**: „Auf allen Seiten filtern, außer …“ oder „Nur auf diesen Seiten filtern …“,
   dazu eine Domain pro Zeile.
 - **Darstellung bei Treffer**:
-  - Platzhalter „Ausgeblendet (Schlagwort) – klicken zum Anzeigen“ (Standard)
-  - unscharf, Klick zeigt den Inhalt
+  - **unscharf** (Standard): Text und Bilder des Blocks werden unscharf, ohne Hinweis auf
+    das Schlagwort und ohne Knöpfe. Ein Klick zeigt den Inhalt.
+  - Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten
   - komplett ausblenden
+
+  Das gefundene Schlagwort wird in keiner Darstellung angezeigt.
 - **Bilder**: OCR ein/aus, Mindestbildgröße (Standard 120 × 80 px) und das Verhalten,
   wenn ein Bild nicht gelesen werden kann (Fehler oder Zeitüberschreitung nach 10 s).
   Standard ist „scharf stellen“, alternativ „unscharf lassen“ oder „ausblenden“.
@@ -107,18 +110,14 @@ Schlagwörter allein unterscheiden nicht, ob „Krise“ eine Klimakrise oder ei
 Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
 
 **Bewerten:**
-- **Am Platzhalter:**
-  - **Passt so** – war richtig ausgeblendet.
-  - **Will ich sehen** – war falsch; zeigt den Inhalt und merkt sich das.
-  - **Anzeigen** – nur anzeigen, ohne zu bewerten. Danach fragt eine kleine Leiste:
-    „War das richtig?“
-- **Rechtsklick auf einen Artikel oder ein Bild:**
+- **Rechtsklick auf einen Artikel oder ein Bild** (in jeder Darstellung, auch auf
+  unscharfe Blöcke):
   - **„Will ich nicht sehen – ausblenden und merken“** blendet auch Inhalte ohne Schlagwort
     sofort aus.
   - **„Will ich sehen – nicht mehr ausblenden“**.
-- **Darstellung „unscharf“:** Nach dem Aufdecken erscheint dieselbe Leiste.
-- **Darstellung „komplett ausblenden“:** Hier gibt es nichts anzuklicken. Bewerten geht nur
-  per Rechtsklick auf sichtbare Inhalte.
+- **Nur in der Darstellung „Platzhalter“:** zusätzlich die Knöpfe **Passt so**,
+  **Will ich sehen** und **Anzeigen**, nach dem Anzeigen die Rückfrage „War das Ausblenden
+  richtig?“.
 
 **Was passiert:**
 - Gelernt wird der Text des Blocks, also Überschrift, Vorspann, alt-Texte und der per OCR
@@ -129,8 +128,8 @@ Wohnungskrise ist. Deshalb lernt die Erweiterung aus deinen Bewertungen.
   - **Schlagwort trifft, aber das Modell ist sich sicher, dass du es sehen willst:** Der
     Inhalt bleibt sichtbar.
   - **Kein Schlagwort, aber das Modell ist sich sehr sicher, dass du es nicht willst:** Der
-    Inhalt wird ausgeblendet, der Platzhalter zeigt „Ausgeblendet (gelernt, 93 %)“. Die
-    Schwelle ist einstellbar (80/90/95 %) und auch abschaltbar.
+    Inhalt wird ausgeblendet. Die Schwelle ist einstellbar (80/90/95 %) und auch
+    abschaltbar.
 - **Übersicht in den Einstellungen:** Status, die stärksten Wörter je Richtung, die letzten
   Bewertungen (einzeln löschbar) und „Gelerntes zurücksetzen“.
 
