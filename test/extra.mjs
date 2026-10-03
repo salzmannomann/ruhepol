@@ -56,8 +56,9 @@ async function main() {
       }, null, { timeout: 5000 });
     });
 
-    await step('Gedrückthalten: kurzer Klick deckt nicht auf, 1 s halten schon', async () => {
-      await setSettings(sw, { display: 'blur', revealHold: true });
+    await step('Gedrückthalten (Standard): kurzer Klick deckt nicht auf, 2 s halten schon', async () => {
+      assert.equal(await sw.evaluate(async () => (await chrome.storage.sync.get('revealHold')).revealHold), true, 'nicht Standard');
+      await setSettings(sw, { display: 'blur' });
       await page.waitForFunction(() => document.querySelector('#x-hold').classList.contains('sf-blurred'));
       await page.click('#x-hold');
       const btn = page.locator('.sf-overlay button:has-text("Nur anzeigen")');
@@ -68,9 +69,11 @@ async function main() {
       const box = await btn.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
-      await page.waitForTimeout(500);
-      assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'nach 0,5 s schon offen');
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(1000);
+      assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'nach 1 s schon offen');
+      const offset = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sf-holding .sf-ring-fg')).strokeDashoffset.replace('px', '')));
+      assert.ok(offset > 15 && offset < 35, `Ladekreis nicht halb gefüllt (${offset})`);
+      await page.waitForTimeout(1200);
       await page.mouse.up();
       await page.waitForFunction(() => !document.querySelector('#x-hold').classList.contains('sf-blurred'), null, { timeout: 2000 });
       await setSettings(sw, { revealHold: false });

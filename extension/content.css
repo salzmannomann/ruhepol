@@ -136,31 +136,46 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
 }
 
-/* Aufdecken durch Gedrückthalten: Fortschrittsbalken (Pseudo-Element, damit die
-   !important-Hintergründe der Knöpfe die Animation nicht blockieren) */
+/* Aufdecken durch Gedrückthalten: Ladekreis im Knopf */
 .sf-btn.sf-hold {
-  position: relative !important;
-  overflow: hidden !important;
-  isolation: isolate !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
-.sf-btn.sf-hold::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: #c5cdfa;
-  transform-origin: left center;
-  transform: scaleX(0);
+.sf-btn.sf-hold .sf-ring {
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex: none !important;
+  transform: rotate(-90deg) !important;
 }
-.sf-btn.sf-hold.sf-holding::before {
-  animation: sf-fill 1s linear forwards;
+.sf-btn.sf-hold .sf-ring circle {
+  /* r/cx/cy sind CSS-Eigenschaften und würden von „all: initial“ auf 0 gesetzt */
+  display: inline !important;
+  cx: 10px !important;
+  cy: 10px !important;
+  r: 8px !important;
+  fill: none !important;
+  stroke-width: 3px !important;
 }
-@keyframes sf-fill {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+.sf-btn.sf-hold .sf-ring-bg { stroke: #d6d9e6 !important; }
+.sf-btn.sf-hold .sf-ring-fg {
+  stroke: #3d5afe !important;
+  stroke-linecap: round !important;
+  /* Umfang 2·π·8 ≈ 50.3; ohne !important, damit die Animation den Wert ändern kann */
+  stroke-dasharray: 50.3 !important;
+  stroke-dashoffset: 50.3;
+}
+.sf-btn.sf-hold.sf-holding .sf-ring-fg {
+  animation: sf-ring 2s linear forwards;
+}
+@keyframes sf-ring {
+  from { stroke-dashoffset: 50.3; }
+  to { stroke-dashoffset: 0; }
 }
 
 @media (prefers-color-scheme: dark) {
   .sf-feedback.sf-picker { background: #262a3d !important; }
-  .sf-btn.sf-hold::before { background: #46507e; }
+  .sf-btn.sf-hold .sf-ring-bg { stroke: #4a4f66 !important; }
+  .sf-btn.sf-hold .sf-ring-fg { stroke: #8c9eff !important; }
 }

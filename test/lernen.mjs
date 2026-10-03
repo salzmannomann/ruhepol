@@ -33,7 +33,7 @@ async function main() {
   const srv = await startServers();
   const { ctx, sw, extId, close } = await launch();
   try {
-    await setSettings(sw, { keywords: ['*krise'], presets: [], display: 'placeholder', learn: true, learnHide: true });
+    await setSettings(sw, { keywords: ['*krise'], presets: [], display: 'placeholder', learn: true, learnHide: true, revealHold: false });
     const page = await ctx.newPage();
 
     await step('Ohne Bewertungen: nur Schlagwörter zählen', async () => {

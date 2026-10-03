@@ -109,10 +109,11 @@ Neu-laden-Pfeil klicken und offene Tabs neu laden.
     **×** (schließen).
   - Platzhalter „Ausgeblendet“ mit Knöpfen zum Bewerten
   - komplett ausblenden
-- **Aufdecken nur durch Gedrückthalten** (optional): „Nur anzeigen“, „Will ich sehen“
-  und „Anzeigen“ reagieren erst nach 1 Sekunde Gedrückthalten (Maus, Touch, Enter oder
-  Leertaste). Ein Balken im Knopf zeigt den Fortschritt, ein kurzer Klick nur einen
-  Hinweis. Schützt vor dem reflexhaften Klick.
+- **Aufdecken nur durch Gedrückthalten** (Standard: an): „Nur anzeigen“,
+  „Will ich sehen“ und „Anzeigen“ reagieren erst nach 2 Sekunden Gedrückthalten (Maus,
+  Touch, Enter oder Leertaste). Ein Ladekreis im Knopf füllt sich dabei, ein kurzer Klick
+  zeigt nur einen Hinweis. Das schützt vor dem reflexhaften Klick. Abschaltbar unter
+  „Darstellung bei Treffer“; beim Update auf 1.3.1 wird die Option einmalig eingeschaltet.
 
   Das gefundene Schlagwort wird in keiner Darstellung angezeigt.
 - **Bilder**: OCR ein/aus, Mindestbildgröße (Standard 120 × 80 px) und das Verhalten,
