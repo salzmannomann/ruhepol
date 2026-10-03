@@ -202,7 +202,7 @@
     psyche: ['Immer mehr Jugendliche leiden an Depressionen', 'Burnout und Einsamkeit nehmen stark zu'],
     sucht: ['Drogentote: Zahl der Überdosen steigt', 'Spielsucht ruiniert Familien'],
     diskriminierung: ['Rassistischer Angriff auf Familie in der U-Bahn', 'Hasspostings gegen Minderheit im Netz'],
-    tierleid: ['Hunde in verwahrloster Wohnung gefunden', 'Massentierhaltung: Schweine leiden in engen Ställen'],
+    tierleid: ['Verwahrloste Tiere aus Wohnung gerettet, Halter angezeigt', 'Massentierhaltung: Schweine leiden in engen Ställen'],
     krankheit: ['Krebs: Zahl der Neuerkrankungen steigt', 'Virus breitet sich aus, Spitäler überlastet'],
     wirtschaft: ['Firma insolvent: Hunderte verlieren ihren Job', 'Inflation steigt, Preise für Lebensmittel explodieren'],
     krise: ['Regierungskrise eskaliert nach Korruptionsskandal', 'Notstand ausgerufen, Lage spitzt sich zu'],

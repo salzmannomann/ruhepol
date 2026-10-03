@@ -70,6 +70,8 @@
     'Europa und Gesellschaft: Debatte, Ideen, Zukunft, Zusammenarbeit.',
     'Sportpolitik: Verband, Einspruch, Streit, Urteil, Lizenz, Wechsel.',
     'Bildung: Universität, Studium, Forschungsprojekt, Preis, Auszeichnung.',
+    'Haustiere: Hunde und Katzen, Hundeschau, Tierheim, die schönsten Tierfotos.',
+    'Schule und Bildungspolitik: Lehrer, Schüler, Proteste gegen eine Reform, Bildungsminister.',
   ];
 
   /*
