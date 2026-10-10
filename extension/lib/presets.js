@@ -79,6 +79,10 @@
         'Mord', 'Morde', 'Mordes', 'Mordfall*', 'Mordprozess*', 'Mordversuch*', 'Mordanklage*', 'ermordet*',
         'Mörder*', 'Totschlag', 'Tötung*', 'getötet', 'Leiche', 'Leichen', 'Leichnam', 'Messerstecherei*',
         'Raubüberfall*', 'Überfall', 'Einbrecher*', 'Entführung*', 'entführt', 'Menschenhandel',
+        // Gewalttaten mit Todesopfer – „Tote“ allein steht nur in „Unglücke“
+        'tote Frau', 'toter Mann', 'tote Person', 'toten Frau', 'toten Mann', 'tot aufgefunden', 'Frauenmord*',
+        'Bluttat*', 'erstochen', 'erschlagen', 'erwürgt', 'erdrosselt', 'Mordverdacht*', 'Leichenfund*',
+        'Tötungsdelikt*', 'Mordermittlung*',
       ],
     },
     {
