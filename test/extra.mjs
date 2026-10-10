@@ -352,6 +352,22 @@ async function main() {
       await p.close();
     });
 
+    await step('Spät angelegte, verschachtelte Shadow-Bereiche (wie MSN) werden geprüft', async () => {
+      await setSettings(sw, { keywords: ['Lawine'], presets: [], display: 'blur', learn: false });
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/shadow-spaet.html');
+      const state = () => p.evaluate(() => {
+        const feed = document.querySelector('x-feed').shadowRoot;
+        if (!feed) return null;
+        const card = (id) => feed.getElementById(id).shadowRoot.querySelector('article');
+        return { bad: card('bad').classList.contains('sf-blurred'), ok: card('ok').classList.contains('sf-blurred') };
+      }).catch(() => null);
+      let s = null;
+      for (let i = 0; i < 40 && !(s && s.bad); i++) { await p.waitForTimeout(250); s = await state(); }
+      assert.deepEqual(s, { bad: true, ok: false });
+      await p.close();
+    });
+
     await step('Kennenlernen: öffnet sich bei der Installation; Antworten → Themenauswahl und Stufe', async () => {
       let p = ctx.pages().find((x) => x.url().includes('kennenlernen.html'));
       if (!p) p = await ctx.waitForEvent('page', { predicate: (x) => x.url().includes('kennenlernen.html'), timeout: 5000 });

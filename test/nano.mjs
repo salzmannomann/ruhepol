@@ -65,6 +65,15 @@ async function main() {
       await page.goto(srv.base + '/nano.html');
       await page.waitForFunction(() => document.querySelector('#n-konzert').dataset.sfNano === 'harmlos', null, { timeout: 20000 });
       assert.equal(await blurred(page, '#n-konzert'), false);
+      // Foto im freigegebenen Artikel: wird neu geprüft und danach scharf, nicht dauerhaft „in Prüfung“
+      const state = await page.waitForFunction(() => {
+        const img = document.querySelector('#n-bild');
+        return ['ok', 'small'].includes(img.dataset.sf) && !img.closest('[data-sf-hit]') && img.dataset.sf;
+      }, null, { timeout: 20000 }).then((h) => h.jsonValue()).catch(async () => page.evaluate(() => {
+        const img = document.querySelector('#n-bild');
+        return 'hängt: data-sf=' + img.dataset.sf + ' hit=' + (img.closest('[data-sf-hit]') ? img.closest('[data-sf-hit]').tagName : '-');
+      }));
+      assert.ok(state === 'ok' || state === 'small', String(state));
     });
 
     await step('Grenzfall, den das Modell belastend findet, und eindeutiger Treffer bleiben unscharf', async () => {

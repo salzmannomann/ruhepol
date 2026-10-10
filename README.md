@@ -616,7 +616,12 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    werden ausgelassen.
 10. **Shadow-DOM**: Offene Shadow-Roots (Web-Komponenten) werden gefunden, beobachtet und
    mit eigenen Regeln versehen, sodass Text, Bilder und Nachgeladenes darin genauso
-   gefiltert werden.
+   gefiltert werden. Viele Seiten legen Shadow-Roots erst nachträglich an (MSN: bis zu sieben
+   Ebenen tief), und dafür meldet der Browser keine Änderung. Ein kleines Skript in der Seite
+   (`shadow-hook.js`, läuft vor den Skripten der Seite) meldet deshalb jeden neuen offenen
+   Shadow-Root. Kurz nach dem Laden folgt noch ein Ersatz-Durchgang. Ob etwas schon in einem
+   unscharfen Block liegt, wird über Shadow-Grenzen hinweg geprüft, sodass jede Meldung nur
+   einmal markiert wird. Gemessen auf msn.com/de-at: vorher 0 Meldungen unscharf, jetzt 20.
 
 ## Grenzen
 
@@ -695,6 +700,7 @@ extension/
   lib/semantic.js    Bedeutungs-Filter: Entscheidung, Schwellen, Vektor-Speicherung
   semantic.js        Sprachmodell im Offscreen Document (transformers.js)
   lib/nano.js        Chromes eingebautes Modell (Gemini Nano): Assistent, zweite Meinung
+  shadow-hook.js     meldet nachträglich angelegte Shadow-Roots (läuft in der Seite)
   lib/settings.js    Einstellungen und Seitenregeln
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole
