@@ -76,6 +76,47 @@
   let shadowSheet = null;
   let zoneRules = []; // Bereichsregeln für diese Seite
 
+  /* ---------------- Feste Bedienoberfläche ---------------- */
+
+  // Knöpfe, Menüs und Navigation sind keine Meldungen („KI-Modus“ bei Google, Menüpunkt „Klima“).
+  const UI_MENUS = 'nav, [role="navigation"], [role="menubar"], [role="menu"], [role="tablist"], [role="toolbar"]';
+  const UI_CONTROLS = 'button, [role="button"], [role="tab"], [role="menuitem"], [role="menuitemradio"], ' +
+    '[role="menuitemcheckbox"], [role="option"], [role="switch"], [role="search"], label, ' + UI_MENUS;
+  // Kopf- und Fußbereich der Seite. Ein <header> innerhalb eines Artikels gehört zum Inhalt
+  // (derStandard: Überschrift und Vorspann jedes Teasers stehen in einem <header>).
+  const PAGE_BARS = 'header, footer, [role="banner"], [role="contentinfo"]';
+  const UI_MAX_WORDS = 6;
+
+  /**
+   * Liegt der Treffer in fester Bedienoberfläche statt in einem Inhalt? Nur bei kurzen Texten:
+   * Teaser in Aufklapp-Menüs oder ein Eilmeldungs-Band im Seitenkopf bleiben gefiltert.
+   */
+  function isPageChrome(el, block) {
+    const node = el && el.nodeType === 1 ? el : block;
+    if (!node || !node.closest) return false;
+    const words = blockText(block).split(/\s+/).filter(Boolean).length;
+    if (words > UI_MAX_WORDS) return false;
+    // Überschriften sind Inhalt, auch als „Knopf“ (orf.at: Video-Titel sind <a role="button"> in <h3>).
+    if (node.closest('h1, h2, h3, h4, h5, h6') || block.matches('h1, h2, h3, h4') || block.querySelector('h1, h2, h3, h4')) return false;
+    if (node.closest(UI_CONTROLS)) return true;
+    // Bilder nur in Knöpfen und Menüs (Symbole); ein Aufmacherbild im Seitenkopf ist Inhalt.
+    if (node.tagName === 'IMG') return false;
+    const bar = node.closest(PAGE_BARS);
+    if (!bar || bar.closest('article, [role="article"]')) return false;
+    const a = node.closest('a[href]') || block.querySelector('a[href]');
+    return !(a && looksLikeArticleLink(a));
+  }
+
+  /** Link auf eine einzelne Meldung (lange Adresse oder Artikelnummer), nicht auf eine Rubrik. */
+  function looksLikeArticleLink(a) {
+    try {
+      const u = new URL(a.href, location.href);
+      return /\d{5,}/.test(u.pathname) || u.pathname.split('/').some((seg) => seg.length > 30);
+    } catch (_) {
+      return false;
+    }
+  }
+
   /* ---------------- Bewusst geöffnete Artikel ---------------- */
 
   // Automatische Gründe; was die Person selbst gesperrt hat (👎, Bereiche), gilt weiter.
@@ -815,6 +856,8 @@
       if (cur.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 1) break;
       if (cur.querySelectorAll('a[href]').length > 6) break;
       if (cur.querySelectorAll('img').length > 3) break;
+      // Nicht über ein Menü hinweg erweitern (Eilmeldung im Seitenkopf ≠ ganzer Kopf samt Navigation).
+      if ([...cur.querySelectorAll(UI_MENUS)].some((m) => !m.contains(el))) break;
       if (!blockOk(cur)) break;
       best = cur;
     }
@@ -1516,6 +1559,8 @@
     if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return false;
     // Bewusst geöffneter Artikel: automatische Treffer im Artikeltext nicht ausblenden.
     if (AUTO_WHY.has(opts.why) && inTrustedArea(block)) return false;
+    // Knöpfe, Menüs, Kopf- und Fußleiste der Seite: keine Inhalte.
+    if (AUTO_WHY.has(opts.why) && isPageChrome(el, block)) return false;
     // Lernfilter: Schlagwort trifft, aber laut Bewertungen will der Nutzer das sehen.
     if (!opts.force && learningActive()) {
       const s = L.score(model, blockText(block));

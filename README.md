@@ -472,6 +472,32 @@ deshalb ein einzelnes solches Wort nicht. Unscharf wird der Absatz erst, wenn
 
 Schlagzeilen, Teaser und kurze Texte bleiben so streng wie bisher.
 
+### Nur Inhalte, nicht die Bedienoberfläche
+
+Knöpfe, Menüs und die feste Kopf- und Fußleiste einer Seite sind keine Meldungen. „KI-Modus“
+bei Google oder ein Menüpunkt „Krieg“ werden deshalb nicht unscharf. Ausgenommen werden
+nur kurze Texte (bis 6 Wörter):
+
+- in Knöpfen, Reitern, Menüeinträgen, Suchfeldern und in der Navigation;
+- in der Kopf- und Fußleiste der Seite, sofern sie keine Überschrift sind und nicht auf eine
+  einzelne Meldung verlinken.
+
+Weiter gefiltert werden:
+- **Überschriften,** auch wenn die Seite sie technisch als Knopf baut. orf.at macht
+  Video-Titel zu Knöpfen, die den Player öffnen.
+- **Teaser in Aufklapp-Menüs,** weil sie ganze Sätze sind.
+- **Eilmeldungen im Seitenkopf,** weil sie auf eine Meldung verlinken.
+- **`<header>` innerhalb eines Artikels.** derStandard setzt Überschrift und Vorspann jedes
+  Teasers in ein `<header>`.
+- **Bilder im Seitenkopf.** Ausgenommen sind nur Symbole in Knöpfen.
+
+Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
+ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
+
+**Gemessen:** alte und neue Version direkt nacheinander auf 6 Seiten von orf.at und
+derStandard (131 Treffer). Weggefallen ist nur der Menüpunkt „KI“ bei derStandard; alle
+Meldungen bleiben unscharf.
+
 ### Gute Nachrichten trotzdem zeigen
 
 Optional (Einstellungen → Erkennung), braucht das Sprachmodell. Auch bei gesperrten Themen
