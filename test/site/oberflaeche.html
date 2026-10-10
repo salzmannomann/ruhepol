@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Testseite: Bedienoberfläche</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    header.site, footer.site { padding: 10px 20px; background: #eee; }
+    nav ul { display: flex; gap: 16px; list-style: none; margin: 0; padding: 0; }
+    main { display: grid; grid-template-columns: repeat(2, 300px); gap: 20px; padding: 20px; }
+    article { border: 1px solid #ccc; padding: 10px; }
+    .searchbox { display: flex; gap: 10px; align-items: center; padding: 20px; }
+    .chip { padding: 6px 12px; border-radius: 16px; background: #f1f1f1; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header class="site">
+    <nav>
+      <ul>
+        <li id="nav-krieg"><a href="/rubrik/krieg">Krieg</a></li>
+        <li id="nav-terror"><a href="/rubrik/terror">Terror</a></li>
+        <li id="nav-teaser"><a href="/story/3000000123456/raketenangriff">Raketenangriff auf Großstadt: Armee meldet viele Tote und Verletzte</a></li>
+      </ul>
+    </nav>
+    <div id="eil"><a href="/story/3000000654321/erdbeben">Eilmeldung: Schweres Erdbeben</a></div>
+    <div id="ressort"><h2>Krieg in Nahost</h2></div>
+  </header>
+
+  <div class="searchbox">
+    <input type="text" aria-label="Suche">
+    <div id="btn-ki" class="chip" role="button" tabindex="0"><span>Mit KI suchen</span></div>
+    <button id="btn-kimodus" type="button">KI-Modus</button>
+  </div>
+
+  <main>
+    <article id="std-teaser">
+      <header><h3><a href="/story/3000000111111/ki">Neue KI-Modelle bedrohen Bürojobs</a></h3></header>
+      <p>Ein Bericht über die Folgen für den Arbeitsmarkt.</p>
+    </article>
+    <ul class="videos">
+      <li id="video"><h3><a role="button" href="#">1:06 Schweres Erdbeben erschüttert Panama</a></h3></li>
+    </ul>
+    <article id="ok-teaser">
+      <h3>Herbstfest im Stadtpark</h3>
+      <p>Musik, Essen und Spiele für die ganze Familie.</p>
+    </article>
+  </main>
+
+  <footer class="site">
+    <a id="promo" href="/klimaschutz">Drei Jahrzehnte Klimaschutz: Jede Entscheidung zählt</a>
+  </footer>
+</body>
+</html>

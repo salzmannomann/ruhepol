@@ -232,7 +232,9 @@
    * Belastendes bedeutet (gefunden in echten Teasern von orf.at/derStandard/FM4).
    */
   const ALLOW = ['Die Toten Hosen', 'Toten Hosen', 'Rosenkrieg*', 'Katastrophenübung*', 'Katastrophenschutzübung*',
-    'Vermisste und zugelaufene'];
+    'Vermisste und zugelaufene',
+    // Feste Bezeichnungen von Suchmaschinen-Oberflächen, keine Meldungen über KI
+    'KI-Modus', 'KI-Übersicht'];
 
   function examplesFor(ids) {
     const set = new Set(ids || []);

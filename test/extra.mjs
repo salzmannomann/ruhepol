@@ -324,6 +324,29 @@ async function main() {
       assert.equal(bad.length, 0, JSON.stringify(bad));
     });
 
+    await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {
+      await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck'], display: 'blur', learn: false });
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/oberflaeche.html');
+      await p.waitForFunction(() => document.querySelector('#std-teaser').closest('[data-sf-hit]'), null, { timeout: 10000 });
+      await p.waitForTimeout(500);
+      const state = await p.evaluate(() => Object.fromEntries(
+        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ok-teaser', 'promo']
+          .map((id) => [id, !!document.getElementById(id).closest('[data-sf-hit]')])));
+      assert.deepEqual(state, {
+        'nav-krieg': false, 'nav-terror': false, // Menüpunkte
+        'nav-teaser': true, // Teaser im Menü (ganzer Satz)
+        eil: true, // Eilmeldung im Seitenkopf: Link auf eine Meldung
+        ressort: true, // Überschrift im Seitenkopf
+        'btn-ki': false, 'btn-kimodus': false, // Knöpfe
+        'std-teaser': true, // <header> im Artikel gehört zum Inhalt
+        video: true, // orf.at: Video-Titel als <a role="button"> in einer Überschrift
+        'ok-teaser': false,
+        promo: false, // kurzer Hinweis in der Fußzeile der Seite
+      });
+      await p.close();
+    });
+
     await step('Kennenlernen: öffnet sich bei der Installation; Antworten → Themenauswahl und Stufe', async () => {
       let p = ctx.pages().find((x) => x.url().includes('kennenlernen.html'));
       if (!p) p = await ctx.waitForEvent('page', { predicate: (x) => x.url().includes('kennenlernen.html'), timeout: 5000 });
