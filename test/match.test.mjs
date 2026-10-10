@@ -400,3 +400,12 @@ test('Kennenlernen: Auswahl und Stufe aus den Antworten', () => {
   assert.equal(r.level, null);
   assert.equal(r.presets.length, 15);
 });
+
+test('Krieg und Verbrechen erkennen Todesmeldungen auch ohne die Liste „Unglücke“ (dort steht „Tote“)', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS.filter((id) => id !== 'unglueck')), { allow: P.ALLOW });
+  assert.ok(m.find('Ukraine: Tote nach russischen Angriffen in Saporischschja'));
+  assert.ok(m.find('Tote Frau in Wiener Stiegenhaus: Verdächtiger festgenommen'));
+  assert.equal(m.find('Russische Angriffslust im Eishockey'), null);
+  assert.equal(m.find('Frühstück im Stiegenhaus'), null);
+});
