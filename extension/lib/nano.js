@@ -72,9 +72,11 @@
     if (ctx.wishYes && ctx.wishYes.length) lines.push(`Ausdrücklich trotzdem sehen will sie: ${ctx.wishYes.join('; ')}.`);
     lines.push(
       'Du bekommst einen Text, in dem ein Schlagwort zu einem dieser Themen vorkommt.',
-      'Antworte "belastend", wenn der Text eine Meldung über ein solches Thema ist, die belasten kann.',
-      'Antworte "harmlos", wenn das Thema nur nebenbei vorkommt (z. B. Sportbericht, historischer Rückblick,',
-      'Kultur, Wortspiel) oder die Meldung klar positiv ist. Im Zweifel "belastend".',
+      'Antworte "belastend", wenn der Text von einem solchen Thema handelt – auch als Interview, Analyse,',
+      'Kommentar oder politischer Bericht darüber (z. B. Diplomatie im Krieg, Prozess nach einer Gewalttat).',
+      'Antworte "harmlos" nur, wenn das Schlagwort eine andere Bedeutung hat (Sport: "Schüsse aufs Tor",',
+      'Redewendung, Titel eines Films oder Buchs) oder in einer Meldung über etwas ganz anderes nur beiläufig',
+      'fällt, oder wenn die Meldung klar positiv ist. Im Zweifel "belastend".',
       'Antworte nur mit JSON: {"urteil": "belastend"} oder {"urteil": "harmlos"}.',
     );
     return lines.join('\n');

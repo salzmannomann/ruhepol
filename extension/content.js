@@ -170,7 +170,7 @@
       a = card && card.querySelector('a[href]');
     }
     if (!a || !/^https?:/i.test(a.href)) return;
-    if (a.closest('[data-sf-hit], .sf-placeholder')) return; // unscharf/ausgeblendet: nicht bewusst gewählt
+    if (closestDeep(a, '[data-sf-hit], .sf-placeholder')) return; // unscharf/ausgeblendet: nicht bewusst gewählt
     try { chrome.runtime.sendMessage({ type: 'trustLink', url: a.href }).catch(() => {}); } catch (_) { /* neu geladen */ }
   }
 
@@ -279,6 +279,8 @@
     document.addEventListener('error', onErrorCapture, true);
     document.addEventListener('pointerdown', onPendingDown, true);
     document.addEventListener('click', onPendingClick, true);
+    document.addEventListener(SHADOW_EVENT, onShadowAttached, true);
+    window.addEventListener('load', sweepShadowsSoon, { once: true });
 
     // Bilder sofort markieren, Text dann im Leerlauf prüfen.
     enqueue(document.documentElement);
@@ -338,6 +340,7 @@
     document.removeEventListener('error', onErrorCapture, true);
     document.removeEventListener('pointerdown', onPendingDown, true);
     document.removeEventListener('click', onPendingClick, true);
+    document.removeEventListener(SHADOW_EVENT, onShadowAttached, true);
     document.documentElement.classList.remove('sf-active');
     for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback')) el.remove();
     cancelHold();
@@ -375,6 +378,58 @@
   }
 
   /* ---------------- Shadow-DOM (offene Shadow-Roots) ---------------- */
+
+  /**
+   * Wie el.closest(sel), aber über Shadow-Grenzen hinweg: Bei MSN liegt der Text einer Karte in
+   * einem Shadow-Bereich innerhalb der (schon unscharfen) Karte.
+   */
+  function closestDeep(el, sel) {
+    for (let n = el; n;) {
+      const c = n.closest ? n.closest(sel) : null;
+      if (c) return c;
+      const root = n.getRootNode ? n.getRootNode() : null;
+      n = root && root.host ? root.host : null;
+    }
+    return null;
+  }
+
+  /** Liegt node in block – auch innerhalb von Shadow-Bereichen darin? */
+  function containsDeep(block, node) {
+    for (let n = node; n;) {
+      if (block.contains(n)) return true;
+      const root = n.getRootNode ? n.getRootNode() : null;
+      n = root && root.host ? root.host : null;
+    }
+    return false;
+  }
+
+  /** Alle Bilder im Block, auch in (beobachteten) Shadow-Bereichen darin. */
+  function imagesDeep(block) {
+    const out = [...block.querySelectorAll('img')];
+    for (const root of shadowRoots) if (containsDeep(block, root.host)) out.push(...root.querySelectorAll('img'));
+    return out;
+  }
+
+  // Meldung von shadow-hook.js (läuft in der Seite): ein Element hat nachträglich einen
+  // offenen Shadow-Bereich bekommen.
+  const SHADOW_EVENT = '__ruhepol_shadow';
+  function onShadowAttached(ev) {
+    const host = ev.composedPath()[0];
+    if (host && host.shadowRoot) watchShadow(host.shadowRoot);
+  }
+
+  /** Ersatz-Durchgang nach dem Laden: Shadow-Bereiche, die ohne Meldung entstanden sind. */
+  function sweepShadowsSoon() {
+    for (const ms of [500, 3000]) setTimeout(() => { if (active) sweepShadows(document); }, ms);
+  }
+  function sweepShadows(root) {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) {
+        if (!shadowRoots.has(el.shadowRoot)) watchShadow(el.shadowRoot);
+        sweepShadows(el.shadowRoot);
+      }
+    }
+  }
 
   function watchShadow(root) {
     if (!active || shadowRoots.has(root)) return;
@@ -517,12 +572,12 @@
 
   function skipElement(el) {
     if (SKIP_TAGS.has(el.tagName.toUpperCase()) || isOwn(el)) return true;
-    return !!el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-feedback, .sf-toast, [contenteditable=""], [contenteditable="true"]');
+    return !!closestDeep(el, '[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-feedback, .sf-toast, [contenteditable=""], [contenteditable="true"]');
   }
 
   function checkText(el, text) {
     if (!el || !text || !matcher) return;
-    if (el.closest('[data-sf-hit], [data-sf-revealed]')) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed]')) return;
     if (SKIP_TAGS.has(el.tagName.toUpperCase())) return;
     const kw = matcher.find(text);
     if (!kw) return;
@@ -595,8 +650,8 @@
   function processImage(img) {
     if (!active || img.dataset.sfRevealed) return;
     // Im aufgedeckten Block nachgeladen: gleich mit aufdecken (sonst bliebe es per CSS unscharf).
-    if (img.closest('[data-sf-revealed]')) { img.dataset.sfRevealed = '1'; return; }
-    if (img.closest('[data-sf-hit]')) return;
+    if (closestDeep(img, '[data-sf-revealed]')) { img.dataset.sfRevealed = '1'; return; }
+    if (closestDeep(img, '[data-sf-hit]')) return;
     // Bewusst geöffneter Artikel: Fotos im Artikel gar nicht erst prüfen.
     if (trustedPage && inTrustedArea(findBlock(img))) { img.dataset.sf = 'ok'; return; }
     // Vorauswahl: Bildhinweise (alt, title, aria-label, figcaption) sofort prüfen, noch bevor
@@ -684,7 +739,7 @@
     const url = bgUrl(el);
     if (!url) return;
     if (el.dataset.sfSrc === url && el.dataset.sfBg) return;
-    if (el.closest('[data-sf-hit], [data-sf-revealed]')) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed]')) return;
     const r = el.getBoundingClientRect();
     const w = r.width || Number(el.getAttribute('width')) || 0;
     const h = r.height || Number(el.getAttribute('height')) || 0;
@@ -745,7 +800,7 @@
     for (const [img, since] of ocrWaiting) {
       if (busy && now - since < OCR_MAX_WAIT_MS) continue;
       ocrWaiting.delete(img);
-      if (!img.isConnected || img.closest('[data-sf-hit], [data-sf-revealed]')) continue;
+      if (!img.isConnected || closestDeep(img, '[data-sf-hit], [data-sf-revealed]')) continue;
       runOcr(img);
     }
     clearTimeout(ocrWaitTimer);
@@ -956,7 +1011,7 @@
     const budget = () => (deadline.didTimeout ? IDLE_BUDGET_MS - (performance.now() - start) : deadline.timeRemaining());
     for (const el of learnCandidates) {
       learnCandidates.delete(el);
-      if (!el.isConnected || el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder')) continue;
+      if (!el.isConnected || closestDeep(el, '[data-sf-hit], [data-sf-revealed], .sf-placeholder')) continue;
       const heading = /^H[1-6]$/.test(el.tagName);
       const block = heading ? findBlock(el) : el;
       if (scoredBlocks.has(block) || clearedBlocks.has(block)) continue;
@@ -1159,7 +1214,7 @@
     const blocks = [];
     for (const b of semQueue) {
       semQueue.delete(b);
-      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || b.closest('[data-sf-hit]') || clearedBlocks.has(b)) continue;
+      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || closestDeep(b, '[data-sf-hit]') || clearedBlocks.has(b)) continue;
       blocks.push(b);
       if (blocks.length >= SEM_BATCH) break;
     }
@@ -1213,7 +1268,7 @@
     if (action === 'zone') { startZonePicker(el); return; }
     if (action === 'why') { whyAt(el); return; }
     const ph = el.closest('.sf-placeholder');
-    const hidden = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
+    const hidden = ph ? ph.__sfBlock : closestDeep(el, '[data-sf-hit]');
     if (action === 'block') {
       if (hidden) {
         train(hidden, 'b');
@@ -1449,7 +1504,7 @@
   /** Rechtsklick → „Warum unscharf?“ */
   function whyAt(el) {
     const ph = el.closest('.sf-placeholder');
-    const block = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
+    const block = ph ? ph.__sfBlock : closestDeep(el, '[data-sf-hit]');
     if (block) { toast(explain(block), 6000); return; }
     const img = el.tagName === 'IMG' ? el : el.querySelector && el.querySelector('img[data-sf]');
     const st = img && img.dataset.sf;
@@ -1474,7 +1529,7 @@
       let els;
       try { els = document.querySelectorAll(z.sel); } catch (_) { continue; }
       for (const el of els) {
-        if (el.dataset.sfHit || el.dataset.sfRevealed || el.closest('[data-sf-hit]')) continue;
+        if (el.dataset.sfHit || el.dataset.sfRevealed || closestDeep(el, '[data-sf-hit]')) continue;
         if (z.head && firstHeading(el) !== z.head) continue;
         el.__sfZone = z;
         hit(el, 'Bereich', { block: el, force: true, why: 'bereich' });
@@ -1600,7 +1655,7 @@
     // Nie die ganze Seite: Text direkt unter <body> o. Ä.
     if (block === document.body || block === document.documentElement || block.tagName === 'MAIN') return false;
     if (!opts.force && clearedBlocks.has(block)) return false;
-    if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return false;
+    if (block.dataset.sfHit || block.dataset.sfRevealed || closestDeep(block, '[data-sf-hit]')) return false;
     // Bewusst geöffneter Artikel: automatische Treffer im Artikeltext nicht ausblenden.
     if (AUTO_WHY.has(opts.why) && inTrustedArea(block)) return false;
     // Knöpfe, Menüs, Kopf- und Fußleiste der Seite: keine Inhalte.
@@ -1627,7 +1682,7 @@
       scheduleTone();
     }
     // Bereits markierte Treffer im Inneren zählen nicht doppelt.
-    for (const inner of hitBlocks) if (block.contains(inner)) unhide(inner);
+    for (const inner of hitBlocks) if (inner !== block && containsDeep(block, inner)) unhide(inner);
     hitBlocks.add(block);
 
     if (settings.display === 'hide') {
@@ -1696,8 +1751,14 @@
     // (nach dem Aufrufer, der den Block meist noch als geprüft markiert).
     queueMicrotask(() => {
       if (!active || !block.isConnected || block.dataset.sfHit) return;
-      const imgs = block.tagName === 'IMG' ? [block] : block.querySelectorAll('img');
-      for (const img of imgs) if (img.dataset.sf !== 'ok' && img.dataset.sf !== 'small') processImage(img);
+      const imgs = block.tagName === 'IMG' ? [block] : imagesDeep(block);
+      for (const img of imgs) {
+        if (img.dataset.sf === 'ok' || img.dataset.sf === 'small') continue;
+        // Prüfung wurde abgebrochen, als der Block ausgeblendet wurde („pending“ ohne OCR-Auftrag):
+        // neu starten, sonst bliebe das Bild für immer unscharf.
+        if (['pending', 'wait', 'err'].includes(img.dataset.sf)) delete img.dataset.sfSrc;
+        processImage(img);
+      }
     });
   }
 
@@ -1721,7 +1782,7 @@
   function pendingImageAt(target) {
     const img = target && target.tagName === 'IMG' ? target : null;
     return img && ['wait', 'pending', 'err'].includes(img.dataset.sf) && !img.dataset.sfRevealed &&
-      !img.closest('[data-sf-hit]') ? img : null;
+      !closestDeep(img, '[data-sf-hit]') ? img : null;
   }
 
   function onPendingDown(ev) {
@@ -1967,7 +2028,7 @@
     unhide(block);
     if (ph) ph.remove();
     block.dataset.sfRevealed = '1';
-    for (const img of block.querySelectorAll('img')) img.dataset.sfRevealed = '1';
+    for (const img of imagesDeep(block)) img.dataset.sfRevealed = '1';
     if (block.tagName === 'IMG') block.dataset.sfRevealed = '1';
     if (kw && !(opts && opts.feedback === false)) showFeedback(block, kw);
     scheduleReport();
