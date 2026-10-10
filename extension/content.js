@@ -95,6 +95,9 @@
     const node = el && el.nodeType === 1 ? el : block;
     if (!node || !node.closest) return false;
     const words = blockText(block).split(/\s+/).filter(Boolean).length;
+    // Leiste aus kurzen Links auf Themen- und Rubrikseiten („Aktuelle Themen: SPÖ, Teuerung“,
+    // „Erderwärmung“, Menü „Club Shop Trauerportal“) – Navigation, keine Meldung.
+    if (node.tagName !== 'IMG' && isTopicLinkBar(block, words)) return true;
     if (words > UI_MAX_WORDS) return false;
     // Überschriften sind Inhalt, auch als „Knopf“ (orf.at: Video-Titel sind <a role="button"> in <h3>).
     if (node.closest('h1, h2, h3, h4, h5, h6') || block.matches('h1, h2, h3, h4') || block.querySelector('h1, h2, h3, h4')) return false;
@@ -107,11 +110,39 @@
     return !(a && looksLikeArticleLink(a));
   }
 
-  /** Link auf eine einzelne Meldung (lange Adresse oder Artikelnummer), nicht auf eine Rubrik. */
+  const TOPIC_BAR_MAX_WORDS = 15;
+  const TOPIC_LINK_MAX_WORDS = 4;
+
+  /** Block besteht (fast) nur aus kurzen Links, und keiner davon führt zu einer einzelnen Meldung. */
+  function isTopicLinkBar(block, words) {
+    if (!words || words > TOPIC_BAR_MAX_WORDS) return false;
+    if (block.matches('h1, h2, h3, h4, h5, h6') || block.querySelector('h1, h2, h3, h4, h5, h6') || block.closest('h1, h2, h3, h4, h5, h6')) return false;
+    const links = [...block.querySelectorAll('a[href]')];
+    const own = block.closest('a[href]');
+    if (own) links.push(own);
+    if (!links.length) return false;
+    let linkWords = 0;
+    for (const a of links) {
+      const n = (a.textContent || '').trim().split(/\s+/).filter(Boolean).length;
+      if (n > TOPIC_LINK_MAX_WORDS || looksLikeArticleLink(a)) return false;
+      linkWords += n;
+    }
+    // Höchstens eine kurze Überschrift wie „Aktuelle Themen“ außerhalb der Links.
+    return own ? true : words - linkWords <= 3;
+  }
+
+  /** Link auf eine einzelne Meldung (Artikelnummer, langer Titel in der Adresse), nicht auf eine Rubrik. */
   function looksLikeArticleLink(a) {
     try {
       const u = new URL(a.href, location.href);
-      return /\d{5,}/.test(u.pathname) || u.pathname.split('/').some((seg) => seg.length > 30);
+      const segs = u.pathname.split('/').filter(Boolean);
+      const last = segs[segs.length - 1] || '';
+      return /\d{5,}/.test(u.pathname) ||
+        segs.some((seg) => seg.length > 30) ||
+        /-\d+(\.s?html?)?$/.test(last) || // tagesschau.de: /panama-erdbeben-102.html
+        (/\.s?html?$/.test(last) && (last.match(/-/g) || []).length >= 2) ||
+        /^[a-z]-[0-9a-f]{6,}/.test(last) || // spiegel.de: …-a-1a2b3c4d
+        segs.some((seg) => seg.length >= 10 && !seg.includes('-') && /[a-z]/i.test(seg) && /\d{3,}|(?:\d\D*){6,}/.test(seg)); // krone.at: /das-freie-wort/6ac9870a3e8ab3777f01bc32
     } catch (_) {
       return false;
     }
