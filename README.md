@@ -482,6 +482,12 @@ nur kurze Texte (bis 6 Wörter):
 - in der Kopf- und Fußleiste der Seite, sofern sie keine Überschrift sind und nicht auf eine
   einzelne Meldung verlinken.
 
+Ebenso Leisten aus kurzen Links (bis 4 Wörter je Link) auf Themen- oder Rubrikseiten, wo sie
+auch stehen: „Aktuelle Themen: SPÖ, Teuerung“, ein Themen-Schlagwort „Erderwärmung“ oder ein
+Menü „Club Shop Trauerportal“. Ob ein Link auf eine einzelne Meldung führt, erkennt Ruhepol an
+der Adresse: an einer Artikelnummer (`krone.at/4325347`, `…-120246981`, `…-102.html`), an
+einer Kennung aus Buchstaben und Ziffern oder an einem langen Titel in der Adresse.
+
 Weiter gefiltert werden:
 - **Überschriften,** auch wenn die Seite sie technisch als Knopf baut. orf.at macht
   Video-Titel zu Knöpfen, die den Player öffnen.
@@ -494,9 +500,17 @@ Weiter gefiltert werden:
 Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
 ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
 
-**Gemessen:** alte und neue Version direkt nacheinander auf 6 Seiten von orf.at und
-derStandard (131 Treffer). Weggefallen ist nur der Menüpunkt „KI“ bei derStandard; alle
-Meldungen bleiben unscharf.
+**Gemessen:** alte und neue Version nacheinander auf 17 Seiten (Google, Google News, MSN,
+krone, kurier, heute, oe24, diepresse, kleinezeitung, spiegel, zeit, orf, derStandard,
+Wikipedia, wetter.com, Amazon; tagesschau.de lud nicht fertig).
+- **Weggefallen ist nur Oberfläche:** Menüpunkte („News zu KI“, „Ukraine-Krieg“,
+  „Coronavirus“, „Tierecke“), Themen-Schlagwörter („Erderwärmung“, „Krieg im Nahen Osten“),
+  Kopf- und Fußleisten („Trauerportal“, „Unwetterwarnungen“) und zwei Sprunglinks auf der
+  Wikipedia-Hauptseite.
+- **Alle Meldungen bleiben unscharf.** Einträge, die sich zwischen den Läufen änderten,
+  verlinken auf Artikel und können von der Regel nicht betroffen sein.
+- **Die Google-Startseite hat keinen Treffer mehr.** Suchergebnisse ließen sich nicht testen,
+  weil Google automatische Aufrufe sperrt.
 
 ### Gute Nachrichten trotzdem zeigen
 
