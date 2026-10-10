@@ -331,7 +331,7 @@ async function main() {
       await p.waitForFunction(() => document.querySelector('#std-teaser').closest('[data-sf-hit]'), null, { timeout: 10000 });
       await p.waitForTimeout(500);
       const state = await p.evaluate(() => Object.fromEntries(
-        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'ok-teaser', 'promo']
+        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ticker', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'ok-teaser', 'promo']
           .map((id) => [id, !!document.getElementById(id).closest('[data-sf-hit]')])));
       assert.deepEqual(state, {
         'nav-krieg': false, 'nav-terror': false, // Menüpunkte
@@ -341,6 +341,7 @@ async function main() {
         'btn-ki': false, 'btn-kimodus': false, // Knöpfe
         'std-teaser': true, // <header> im Artikel gehört zum Inhalt
         video: true, // orf.at: Video-Titel als <a role="button"> in einer Überschrift
+        ticker: true, // Treffer nur im eingeklappten Text (orf.at-Ticker): ganze Meldung, nicht nur der Absatz
         themen: false, chip: false, // Links auf Themenseiten (kleinezeitung, heute.at)
         'kurz-meldung': true, // kurzer Link auf eine Meldung (tagesschau.de: …-102.html)
         leserbrief: true, // Kennung aus Buchstaben und Ziffern (krone.at: /das-freie-wort/6ac98…)

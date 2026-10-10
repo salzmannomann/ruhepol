@@ -849,7 +849,7 @@
     // Absatz nehmen – nicht den ganzen Textbereich samt Fotos.
     const para = el.closest && el.closest('p');
     if (para && para.parentElement && para.textContent.length > 40 &&
-        para.parentElement.querySelectorAll(':scope > p').length >= 3) {
+        para.parentElement.querySelectorAll(':scope > p').length >= 3 && !inTeaserCard(para)) {
       return para;
     }
     let primary = null, section = null, link = null;
@@ -877,6 +877,19 @@
     if (teaser !== base) return teaser;
     if (section && !link && section.contains(base)) return section;
     return base;
+  }
+
+  /**
+   * Absatz im Text einer Teaser-Karte (orf.at: ausklappbarer Text unter jeder Ticker-Meldung):
+   * Die Karte hat eine verlinkte Überschrift. Dann gehört der Treffer zur ganzen Meldung, nicht
+   * nur zum (oft eingeklappten, unsichtbaren) Absatz.
+   */
+  function inTeaserCard(para) {
+    const card = para.closest('article, li');
+    // Maßgeblich ist die erste Überschrift: Artikelseiten haben eine unverlinkte <h1>, auch wenn
+    // weiter unten verlinkte „Mehr zum Thema“-Teaser im selben <article> stehen.
+    const head = card && card.querySelector('h1, h2, h3, h4');
+    return !!head && !!(head.closest('a[href]') || head.querySelector('a[href]'));
   }
 
   /** Größter Vorfahre (max. 6 Ebenen), der höchstens eine Überschrift und wenige Links enthält. */

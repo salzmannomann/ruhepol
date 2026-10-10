@@ -51,7 +51,11 @@
         'Bombardierung*', 'Bombenangriff*', 'Invasion', 'Militäroffensive*', 'Gegenoffensive*',
         'Militärschlag', 'Waffenstillstand*', 'Waffenruhe', 'Kampfhandlungen', 'Frontlinie*',
         'Truppen', 'Soldaten', 'Gefechte', 'Genozid', 'Völkermord', 'Gaza*', 'Hamas', 'Hisbollah',
-        'Huthi*', 'Atomwaffe*', 'Atomkrieg*', 'Mobilmachung', 'Wehrpflicht',
+        'Huthi*', 'Atomwaffe*', 'Atomkrieg*', 'Mobilmachung', 'Wehrpflicht', 'Gleitbombe*',
+        // Angriffe mit Herkunftsangabe („Tote nach russischen Angriffen“); genaue Formen, damit
+        // „russische Angriffslust“ im Sport nicht trifft
+        ...['russisch', 'ukrainisch', 'israelisch', 'iranisch'].flatMap((a) =>
+          [`${a}e Angriffe`, `${a}en Angriffen`, `${a}en Angriff`, `${a}er Angriff`]),
       ],
     },
     {

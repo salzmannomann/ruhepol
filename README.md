@@ -462,6 +462,10 @@ vollständig lesbar.
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze
 nebeneinander), wird nur dieser Absatz unscharf, nicht der ganze Textbereich samt Fotos.
 
+Ausnahme sind Teaser-Karten, deren erste Überschrift verlinkt ist. Bei orf.at steht unter
+jeder Ticker-Meldung ein ausklappbarer Text. Ein Treffer darin macht die ganze Meldung samt
+Schlagzeile unscharf, nicht nur den oft eingeklappten Absatz.
+
 **Milde Listen im Fließtext:** Wörter aus „Wirtschaftskrise“ und „Krise & Skandal“
 („Massenentlassungen“, „Skandal“, „Inflation“ …) stehen in Artikeln oft nur nebenbei, etwa
 in einem historischen Rückblick. In einem langen Artikel-Absatz (über 200 Zeichen) genügt
