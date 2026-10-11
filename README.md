@@ -440,8 +440,8 @@ Die Kette selbst ist zusätzlich mit einem winzigen Testmodell automatisch getes
 
 **Eigene Schlagwörter (seit 1.29.4, „gute Nachrichten“ seit 1.29.5):** Treffer eigener
 Schlagwörter deckt weder die allgemeine Gegenprüfung noch Gemini Nano noch „Gute Nachrichten
-trotzdem zeigen“ auf – wer „Tesla“ einträgt, will das auch dann nicht sehen, wenn die
-KI die Meldung als Politik für neutral hält. Nur ein eigener Wunsch „Will ich trotzdem sehen“ darf
+trotzdem zeigen“ auf – wer einen Namen einträgt, will Meldungen dazu auch dann nicht sehen,
+wenn die KI sie für neutral oder freundlich hält. Nur ein eigener Wunsch „Will ich trotzdem sehen“ darf
 sie aufdecken (beides sind ausdrückliche Vorgaben). Außerdem treffen eigene Schlagwörter ohne `*` einfache Endungen mit („Tesla“ → „Teslas“,
 „Krieg“ → „Krieges“; Endungen -s, -es, -n, -en).
 
