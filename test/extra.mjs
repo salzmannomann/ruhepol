@@ -374,6 +374,45 @@ async function main() {
       await p.close();
     });
 
+    await step('Nicht-Nachrichtenseite: Bilder sofort scharf, Bild mit Treffer danach unscharf; Nachrichtenseite wie bisher', async () => {
+      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: { '127.0.0.1': 'calm' } });
+      const p = await ctx.newPage();
+      // Zustand jedes Bildes beim ersten Prüfschritt (wait/pending) festhalten: Unschärfe ja/nein.
+      const watch = () => p.evaluate(() => new Promise((resolve) => {
+        const seen = {};
+        const tick = () => {
+          for (const id of ['ok-img', 'hit-img']) {
+            const img = document.getElementById(id);
+            if (img && !seen[id] && (img.dataset.sf === 'wait' || img.dataset.sf === 'pending')) seen[id] = getComputedStyle(img).filter;
+          }
+          if (seen['ok-img'] && seen['hit-img']) resolve(seen); else requestAnimationFrame(tick);
+        };
+        tick();
+      }));
+      await p.goto(srv.base + '/shop.html');
+      const calm = await watch();
+      assert.deepEqual(calm, { 'ok-img': 'none', 'hit-img': 'none' }, 'während der Prüfung unscharf');
+      await p.waitForFunction(() => document.getElementById('p-hit').classList.contains('sf-blurred'), null, { timeout: 20000 });
+      await p.waitForFunction(() => document.getElementById('ok-img').dataset.sf === 'ok', null, { timeout: 20000 });
+      assert.ok(!(await p.evaluate(() => document.getElementById('p-ok').closest('[data-sf-hit]'))), 'harmloses Angebot getroffen');
+      // Gleiche Seite als Nachrichtenseite eingestuft: Bilder bis zur Prüfung unscharf.
+      await setSettings(sw, { siteKinds: {} });
+      await p.goto(srv.base + '/shop.html?news');
+      const news = await watch();
+      assert.match(news['ok-img'], /blur/);
+      // Popup zeigt die Einstufung und schaltet um.
+      const tabId = await sw.evaluate(async (u) => (await chrome.tabs.query({})).find((t) => t.url && t.url.includes(u)).id, '/shop.html?news');
+      const pop = await ctx.newPage();
+      await pop.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+      assert.equal(await pop.isChecked('#kind'), true);
+      await pop.click('#kind');
+      await pop.waitForFunction(() => /Keine Nachrichtenseite/.test(document.getElementById('kindInfo').textContent));
+      assert.deepEqual(await sw.evaluate(async () => (await chrome.storage.sync.get('siteKinds')).siteKinds), { '127.0.0.1': 'calm' });
+      await pop.close();
+      await setSettings(sw, { siteKinds: {} });
+      await p.close();
+    });
+
     await step('Kennenlernen: öffnet sich bei der Installation; Antworten → Themenauswahl und Stufe', async () => {
       let p = ctx.pages().find((x) => x.url().includes('kennenlernen.html'));
       if (!p) p = await ctx.waitForEvent('page', { predicate: (x) => x.url().includes('kennenlernen.html'), timeout: 5000 });

@@ -602,6 +602,31 @@ Wikipedia, wetter.com, Amazon; tagesschau.de lud nicht fertig).
 - **Die Google-Startseite hat keinen Treffer mehr.** Suchergebnisse ließen sich nicht testen,
   weil Google automatische Aufrufe sperrt.
 
+### Shops und Marktplätze: Bilder sofort sichtbar
+
+Auf bekannten Nicht-Nachrichtenseiten (willhaben, Amazon, eBay, geizhals, idealo, booking,
+Zalando, IKEA, Immobilien- und Jobportale …, Liste in `extension/lib/sitekind.js`) sind Bilder
+gleich sichtbar. Sie werden wie überall im Hintergrund geprüft. Steht etwas Belastendes darin,
+werden sie danach unscharf. Texte werden überall gleich geprüft, auch das vorsorgliche
+Unscharfstellen beim Laden bleibt.
+
+- **Abschalten:** Einstellungen → „Auf Shops und Marktplätzen Bilder sofort zeigen“.
+- **Seite selbst einstufen:** Im Popup steht „Nachrichtenseite“ mit Schalter. Ausgeschaltet
+  heißt: keine Nachrichtenseite, Bilder sofort sichtbar. Gespeichert wird nur, was von der
+  eingebauten Liste abweicht (`siteKinds`).
+- **Unbekannte Seiten** gelten als Nachrichtenseite, dort bleibt alles wie bisher.
+- **Werbe-Frames fremder Seiten** gelten ebenfalls als Nachrichtenseite.
+
+**Warum eine Liste und keine automatische Erkennung:** Geprüft an 32 Seiten (18
+Nachrichtenseiten, 14 Shops). Die Auszeichnung im Seitenkopf (Nachrichtenartikel bzw.
+Produkt/Angebot) fehlt auf Startseiten fast immer: Von 14 Shops war nur IKEA erkennbar, dafür
+galt heise.de als Shop. Auch die Zahl der Preise auf der Seite trennt nicht, heise.de zeigte
+10, viele Shops beim ersten Laden 0.
+
+**Gemessen** auf willhaben.at (erster Besuch, sichtbare Bilder alle 100 ms erfasst):
+Fahrrad-Übersicht vorher rund 3,3 s lang unscharfe Bilder (zusammen 9,9 „Bild-Sekunden“),
+jetzt 0; Startseite 0,4 → 0.
+
 ### Gute Nachrichten trotzdem zeigen
 
 Optional (Einstellungen → Erkennung), braucht das Sprachmodell. Auch bei gesperrten Themen
