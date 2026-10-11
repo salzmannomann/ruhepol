@@ -108,6 +108,15 @@
     // Leiste aus kurzen Links auf Themen- und Rubrikseiten („Aktuelle Themen: SPÖ, Teuerung“,
     // „Erderwärmung“, Menü „Club Shop Trauerportal“) – Navigation, keine Meldung.
     if (node.tagName !== 'IMG' && isTopicLinkBar(block, words)) return true;
+    // Navigation der Seite (nicht im Artikel): Inhalt nur, wenn ein Link auf eine einzelne Meldung
+    // dabei ist (Teaser im Menü). Sonst Bedienoberfläche, auch bei viel Text – amazon.de hält dort
+    // ein eingeklapptes Chatfenster („Rufus AI …“) bereit, das die ganze Leiste unscharf machte.
+    const menu = node.closest(UI_MENUS);
+    if (menu && !menu.closest('article, [role="article"], main, [role="main"]') && node.tagName !== 'IMG') {
+      const own = node.closest('a[href]');
+      const links = own ? [own] : [...block.querySelectorAll('a[href]')];
+      return !links.some(looksLikeArticleLink);
+    }
     if (words > UI_MAX_WORDS) return false;
     // Überschriften sind Inhalt, auch als „Knopf“ (orf.at: Video-Titel sind <a role="button"> in <h3>).
     if (node.closest('h1, h2, h3, h4, h5, h6') || block.matches('h1, h2, h3, h4') || block.querySelector('h1, h2, h3, h4')) return false;
