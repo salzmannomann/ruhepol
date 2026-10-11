@@ -182,7 +182,7 @@
 
   /** Eigene Schlagwörter plus Begriffe der aktivierten Vorschlagslisten. */
   /**
-   * Eigene Schlagwörter mit einfachen Endungen: „Trump“ trifft auch „Trumps“, „Krieg“ auch
+   * Eigene Schlagwörter mit einfachen Endungen: „Tesla“ trifft auch „Teslas“, „Krieg“ auch
    * „Krieges“. Nur einzelne Wörter ohne Platzhalter; Begriffe mit * bleiben, wie eingegeben.
    */
   function ownKeywordForms(keywords) {
