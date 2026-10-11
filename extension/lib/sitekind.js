@@ -58,6 +58,60 @@
     'holidaycheck.at', 'holidaycheck.de', 'check24.de',
     // Marktplätze und Schnäppchen
     'vinted.at', 'vinted.de', 'mydealz.de', 'preisjaeger.at',
+    // Erweiterung 1.28: Erreichbarkeit geprüft, Startseiten ohne Nachrichtenteil
+    // Elektronik / Technik
+    'saturn.at', 'notebooksbilliger.de', 'alternate.at', 'alternate.de', 'computeruniverse.net', 'arlt.com',
+    'mindfactory.de', 'caseking.de', 'reichelt.de', 'reichelt.at', 'pollin.de', 'digitec.ch', 'interdiscount.ch',
+    'fust.ch', 'melectronics.ch', 'expert.at', 'expert.de', 'euronics.de', 'hartlauer.at', 'red-zac.at',
+    'electronic4you.at', 'mytoys.de', 'proshop.at', 'proshop.de', 'dell.com', 'lenovo.com', 'hp.com', 'logitech.com',
+    'sonos.com', 'bose.de', 'dyson.at', 'dyson.de', 'miele.at', 'miele.de', 'bosch-home.at', 'bosch-home.com',
+    // Möbel / Wohnen / Garten / Baumarkt
+    'home24.at', 'home24.de', 'westwing.at', 'westwing.de', 'butlers.com', 'dehner.at', 'dehner.de', 'bellaflora.at',
+    'toom.de', 'hagebau.at', 'hagebau.de', 'globus-baumarkt.de', 'bauhaus.info', 'hellweg.de', 'jysk.at', 'jysk.de',
+    'segmueller.de', 'roller.de', 'poco.de', 'porta.de', 'ikea.at', 'lutz.at', 'moemax.de', 'xxxlutz.de',
+    'wayfair.de', 'wayfair.com', 'otto.at', 'universal.at', 'quelle.at', 'baur.de', 'heine.de', 'bonprix.at',
+    'bonprix.de', 'witt-weiden.de', 'klingel.de', 'impressionen.de',
+    // Drogerie / Apotheke / Beauty
+    'rossmann.de', 'dm.de', 'mueller.ch', 'shop-apotheke.at', 'shop-apotheke.com', 'docmorris.de',
+    'medikamente-per-klick.de', 'aponeo.de', 'vamida.at', 'sephora.de', 'flaconi.de', 'flaconi.at', 'notino.at',
+    'notino.de', 'parfumdreams.de', 'marionnaud.at', 'yves-rocher.at', 'lush.com', 'rituals.com',
+    // Mode / Schuhe / Sport
+    'asos.com', 'zara.com', 'mango.com', 'uniqlo.com', 'primark.com', 'bershka.com', 'pullandbear.com',
+    'stradivarius.com', 'massimodutti.com', 'tom-tailor.at', 'tom-tailor.de', 'jackjones.com', 'only.com',
+    'snipes.com', 'footlocker.at', 'footlocker.de', 'zalando-lounge.at', 'zalando-lounge.de', 'bergzeit.at',
+    'bergzeit.de', 'sportscheck.com', 'decathlon.at', 'decathlon.de', 'bike24.de', 'bike-discount.de', 'rosebikes.at',
+    'rosebikes.de', 'fahrrad.de', 'bikester.at', 'bikester.de', 'nike.com', 'adidas.at', 'adidas.de', 'puma.com',
+    'northface.com', 'jack-wolfskin.at', 'jack-wolfskin.de', 'gigasport.at', 'mirapodo.de', 'goertz.de', 'reno.de',
+    'deichmann.at', 'ochsnershoes.ch', 'about-you.ch', 'tchibo.ch', 'lidl.ch', 'aldi-suisse.ch', 'aldi-sued.de',
+    'aldi-nord.de',
+    // Spielwaren / Bücher / Medien
+    'lego.com', 'playmobil.at', 'playmobil.de', 'thalia.ch', 'weltbild.at', 'weltbild.de', 'hugendubel.de',
+    'buecher.de', 'orellfuessli.ch', 'exlibris.ch', 'medimops.de', 'rebuy.de', 'momox.de', 'cdon.com',
+    // Lebensmittel / Lieferung
+    'gurkerl.at', 'billa-plus.at', 'mpreis.at', 'unimarkt.at', 'penny.at', 'penny.de', 'rewe.de', 'edeka.de',
+    'kaufland.de', 'kaufland.at', 'netto-online.de', 'migros.ch', 'coop.ch', 'lieferando.at', 'lieferando.de',
+    'mjam.net', 'foodora.at', 'wolt.com', 'hellofresh.at', 'hellofresh.de', 'marleyspoon.at',
+    // Tierbedarf / Hobby
+    'zooplus.at', 'zooplus.de', 'fressnapf.ch', 'zoo-zajac.de', 'idee-shop.at', 'idee-shop.com', 'modulor.de',
+    'gerstaecker.de',
+    // Reisen / Hotels / Mobilität
+    'hotels.com', 'agoda.com', 'kayak.at', 'kayak.de', 'skyscanner.at', 'skyscanner.de', 'momondo.at', 'momondo.de',
+    'opodo.at', 'opodo.de', 'edreams.de', 'lastminute.at', 'lastminute.de', 'weg.de', 'tui.at', 'tui.com', 'ruefa.at',
+    'verkehrsbuero.at', 'hofer-reisen.at', 'lidl-reisen.at', 'lidl-reisen.de', 'urlaubspiraten.at',
+    'urlaubspiraten.de', 'travelcircus.de', 'secretescapes.de', 'eurowings.com', 'easyjet.com', 'condor.com',
+    'swiss.com', 'sbb.ch', 'db.de', 'omio.at', 'omio.de', 'trainline.com', 'sixt.at', 'sixt.de', 'europcar.at',
+    'hertz.at', 'avis.at', 'billiger-mietwagen.de', 'fewo-direkt.de', 'vrbo.com', 'hometogo.at', 'hometogo.de',
+    'interhome.at', 'novasol.at',
+    // Immobilien / Jobs / Autos
+    'immo.at', 'findmyhome.at', 'wohnnet.at', 'immonet.de', 'kleinanzeigen.at', 'immobilien.net', 'jobs.at',
+    'hokify.at', 'monster.at', 'monster.de', 'jobware.de', 'stellenanzeigen.de', 'autoscout24.ch', 'car4you.at',
+    'pkw.de', 'autohero.com', 'carwow.de', 'mobile.at',
+    // Preisvergleich / Gutscheine / Marktplätze
+    'billiger.de', 'check24.at', 'durchblicker.at', 'toppreise.ch', 'ricardo.ch', 'tutti.ch', 'anibis.ch', 'quoka.de',
+    'markt.de', 'gutscheine.at', 'gutscheinsammler.de', 'groupon.at', 'groupon.de', 'dealabs.com',
+    // Rezepte / DIY
+    'kochbar.de', 'lecker.de', 'essen-und-trinken.de', 'springlane.de', 'eatsmarter.de', 'kitchenstories.com',
+    'allrecipes.com', 'selbst.de', 'obi.com',
   ];
 
   function matchHost(host, list) {
