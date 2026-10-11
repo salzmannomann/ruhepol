@@ -45,6 +45,19 @@
     'immobilienscout24.de', 'immowelt.at', 'immowelt.de', 'karriere.at', 'stepstone.at', 'stepstone.de', 'indeed.com',
     'chefkoch.de', 'ichkoche.at', 'gutekueche.at', 'maps.google.com', 'openstreetmap.org', 'autoscout24.at', 'autoscout24.de',
     'mobile.de', 'gebrauchtwagen.at', 'thomann.de', 'conrad.at', 'conrad.de', 'billa.at', 'spar.at', 'hofer.at', 'dm.at',
+    // Handel Österreich/Deutschland
+    'interspar.at', 'bipa.at', 'mueller.at', 'mueller.de', 'lidl.at', 'lidl.de', 'tchibo.at', 'tchibo.de', 'hervis.at',
+    'intersport.at', 'sportokay.com', 'bergfreunde.de', 'bauhaus.at', 'obi.at', 'obi.de', 'hornbach.at', 'hornbach.de',
+    'lagerhaus.at', 'libro.at', 'thalia.at', 'thalia.de', 'morawa.at', 'fressnapf.at', 'fressnapf.de', 'moebelix.at',
+    'moemax.at',
+    // Mode und Technik
+    'hm.com', 'c-and-a.com', 'peek-cloppenburg.at', 'peek-cloppenburg.de', 'deichmann.com', 'humanic.net', 'douglas.at',
+    'douglas.de', 'cyberport.at', 'cyberport.de', 'e-tec.at', 'apple.com', 'samsung.com',
+    // Reisen
+    'austrian.com', 'ryanair.com', 'wizzair.com', 'lufthansa.com', 'flixbus.at', 'flixbus.de', 'flixbus.com', 'westbahn.at',
+    'holidaycheck.at', 'holidaycheck.de', 'check24.de',
+    // Marktplätze und Schnäppchen
+    'vinted.at', 'vinted.de', 'mydealz.de', 'preisjaeger.at',
   ];
 
   function matchHost(host, list) {

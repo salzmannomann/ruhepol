@@ -605,7 +605,8 @@ Wikipedia, wetter.com, Amazon; tagesschau.de lud nicht fertig).
 ### Shops und Marktplätze: Bilder sofort sichtbar
 
 Auf bekannten Nicht-Nachrichtenseiten (willhaben, Amazon, eBay, geizhals, idealo, booking,
-Zalando, IKEA, Immobilien- und Jobportale …, Liste in `extension/lib/sitekind.js`) sind Bilder
+Zalando, IKEA, Handelsketten, Mode, Reisen, Immobilien- und Jobportale, insgesamt rund 120
+Adressen, Liste in `extension/lib/sitekind.js`) sind Bilder
 gleich sichtbar. Sie werden wie überall im Hintergrund geprüft. Steht etwas Belastendes darin,
 werden sie danach unscharf. Texte werden überall gleich geprüft, auch das vorsorgliche
 Unscharfstellen beim Laden bleibt.
