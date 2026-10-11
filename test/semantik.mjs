@@ -116,23 +116,26 @@ async function main() {
       await setSettings(sw, { semantic: true, presets: ['klima'] });
     });
 
-    await step('KI-Gegenprüfung: harmloser Schlagwort-Treffer wird wieder gezeigt', async () => {
-      await setSettings(sw, { keywords: ['Museum', 'Gletscher'], presets: ['klima'], semantic: true, semanticVeto: true, positiveShow: false });
+    await step('KI-Gegenprüfung: harmloser Listen-Treffer wird wieder gezeigt, eigene Schlagwörter nie', async () => {
+      await setSettings(sw, { keywords: ['Museum'], presets: ['klima'], semantic: true, semanticVeto: true, positiveShow: false });
       await page.reload();
-      // „Konzert im Museum“ trifft das Schlagwort, liegt aber klar bei „Kultur“ → wieder sichtbar.
-      await page.waitForFunction(() => document.querySelector('#s-kultur').dataset.sfVeto !== undefined, null, { timeout: 15000 });
-      assert.ok(await visible(page, '#s-kultur'));
-      // „Gletscher schmelzen …“ trifft ebenfalls, liegt aber beim Thema Klima → bleibt unscharf.
+      // „Konzert und Theater: Musik ist CO2 neutral“ trifft „CO2“ (Liste Klima), liegt aber klar bei „Kultur“ → wieder sichtbar.
+      await page.waitForFunction(() => document.querySelector('#s-veto').dataset.sfVeto !== undefined, null, { timeout: 15000 });
+      assert.ok(await visible(page, '#s-veto'));
+      // „Gletscher schmelzen …“ liegt beim Thema Klima → bleibt unscharf.
       await page.waitForTimeout(500);
       assert.ok(!(await visible(page, '#s-klima')));
+      // „Konzert im Museum“ trifft das eigene Schlagwort „Museum“ → bleibt unscharf, obwohl harmlos.
+      assert.ok(!(await visible(page, '#s-kultur')), 'eigenes Schlagwort wurde aufgedeckt');
+      assert.equal(await page.evaluate(() => document.querySelector('#s-kultur').dataset.sfVeto), undefined);
     });
 
     await step('Ohne Gegenprüfung bleibt auch der harmlose Treffer unscharf', async () => {
       await setSettings(sw, { semanticVeto: false });
       await page.reload();
-      await page.waitForFunction(() => document.querySelector('#s-kultur').dataset.sfHit, null, { timeout: 15000 });
+      await page.waitForFunction(() => document.querySelector('#s-veto').dataset.sfHit, null, { timeout: 15000 });
       await page.waitForTimeout(1000);
-      assert.ok(!(await visible(page, '#s-kultur')));
+      assert.ok(!(await visible(page, '#s-veto')));
       await setSettings(sw, { keywords: [], semanticVeto: true });
     });
 

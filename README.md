@@ -438,6 +438,12 @@ Die Kette selbst ist zusätzlich mit einem winzigen Testmodell automatisch getes
 
 ### KI-Gegenprüfung von Schlagwort-Treffern
 
+**Eigene Schlagwörter (seit 1.29.4):** Treffer eigener Schlagwörter deckt weder die allgemeine
+Gegenprüfung noch Gemini Nano auf – wer „Trump“ einträgt, will das auch dann nicht sehen, wenn die
+KI die Meldung als Politik für neutral hält. Nur ein eigener Wunsch „Will ich trotzdem sehen“ darf
+sie aufdecken (beides sind ausdrückliche Vorgaben). Außerdem treffen eigene Schlagwörter ohne `*` einfache Endungen mit („Trump“ → „Trumps“,
+„Krieg“ → „Krieges“; Endungen -s, -es, -n, -en).
+
 Ist der Bedeutungs-Filter an, prüft das Modell Schlagwort-Treffer zusätzlich gegen
 (abschaltbar unter Erkennung → „Schlagwort-Treffer gegenprüfen“). Liegt der Text klar näher
 an neutralen Themen (Sport, Kultur, Alltag …) als an den gesperrten Themen und deinen

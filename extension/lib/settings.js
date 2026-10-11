@@ -181,8 +181,22 @@
   }
 
   /** Eigene Schlagwörter plus Begriffe der aktivierten Vorschlagslisten. */
+  /**
+   * Eigene Schlagwörter mit einfachen Endungen: „Trump“ trifft auch „Trumps“, „Krieg“ auch
+   * „Krieges“. Nur einzelne Wörter ohne Platzhalter; Begriffe mit * bleiben, wie eingegeben.
+   */
+  function ownKeywordForms(keywords) {
+    const out = [];
+    for (const k of keywords || []) {
+      out.push(k);
+      if (/[*\s]/.test(k) || k.length < 3 || !/\p{L}$/u.test(k)) continue;
+      for (const end of ['s', 'es', 'n', 'en']) out.push(k + end);
+    }
+    return out;
+  }
+
   function allKeywords(settings) {
-    return settings.keywords.concat(P ? P.termsFor(settings.presets) : []);
+    return ownKeywordForms(settings.keywords).concat(P ? P.termsFor(settings.presets) : []);
   }
 
   async function load() {
@@ -210,6 +224,6 @@
     return Object.assign(loaded, changes);
   }
 
-  root.SFSettings = { DEFAULTS, KEYS, sanitize, normalizeHost, hostInList, isActiveOn, toggleHost, allKeywords, load, save };
+  root.SFSettings = { DEFAULTS, KEYS, sanitize, normalizeHost, hostInList, isActiveOn, toggleHost, ownKeywordForms, allKeywords, load, save };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFSettings;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

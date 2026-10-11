@@ -57,7 +57,8 @@
   let calmAuto = false; // … und zwar nur durch die automatische Einstufung (siehe unten)
   let autoKinds = {}; // automatische Einstufung unbekannter Seiten: {host: 'calm' | 'news'}
   let matcher = null;
-  let mildMatcher = null; // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
+  let mildMatcher = null;
+  let ownMatcher = null; // nur die eigenen Schlagwörter (nur Wünsche dürfen sie aufdecken) // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
   let strongMatcher = null; // alles andere inkl. eigener Schlagwörter
   let active = false;
   let generation = 0; // erhöht sich bei jedem Neustart; alte OCR-Antworten werden verworfen
@@ -351,7 +352,9 @@
     const P = globalThis.SFPresets;
     const mildIds = settings.presets.filter((id) => P.MILD_IDS.includes(id));
     mildMatcher = compile(P.termsFor(mildIds), opts);
-    strongMatcher = compile(settings.keywords.concat(P.termsFor(settings.presets.filter((id) => !mildIds.includes(id)))), opts);
+    strongMatcher = compile(S.ownKeywordForms(settings.keywords).concat(P.termsFor(settings.presets.filter((id) => !mildIds.includes(id)))), opts);
+    // Eigene Schlagwörter: nur ein ausdrücklicher Wunsch darf sie wieder aufdecken.
+    ownMatcher = compile(S.ownKeywordForms(settings.keywords), opts);
     clearedBlocks = new WeakSet();
     weakChecked = new WeakSet();
     scoredBlocks = new WeakSet();
@@ -1368,7 +1371,8 @@
         const b = blocks[i];
         if (!b.isConnected || !b.dataset.sfHit) return;
         if (neverToneMatcher().find(blockText(b))) return;
-        if (!r.veto) {
+        if (b.__sfOwn && !r.wishVeto) return; // eigenes Schlagwort: weder Gegenprüfung noch Gemini Nano
+        if (!r.veto && !(b.__sfOwn && r.wishVeto)) {
           // Knapp nicht harmlos genug: Chromes eingebautes Modell darf noch einmal urteilen.
           if (r.unsure && settings.nanoCheck && !nanoUnavailable) { nanoQueue.add(b); flushNano(); }
           return;
@@ -2044,6 +2048,8 @@
     if (opts.why) block.dataset.sfWhy = opts.why;
     // Schlagwort-Treffer mit dem Sprachmodell gegenprüfen (bleibt bis dahin unscharf).
     if (settings.semantic && settings.semanticVeto && !semUnavailable && !opts.noTone && isKeywordReason(kw)) {
+      // Eigene Schlagwörter: nur ein „Will ich trotzdem sehen“-Wunsch darf sie aufdecken.
+      if (ownMatcher && !ownMatcher.empty && ownMatcher.find(blockText(block))) block.__sfOwn = true;
       vetoQueue.add(block);
       scheduleVeto();
     }
