@@ -5,6 +5,16 @@ html.sf-active img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revea
   filter: blur(18px) !important;
 }
 
+/* Seitenstart, bevor die Einstellungen geladen sind: Bilder vorsorglich unscharf. */
+html.sf-boot img {
+  filter: blur(18px) !important;
+}
+
+/* Vorsorglich unscharf: Schlagwort beim Laden erkannt, genaue Entscheidung folgt gleich. */
+html.sf-active .sf-pre {
+  filter: blur(8px) !important;
+}
+
 /* CSS-Hintergrundbilder und Video-Vorschaubilder während der Prüfung. */
 html.sf-active [data-sf-bg="pending"]:not([data-sf-revealed]),
 html.sf-active [data-sf-bg="err"]:not([data-sf-revealed]) {

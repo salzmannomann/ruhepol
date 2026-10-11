@@ -476,6 +476,25 @@ deshalb ein einzelnes solches Wort nicht. Unscharf wird der Absatz erst, wenn
 
 Schlagzeilen, Teaser und kurze Texte bleiben so streng wie bisher.
 
+### Kein kurzes Aufblitzen beim Laden
+
+Beim Öffnen einer Seite wurden Teaser früher für einige Bilder (30–80 ms) scharf gezeichnet,
+bevor Ruhepol sie unscharf stellte. Drei Änderungen verhindern das:
+
+- **Sofort starten:** Ruhepol filtert, sobald die Einstellungen geladen sind. Die Rückfrage
+  „über einen Teaser geöffnet?“ beim Hintergrund-Teil (der oft erst aufwachen muss) läuft
+  nebenher. Ist die Antwort ja, werden die automatischen Treffer im Artikel danach wieder
+  aufgedeckt.
+- **Bilder vorsorglich unscharf,** schon bevor die Einstellungen geladen sind.
+- **Texte sofort prüfen, ohne Layout:** Neue Inhalte werden noch vor dem nächsten Zeichnen
+  auf Schlagwörter geprüft. Bei einem Treffer wird der umgebende Teaser vorsorglich unscharf.
+  Die genaue Entscheidung (welcher Block, Ausnahmen, Gegenprüfung) folgt kurz danach und hebt
+  die Vorsorge wieder auf. Bisher hätte jeder Treffer beim Laden eine teure Neuberechnung des
+  Layouts erzwungen (rund 8 ms je Treffer), und der Browser zeichnete dazwischen.
+
+**Gemessen** auf orf.at, Bild für Bild: Vorher waren 14 bis 18 von 19 Treffern mindestens ein
+gezeichnetes Bild lang scharf sichtbar, jetzt in vier von vier Läufen keiner.
+
 ### Nur Inhalte, nicht die Bedienoberfläche
 
 Knöpfe, Menüs und die feste Kopf- und Fußleiste einer Seite sind keine Meldungen. „KI-Modus“
