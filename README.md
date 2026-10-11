@@ -615,18 +615,23 @@ Unscharfstellen beim Laden bleibt.
   heißt: keine Nachrichtenseite, Bilder sofort sichtbar. Gespeichert wird nur, was von der
   eingebauten Liste abweicht (`siteKinds`).
 - **Unbekannte Seiten** gelten als Nachrichtenseite, dort bleibt alles wie bisher.
-- **Nachfrage (seit 1.26):** Zeigt eine unbekannte Seite über mindestens 3 Aufrufe zusammen
-  mindestens 30 geprüfte, harmlose Bilder und keinen einzigen Treffer (Text, Bild oder KI),
-  fragt Ruhepol einmal unten rechts: „Ist das keine Nachrichtenseite?“. „Ja“ stuft sie ein,
-  „Nein“ wird ebenfalls gespeichert (keine weitere Frage), „Später“ fragt frühestens nach 10
-  weiteren Aufrufen wieder. Gezählt wird lokal (`siteStats` in `chrome.storage.local`, höchstens
-  300 Seiten), je Aufruf nach 12 Sekunden.
+- **Automatische Einstufung (seit 1.27, ohne Rückfrage):** Zeigt eine unbekannte Seite über
+  mindestens 3 Aufrufe zusammen mindestens 30 geprüfte, harmlose Bilder und keinen einzigen
+  Treffer (Text, Bild oder KI), gilt sie still als Nicht-Nachrichtenseite. Kommt dort später doch
+  ein Treffer, gilt sie sofort und dauerhaft wieder als Nachrichtenseite. Gezählt wird lokal
+  (`siteStats` und `autoKinds` in `chrome.storage.local`, höchstens 300 Seiten), je Aufruf nach
+  12 Sekunden. Das Popup zeigt „Automatisch erkannt“; der Schalter dort geht immer vor.
 
-  Geprüft an 11 Seiten, die in keiner Liste stehen, je ein Aufruf: Die Nachrichtenseiten
+  Geprüft an 11 Seiten, die in keiner Liste standen, je ein Aufruf: Die Nachrichtenseiten
   futurezone, vienna.at, salto.bz, news.joyn.at (puls24) und heise hatten 9 bis 41 Treffer und
-  würden nie gefragt. Die Shops Thomann, Bergfreunde, Lidl, Tchibo und Cyberport hatten 0
-  Treffer und 5 bis 34 harmlose Bilder und würden nach etwa 3 Aufrufen gefragt. Die
+  würden nie eingestuft. Die Shops Thomann, Bergfreunde, Lidl, Tchibo und Cyberport hatten 0
+  Treffer und 5 bis 34 harmlose Bilder und würden nach etwa 3 Aufrufen eingestuft. Die
   Nachrichtenseiten daraus stehen jetzt in der Liste.
+- **KI-Erkennung gemessen, nicht eingebaut:** Das Sprachmodell stufte Startseiten gut ein (37
+  von 37 Nachrichtenseiten richtig, 20 von 21 Shops erkannt), hielt aber Deal-Unterseiten von
+  Nachrichtenportalen für Shops (chip.de/deals, computerbild.de/deals, focus.de/deals,
+  heise.de/bestenlisten). Wer zuerst so eine Seite öffnet, bekäme das ganze Portal als Shop
+  eingestuft.
 - **Werbe-Frames fremder Seiten** gelten ebenfalls als Nachrichtenseite.
 
 **Warum eine Liste und keine automatische Erkennung:** Geprüft an 32 Seiten (18
