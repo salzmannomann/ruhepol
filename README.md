@@ -605,8 +605,8 @@ Wikipedia, wetter.com, Amazon; tagesschau.de lud nicht fertig).
 ### Shops und Marktplätze: Bilder sofort sichtbar
 
 Auf bekannten Nicht-Nachrichtenseiten (willhaben, Amazon, eBay, geizhals, idealo, booking,
-Zalando, IKEA, Handelsketten, Mode, Reisen, Immobilien- und Jobportale, insgesamt rund 120
-Adressen, Liste in `extension/lib/sitekind.js`) sind Bilder
+Zalando, IKEA, Handelsketten, Mode, Apotheken, Reisen, Immobilien-, Job- und Autobörsen,
+Rezeptseiten, insgesamt rund 390 Adressen, Liste in `extension/lib/sitekind.js`) sind Bilder
 gleich sichtbar. Sie werden wie überall im Hintergrund geprüft. Steht etwas Belastendes darin,
 werden sie danach unscharf. Texte werden überall gleich geprüft, auch das vorsorgliche
 Unscharfstellen beim Laden bleibt.
@@ -616,6 +616,11 @@ Unscharfstellen beim Laden bleibt.
   heißt: keine Nachrichtenseite, Bilder sofort sichtbar. Gespeichert wird nur, was von der
   eingebauten Liste abweicht (`siteKinds`).
 - **Unbekannte Seiten** gelten als Nachrichtenseite, dort bleibt alles wie bisher.
+- **Wie die Liste geprüft ist (1.28):** Jede Adresse wurde abgerufen. Nicht erreichbare
+  (z. B. geschlossene Shops wie Esprit, myToys, Depot) wurden gestrichen. Die Startseiten wurden
+  nach belastenden Begriffen durchsucht; gefunden wurden nur Länderauswahlen („Israel“,
+  „Ukraine“) und Krimititel. Weggelassen wurden Seiten mit Nachrichten- oder Feed-Teil
+  (LinkedIn, XING, utopia.de, wetteronline, bergfex) und Unterseiten von Nachrichtenmarken.
 - **Automatische Einstufung (seit 1.27, ohne Rückfrage):** Zeigt eine unbekannte Seite über
   mindestens 3 Aufrufe zusammen mindestens 30 geprüfte, harmlose Bilder und keinen einzigen
   Treffer (Text, Bild oder KI), gilt sie still als Nicht-Nachrichtenseite. Kommt dort später doch
