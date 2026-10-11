@@ -57,7 +57,8 @@
   let calmAuto = false; // … und zwar nur durch die automatische Einstufung (siehe unten)
   let autoKinds = {}; // automatische Einstufung unbekannter Seiten: {host: 'calm' | 'news'}
   let matcher = null;
-  let mildMatcher = null; // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
+  let mildMatcher = null;
+  let ownMatcher = null; // nur die eigenen Schlagwörter (nur Wünsche dürfen sie aufdecken) // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
   let strongMatcher = null; // alles andere inkl. eigener Schlagwörter
   let active = false;
   let generation = 0; // erhöht sich bei jedem Neustart; alte OCR-Antworten werden verworfen
@@ -351,7 +352,9 @@
     const P = globalThis.SFPresets;
     const mildIds = settings.presets.filter((id) => P.MILD_IDS.includes(id));
     mildMatcher = compile(P.termsFor(mildIds), opts);
-    strongMatcher = compile(settings.keywords.concat(P.termsFor(settings.presets.filter((id) => !mildIds.includes(id)))), opts);
+    strongMatcher = compile(S.ownKeywordForms(settings.keywords).concat(P.termsFor(settings.presets.filter((id) => !mildIds.includes(id)))), opts);
+    // Eigene Schlagwörter: nur ein ausdrücklicher Wunsch darf sie wieder aufdecken.
+    ownMatcher = compile(S.ownKeywordForms(settings.keywords), opts);
     clearedBlocks = new WeakSet();
     weakChecked = new WeakSet();
     scoredBlocks = new WeakSet();
@@ -428,6 +431,8 @@
     ocrWaiting.clear();
     learnCandidates.clear();
     semQueue.clear();
+    kiHold.clear();
+    semInflight.clear();
     semUnavailable = false;
     toneQueue.clear();
     toneUnavailable = false;
@@ -1039,7 +1044,6 @@
       const kw = matcher.find(res.text);
       if (kw) hitImage(img, kw, 'ocr');
       else {
-        setState(img, 'ok');
         pageImgOk++;
         // Der Bildtext kann für den Lernfilter den Ausschlag geben.
         if (learnHandleable()) {
@@ -1048,11 +1052,48 @@
           learnCandidates.add(block);
           scheduleLearn();
         }
+        releaseOrHold(img);
       }
     } else {
       onOcrError(img);
     }
     reportCount();
+  }
+
+  /*
+   * Bild ohne Treffer erst freigeben, wenn auch die KI über seinen Teaser entschieden hat. Sonst
+   * wurde etwa auf nachrichten.at ein Unfallfoto nach der Texterkennung (~1 s) scharf und erst
+   * danach mit dem Teaser unscharf, wenn nur die KI die Schlagzeile erkennt. Längstens KI_HOLD_MS.
+   */
+  const KI_HOLD_MS = 8000;
+  const kiHold = new Map(); // Teaser-Block -> Bilder, die auf die KI warten
+  const semInflight = new Set(); // Blöcke in einer laufenden KI-Anfrage
+
+  function releaseOrHold(img) {
+    if (!calmSite && semanticOn()) {
+      const block = findBlock(img);
+      if (block && block.isConnected && !block.dataset.sfHit && !clearedBlocks.has(block)) {
+        if (!scoredBlocks.has(block)) { learnOne(block, false); flushSem(); }
+        if (semQueue.has(block) || semInflight.has(block)) {
+          let set = kiHold.get(block);
+          if (!set) {
+            set = new Set();
+            kiHold.set(block, set);
+            setTimeout(() => releaseHeld(block), KI_HOLD_MS);
+          }
+          set.add(img);
+          return; // bleibt „pending“ und damit unscharf
+        }
+      }
+    }
+    setState(img, 'ok');
+  }
+
+  function releaseHeld(block) {
+    const set = kiHold.get(block);
+    if (!set) return;
+    kiHold.delete(block);
+    for (const img of set) if (img.isConnected && getState(img) === 'pending') setState(img, 'ok');
   }
 
   function onOcrError(img) {
@@ -1330,7 +1371,8 @@
         const b = blocks[i];
         if (!b.isConnected || !b.dataset.sfHit) return;
         if (neverToneMatcher().find(blockText(b))) return;
-        if (!r.veto) {
+        if (b.__sfOwn && !r.wishVeto) return; // eigenes Schlagwort: weder Gegenprüfung noch Gemini Nano
+        if (!r.veto && !(b.__sfOwn && r.wishVeto)) {
           // Knapp nicht harmlos genug: Chromes eingebautes Modell darf noch einmal urteilen.
           if (r.unsure && settings.nanoCheck && !nanoUnavailable) { nanoQueue.add(b); flushNano(); }
           return;
@@ -1481,7 +1523,7 @@
     const visible = live.filter(inView);
     const prio = visible.length > 0;
     const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
-    for (const b of blocks) semQueue.delete(b);
+    for (const b of blocks) { semQueue.delete(b); semInflight.add(b); }
     semBusy = true;
     const gen = generation;
     let res = null;
@@ -1489,8 +1531,9 @@
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
     semBusy = false;
+    for (const b of blocks) semInflight.delete(b);
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
-    if (gen !== generation || !active) { if (active) flushSem(); return; }
+    if (gen !== generation || !active) { for (const b of blocks) releaseHeld(b); if (active) flushSem(); return; }
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
@@ -1500,8 +1543,10 @@
     } else if (res && isOffError(res.error)) {
       semUnavailable = true;
       semQueue.clear();
+      for (const b of [...kiHold.keys()]) releaseHeld(b);
       return;
     }
+    for (const b of blocks) releaseHeld(b); // Treffer: Block ist ohnehin unscharf
     if (semQueue.size) flushSem();
   }
 
@@ -2003,11 +2048,15 @@
     if (opts.why) block.dataset.sfWhy = opts.why;
     // Schlagwort-Treffer mit dem Sprachmodell gegenprüfen (bleibt bis dahin unscharf).
     if (settings.semantic && settings.semanticVeto && !semUnavailable && !opts.noTone && isKeywordReason(kw)) {
+      // Eigene Schlagwörter: nur ein „Will ich trotzdem sehen“-Wunsch darf sie aufdecken.
+      if (ownMatcher && !ownMatcher.empty && ownMatcher.find(blockText(block))) block.__sfOwn = true;
       vetoQueue.add(block);
       scheduleVeto();
     }
     // Gute Nachrichten trotz Thema: Ton nachträglich prüfen (bleibt bis dahin unscharf).
-    if (settings.positiveShow && !toneUnavailable && !opts.noTone && !NO_TONE_REASONS.has(kw)) {
+    // Eigene Schlagwörter nie: wer „Tesla“ einträgt, will auch freundliche Tesla-Meldungen nicht sehen.
+    if (settings.positiveShow && !toneUnavailable && !opts.noTone && !NO_TONE_REASONS.has(kw) &&
+      !(ownMatcher && !ownMatcher.empty && ownMatcher.find(blockText(block)))) {
       toneQueue.add(block);
       scheduleTone();
     }

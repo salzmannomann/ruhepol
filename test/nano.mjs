@@ -55,7 +55,8 @@ async function main() {
   try {
     await sw.evaluate(() => chrome.storage.local.set({ semModel: 'test/tiny', nanoFake: true }));
     await setSettings(sw, {
-      keywords: ['Krieg'], presets: ['krieg'], display: 'blur', learn: false, revealHold: false,
+      // „Krieg“ kommt aus der Liste (eigene Schlagwörter deckt nur ein Wunsch auf, siehe unten).
+      keywords: [], presets: ['krieg'], display: 'blur', learn: false, revealHold: false,
       semantic: true, semanticVeto: true, nanoCheck: true, wishNo: [], wishYes: [],
     });
     const page = await ctx.newPage();
@@ -105,6 +106,19 @@ async function main() {
       assert.equal(await blurred(page, '#n-theater'), false);
       assert.equal(await blurred(page, '#n-klar'), true);
       await setSettings(sw, { wishYes: [] });
+    });
+
+    await step('Eigenes Schlagwort: Gemini Nano deckt nicht auf, ein Wunsch „will ich trotzdem sehen“ schon', async () => {
+      await setSettings(sw, { keywords: ['Krieg'], wishNo: [], wishYes: [] });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#n-konzert').classList.contains('sf-blurred'), null, { timeout: 15000 });
+      await page.waitForTimeout(2500);
+      assert.equal(await blurred(page, '#n-konzert'), true, 'Gemini Nano hat ein eigenes Schlagwort aufgedeckt');
+      await setSettings(sw, { wishYes: ['Krieg und Theater'] });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#n-theater').dataset.sfVeto !== undefined, null, { timeout: 15000 });
+      assert.equal(await blurred(page, '#n-theater'), false);
+      await setSettings(sw, { keywords: [], wishYes: [] });
     });
 
     await step('Einstellungsseite: Wünsche speichern, Status des Chrome-Modells', async () => {

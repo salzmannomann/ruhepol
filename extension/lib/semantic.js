@@ -213,7 +213,10 @@
     const vetoMargin = good - badTopic;
     const veto = canVeto && vetoMargin >= cfg.veto;
     const unsure = canVeto && !veto && vetoMargin >= cfg.veto - (cfg.unsure || 0);
-    return { hide, veto, unsure, bad: round(bad), good: round(good) };
+    // Nur über „Will ich trotzdem sehen“ harmlos (für eigene Schlagwörter: die allgemeine
+    // Einschätzung zählt dort nicht, ein ausdrücklicher Wunsch schon).
+    const wishVeto = canVeto && !!(ref.wishYes && ref.wishYes.length) && maxSim(vec, ref.wishYes) - badTopic >= cfg.veto;
+    return { hide, veto, unsure, wishVeto, bad: round(bad), good: round(good) };
   }
 
   /**

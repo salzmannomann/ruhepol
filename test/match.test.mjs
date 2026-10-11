@@ -456,3 +456,10 @@ test('KI-Text: Bildquelle ab © und doppelte Teaser-Fassung werden entfernt', ()
     'Nächster Angriff auf Flughafen Riad Satellitenbild vom Flughafen in Riad');
   assert.equal(S.cleanText('Herbstfest im Stadtpark mit Musik und Spielen'), 'Herbstfest im Stadtpark mit Musik und Spielen');
 });
+
+test('Eigene Schlagwörter treffen einfache Endungen („Tesla“ → „Teslas“), nicht andere Wörter', () => {
+  const m = compile(S.ownKeywordForms(['Tesla', 'Hitzewelle*', 'Formel 1']));
+  assert.ok(m.find('Teslas Umfeld baut weiter an Verbindungen zur Republika Srpska'));
+  assert.ok(m.find('Formel 1 in Spa'));
+  assert.equal(m.find('Teslaf ausgespielt'), null);
+});

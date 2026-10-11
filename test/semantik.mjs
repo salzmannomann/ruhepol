@@ -44,6 +44,29 @@ async function main() {
       });
     });
 
+    await step('KI-Teaser mit Bild: Bild wird nicht scharf, bevor die KI über den Teaser entschieden hat', async () => {
+      const p = await ctx.newPage();
+      // Langsame KI nachstellen (wie auf großen Seiten): jede KI-Anfrage 6 s verzögern.
+      await sw.evaluate(() => { globalThis.__semDelay = 6000; });
+      await p.addInitScript(() => {
+        window.__early = [];
+        new MutationObserver((recs) => {
+          for (const r of recs) {
+            const img = r.target;
+            if (img.tagName !== 'IMG' || img.dataset.sf !== 'ok') continue;
+            const block = img.closest('article');
+            if (!block.dataset.sfHit) window.__early.push(img.id);
+          }
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-sf'] });
+      });
+      await p.goto(srv.base + '/semantik-bild.html');
+      await p.waitForFunction(() => document.querySelector('#b-klima').dataset.sfHit === 'Bedeutung', null, { timeout: 20000 });
+      await p.waitForFunction(() => document.querySelector('#b-img2').dataset.sf === 'ok', null, { timeout: 20000 });
+      await sw.evaluate(() => { globalThis.__semDelay = 0; });
+      assert.deepEqual(await p.evaluate(() => window.__early.filter((id) => id === 'b-img')), [], 'Bild des KI-Treffers war vorher scharf');
+      await p.close();
+    });
+
     await step('Ohne Schlagwort: Klima-Artikel über Themen-Beschreibung erkannt', async () => {
       await page.goto(srv.base + '/semantik.html');
       await hidden(page, '#s-klima');
@@ -84,6 +107,16 @@ async function main() {
       assert.ok(!(await visible(page, '#s-suizid')), 'Suizid-Erwähnung darf nie aufgedeckt werden');
     });
 
+    await step('Gute Nachricht mit eigenem Schlagwort bleibt unscharf', async () => {
+      await setSettings(sw, { keywords: ['Waffenstillstand'] });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#s-frieden').dataset.sfHit, null, { timeout: 15000 });
+      await page.waitForTimeout(2500);
+      assert.equal(await page.evaluate(() => document.querySelector('#s-frieden').dataset.sfPositive), undefined);
+      assert.ok(!(await visible(page, '#s-frieden')), 'eigenes Schlagwort wegen guten Tons aufgedeckt');
+      await setSettings(sw, { keywords: [] });
+    });
+
     await step('Ohne die Option bleiben alle Treffer unscharf', async () => {
       await setSettings(sw, { positiveShow: false });
       await page.reload();
@@ -93,23 +126,26 @@ async function main() {
       await setSettings(sw, { semantic: true, presets: ['klima'] });
     });
 
-    await step('KI-Gegenprüfung: harmloser Schlagwort-Treffer wird wieder gezeigt', async () => {
-      await setSettings(sw, { keywords: ['Museum', 'Gletscher'], presets: ['klima'], semantic: true, semanticVeto: true, positiveShow: false });
+    await step('KI-Gegenprüfung: harmloser Listen-Treffer wird wieder gezeigt, eigene Schlagwörter nie', async () => {
+      await setSettings(sw, { keywords: ['Museum'], presets: ['klima'], semantic: true, semanticVeto: true, positiveShow: false });
       await page.reload();
-      // „Konzert im Museum“ trifft das Schlagwort, liegt aber klar bei „Kultur“ → wieder sichtbar.
-      await page.waitForFunction(() => document.querySelector('#s-kultur').dataset.sfVeto !== undefined, null, { timeout: 15000 });
-      assert.ok(await visible(page, '#s-kultur'));
-      // „Gletscher schmelzen …“ trifft ebenfalls, liegt aber beim Thema Klima → bleibt unscharf.
+      // „Konzert und Theater: Musik ist CO2 neutral“ trifft „CO2“ (Liste Klima), liegt aber klar bei „Kultur“ → wieder sichtbar.
+      await page.waitForFunction(() => document.querySelector('#s-veto').dataset.sfVeto !== undefined, null, { timeout: 15000 });
+      assert.ok(await visible(page, '#s-veto'));
+      // „Gletscher schmelzen …“ liegt beim Thema Klima → bleibt unscharf.
       await page.waitForTimeout(500);
       assert.ok(!(await visible(page, '#s-klima')));
+      // „Konzert im Museum“ trifft das eigene Schlagwort „Museum“ → bleibt unscharf, obwohl harmlos.
+      assert.ok(!(await visible(page, '#s-kultur')), 'eigenes Schlagwort wurde aufgedeckt');
+      assert.equal(await page.evaluate(() => document.querySelector('#s-kultur').dataset.sfVeto), undefined);
     });
 
     await step('Ohne Gegenprüfung bleibt auch der harmlose Treffer unscharf', async () => {
       await setSettings(sw, { semanticVeto: false });
       await page.reload();
-      await page.waitForFunction(() => document.querySelector('#s-kultur').dataset.sfHit, null, { timeout: 15000 });
+      await page.waitForFunction(() => document.querySelector('#s-veto').dataset.sfHit, null, { timeout: 15000 });
       await page.waitForTimeout(1000);
-      assert.ok(!(await visible(page, '#s-kultur')));
+      assert.ok(!(await visible(page, '#s-veto')));
       await setSettings(sw, { keywords: [], semanticVeto: true });
     });
 
