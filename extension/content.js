@@ -303,6 +303,7 @@
     startEager();
     enqueue(document.documentElement);
     eagerScan([document.documentElement], EAGER_START_BUDGET_MS);
+    scheduleFastLane();
     applyZones();
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => { if (active) { enqueue(document.documentElement); applyZones(); } }, { once: true });
@@ -329,6 +330,8 @@
   function teardown() {
     active = false;
     eagerOpen = false;
+    clearTimeout(fastTimer);
+    fastTimer = null;
     clearTimeout(preTimer);
     clearStalePre();
     if (observer) observer.disconnect();
@@ -1136,28 +1139,68 @@
     const budget = () => (deadline.didTimeout ? IDLE_BUDGET_MS - (performance.now() - start) : deadline.timeRemaining());
     for (const el of learnCandidates) {
       learnCandidates.delete(el);
-      if (!el.isConnected || closestDeep(el, '[data-sf-hit], [data-sf-revealed], .sf-placeholder')) continue;
-      const heading = /^H[1-6]$/.test(el.tagName);
-      const block = heading ? findBlock(el) : el;
-      if (scoredBlocks.has(block) || clearedBlocks.has(block)) continue;
-      if (!heading && !blockOk(block)) continue;
-      if (trustedPage && inTrustedArea(block)) continue; // bewusst geöffneter Artikel
-      scoredBlocks.add(block);
-      const text = blockText(block);
-      if (text.length >= 25) {
-        const s = learningHides() ? L.score(model, text) : null;
-        if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
-          hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true, why: 'gelernt' });
-        } else if (semanticOn() && wordCount(text) >= SEM_MIN_WORDS) {
-          // Sehr kurze Texte (Bildnachweise, Rubriknamen) liegen beim Modell zufällig nah an allem.
-          semQueue.add(block);
-        }
-      }
+      learnOne(el, false);
       if (budget() <= 1) break;
     }
     if (learnCandidates.size) learnHandle = requestIdle(learnWork);
     flushSem();
     reportCount();
+  }
+
+  /**
+   * Einen Kandidaten an Lernfilter bzw. Sprachmodell geben. fast: Überholspur beim Laden – der
+   * Textscan war noch nicht da. Dann nur fertige Teaser ohne Schlagwort (die übernimmt gleich der
+   * Textscan) und nichts als erledigt merken, was noch unvollständig sein könnte.
+   */
+  function learnOne(el, fast) {
+    if (!el.isConnected || closestDeep(el, fast ? '[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-pre' : '[data-sf-hit], [data-sf-revealed], .sf-placeholder')) return;
+    const heading = /^H[1-6]$/.test(el.tagName);
+    const block = heading ? findBlock(el) : el;
+    if (scoredBlocks.has(block) || clearedBlocks.has(block)) return;
+    if (!heading && !blockOk(block)) return;
+    if (trustedPage && inTrustedArea(block)) return; // bewusst geöffneter Artikel
+    const text = blockText(block);
+    if (fast && (text.length < 25 || wordCount(text) < SEM_MIN_WORDS || matcher.find(text))) return;
+    scoredBlocks.add(block);
+    if (text.length >= 25) {
+      const s = learningHides() ? L.score(model, text) : null;
+      if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
+        hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true, why: 'gelernt' });
+      } else if (semanticOn() && wordCount(text) >= SEM_MIN_WORDS) {
+        // Sehr kurze Texte (Bildnachweise, Rubriknamen) liegen beim Modell zufällig nah an allem.
+        semQueue.add(block);
+      }
+    }
+  }
+
+  /*
+   * Überholspur beim Laden: Der Textscan läuft nur im Leerlauf, und den hat eine große
+   * Nachrichtenseite beim Aufbau oft erst nach Sekunden (gemessen kurier.at: erster Teaser nach
+   * 4 s geprüft, das Modell selbst brauchte dann 0,8 s). Darum alle 300 ms die sichtbaren Teaser
+   * direkt nehmen, je höchstens 6 ms, bis die Seite geladen ist (längstens 15 s).
+   */
+  const FAST_EVERY_MS = 300;
+  const FAST_BUDGET_MS = 6;
+  const FAST_MAX_MS = 15000;
+  let fastTimer = null;
+
+  function scheduleFastLane() {
+    if (fastTimer || !active || window !== window.top) return;
+    fastTimer = setTimeout(fastLane, FAST_EVERY_MS);
+  }
+
+  function fastLane() {
+    fastTimer = null;
+    if (!active || !semanticOn() || semUnavailable || !learnHandleable() || !matcher) return;
+    const start = performance.now();
+    let n = 0;
+    for (const el of document.querySelectorAll(LEARN_CANDIDATES)) {
+      if (++n % 16 === 0 && performance.now() - start > FAST_BUDGET_MS) break;
+      if (!inView(el)) continue;
+      learnOne(el, true);
+    }
+    flushSem();
+    if (performance.now() < FAST_MAX_MS && document.readyState !== 'complete') scheduleFastLane();
   }
 
   /* ---------------- KI-Gegenprüfung von Schlagwort-Treffern ---------------- */
