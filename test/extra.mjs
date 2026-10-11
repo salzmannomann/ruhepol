@@ -325,14 +325,14 @@ async function main() {
     });
 
     await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {
-      await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck', 'krankheit', 'wirtschaft'], display: 'blur', learn: false });
+      await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck', 'krankheit', 'wirtschaft'], display: 'blur', learn: false, ocr: false });
       const p = await ctx.newPage();
       await p.goto(srv.base + '/oberflaeche.html');
       await p.waitForFunction(() => document.querySelector('#std-teaser').closest('[data-sf-hit]'), null, { timeout: 10000 });
       await p.waitForTimeout(500);
       const state = await p.evaluate(() => Object.fromEntries(
-        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ticker', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'ok-teaser', 'promo']
-          .map((id) => [id, !!document.getElementById(id).closest('[data-sf-hit]')])));
+        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ticker', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'credit', 'caption', 'foto-label', 'ok-teaser', 'promo']
+          .map((id) => { const el = document.getElementById(id); return [id, !!(el.closest('[data-sf-hit]') || el.querySelector('[data-sf-hit]'))]; })));
       assert.deepEqual(state, {
         'nav-krieg': false, 'nav-terror': false, // Menüpunkte
         'nav-teaser': true, // Teaser im Menü (ganzer Satz)
@@ -346,6 +346,9 @@ async function main() {
         'kurz-meldung': true, // kurzer Link auf eine Meldung (tagesschau.de: …-102.html)
         leserbrief: true, // Kennung aus Buchstaben und Ziffern (krone.at: /das-freie-wort/6ac98…)
         'kurz-teaser': true, // Kurz-Teaser mit Artikelnummer (heute.at)
+        credit: false, // Bildquelle „© Foto: … Amt Klimaneutrale Stadt“ ist keine Meldung (nextroom.at)
+        caption: true, // Bildunterschrift vor der Quellenangabe zählt weiter
+        'foto-label': true, // „Foto: …“ als Beschriftung zählt weiter
         'ok-teaser': false,
         promo: false, // kurzer Hinweis in der Fußzeile der Seite
       });

@@ -871,13 +871,25 @@
     return items.length >= 6 && items.every((x) => x.split(/\s+/).length <= 3);
   }
 
+  /**
+   * Bildquelle („© Foto: Stadt Innsbruck, Amt Klimaneutrale Stadt“) ist keine Meldung: ab ©,
+   * „(c)“ oder „Copyright“ bis zum Ende weglassen. Bewusst nicht bei „Foto:“ allein – das leitet
+   * manchmal auch eine Bildbeschreibung ein („Foto: Zerstörte Häuser nach Luftangriff“).
+   */
+  const CREDIT = /(?:^|\s|\()(?:©|\(c\)|copyright\b)/i;
+  function withoutCredit(text) {
+    const t = String(text || '');
+    const m = CREDIT.exec(t);
+    return m ? t.slice(0, m.index) : t;
+  }
+
   function imageContextText(img) {
     const parts = [img.getAttribute('alt'), img.getAttribute('title'), img.getAttribute('aria-label')]
-      .filter((t) => !isTagList(t));
+      .filter((t) => !isTagList(t)).map(withoutCredit);
     const fig = img.closest('figure');
     if (fig) {
       const cap = fig.querySelector('figcaption');
-      if (cap) parts.push(cap.textContent);
+      if (cap) parts.push(withoutCredit(cap.textContent));
     }
     return parts.filter(Boolean).join(' \n ');
   }
