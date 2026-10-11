@@ -419,3 +419,21 @@ test('Krieg und Verbrechen erkennen Todesmeldungen auch ohne die Liste „Unglü
   assert.equal(m.find('Russische Angriffslust im Eishockey'), null);
   assert.equal(m.find('Frühstück im Stiegenhaus'), null);
 });
+
+test('Seitenart: eingebaute Listen, eigene Einstufung, unbekannt = Nachrichtenseite', () => {
+  const K = require('../extension/lib/sitekind.js');
+  assert.equal(K.classify('www.willhaben.at'), 'calm');
+  assert.equal(K.classify('www.amazon.de'), 'calm');
+  assert.equal(K.classify('wien.orf.at'), 'news');
+  assert.equal(K.classify('www.heise.de'), 'news', 'unbekannt gilt als Nachrichtenseite');
+  assert.equal(K.classify('willhaben.at', { 'willhaben.at': 'news' }), 'news');
+  assert.equal(K.classify('shop.example.com', { 'example.com': 'calm' }), 'calm');
+  for (const h of K.CALM) assert.equal(K.hostKind(h), 'calm', h + ' steht auch in NEWS');
+});
+
+test('Einstellungen: Seitenart wird bereinigt', () => {
+  const S = require('../extension/lib/settings.js');
+  assert.deepEqual(S.sanitize({ siteKinds: { 'https://www.Orf.at/x': 'calm', 'a.at': 'egal', b: 1 } }).siteKinds, { 'orf.at': 'calm' });
+  assert.equal(S.sanitize({}).calmImages, true);
+  assert.equal(S.sanitize({ calmImages: false }).calmImages, false);
+});

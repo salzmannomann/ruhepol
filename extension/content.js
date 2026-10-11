@@ -47,7 +47,13 @@
       color: #444 !important; font: 14px/1.4 system-ui, sans-serif !important; cursor: pointer !important; }
     .sf-pick { outline: 3px dashed #3d5afe !important; outline-offset: 2px !important; }`;
 
+  // Auf Nicht-Nachrichtenseiten nur fertige Treffer und Fehler unscharf (siehe content.css).
+  const SHADOW_CSS_CALM = SHADOW_CSS.replace(
+    'img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],\n    [data-sf-bg="pending"], [data-sf-bg="err"]',
+    'img[data-sf="hit"], img[data-sf="err"], [data-sf-bg="err"]');
+
   let settings = null;
+  let calmSite = false; // Nicht-Nachrichtenseite: Bilder sofort zeigen (lib/sitekind.js)
   let matcher = null;
   let mildMatcher = null; // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
   let strongMatcher = null; // alles andere inkl. eigener Schlagwörter
@@ -288,6 +294,11 @@
     generation++;
     document.documentElement.classList.add('sf-active');
     document.documentElement.style.setProperty('--sf-min-w', settings.minWidth + 'px');
+    // In eingebetteten Frames zählt die Hauptseite (Werbe-Frames fremder Seiten: deren Host).
+    const topHost = window.top !== window ? (safeTopHost() || host) : host;
+    calmSite = settings.calmImages && globalThis.SFSiteKind.classify(topHost, settings.siteKinds) === 'calm';
+    document.documentElement.classList.toggle('sf-calm', calmSite);
+    if (shadowSheet) shadowSheet.replaceSync(calmSite ? SHADOW_CSS_CALM : SHADOW_CSS);
 
     io = new IntersectionObserver(onIntersect, { rootMargin: OCR_MARGIN });
     observer = new MutationObserver(onMutations);
@@ -366,7 +377,7 @@
     document.removeEventListener('pointerdown', onPendingDown, true);
     document.removeEventListener('click', onPendingClick, true);
     document.removeEventListener(SHADOW_EVENT, onShadowAttached, true);
-    document.documentElement.classList.remove('sf-active');
+    document.documentElement.classList.remove('sf-active', 'sf-calm');
     for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback')) el.remove();
     cancelHold();
     for (const el of document.querySelectorAll('[data-sf-hit]')) {
@@ -462,7 +473,7 @@
     try {
       if (!shadowSheet) {
         shadowSheet = new CSSStyleSheet();
-        shadowSheet.replaceSync(SHADOW_CSS);
+        shadowSheet.replaceSync(calmSite ? SHADOW_CSS_CALM : SHADOW_CSS);
       }
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, shadowSheet];
     } catch (_) { /* ältere Browser */ }

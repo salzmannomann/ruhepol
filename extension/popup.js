@@ -22,6 +22,14 @@
     $('host').textContent = host || 'nicht verfügbar';
     $('site').disabled = !host || !settings.enabled;
     $('site').checked = !!host && S.isActiveOn(Object.assign({}, settings, { enabled: true }), host);
+    // Nachrichtenseite oder nicht: entscheidet, ob Bilder bis zur Prüfung unscharf sind.
+    const K = globalThis.SFSiteKind;
+    const news = !host || K.classify(host, settings.siteKinds) === 'news';
+    $('kindRow').hidden = !host || !settings.enabled || !settings.calmImages || !$('site').checked;
+    $('kind').checked = news;
+    $('kindInfo').textContent = news
+      ? 'Bilder bleiben unscharf, bis sie geprüft sind'
+      : 'Keine Nachrichtenseite: Bilder sofort sichtbar, im Hintergrund geprüft';
     const n = settings.keywords.length;
     const p = settings.presets.length;
     $('kwInfo').textContent = (n === 1 ? '1 eigenes Schlagwort' : `${n} eigene Schlagwörter`) + (p ? ` + ${p} Listen` : '');
@@ -49,6 +57,18 @@
 
   $('site').addEventListener('change', async (e) => {
     settings = await S.save({ siteList: S.toggleHost(settings, host, e.target.checked) });
+    render();
+  });
+
+  $('kind').addEventListener('change', async (e) => {
+    const K = globalThis.SFSiteKind;
+    const h = S.normalizeHost(host);
+    const kinds = Object.assign({}, settings.siteKinds);
+    const want = e.target.checked ? 'news' : 'calm';
+    // Eintrag nur, wenn er von der eingebauten Einstufung abweicht.
+    delete kinds[h];
+    if (K.classify(h, kinds) !== want) kinds[h] = want;
+    settings = await S.save({ siteKinds: kinds });
     render();
   });
 

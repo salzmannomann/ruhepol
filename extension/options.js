@@ -110,6 +110,7 @@
     $('minWidth').value = s.minWidth;
     $('minHeight').value = s.minHeight;
     $('ocr').checked = s.ocr;
+    $('calmImages').checked = s.calmImages;
     $('partial').checked = s.partial;
     $('fuzzy').checked = s.fuzzy;
     $('onError').value = s.onError;
@@ -145,6 +146,7 @@
       minWidth: $('minWidth').value === '' ? null : Number($('minWidth').value),
       minHeight: $('minHeight').value === '' ? null : Number($('minHeight').value),
       ocr: $('ocr').checked,
+      calmImages: $('calmImages').checked,
       partial: $('partial').checked,
       fuzzy: $('fuzzy').checked,
       onError: $('onError').value,
