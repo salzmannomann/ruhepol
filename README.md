@@ -438,6 +438,13 @@ Die Kette selbst ist zusätzlich mit einem winzigen Testmodell automatisch getes
 
 ### KI-Gegenprüfung von Schlagwort-Treffern
 
+**Eigene Schlagwörter (seit 1.29.4, „gute Nachrichten“ seit 1.29.5):** Treffer eigener
+Schlagwörter deckt weder die allgemeine Gegenprüfung noch Gemini Nano noch „Gute Nachrichten
+trotzdem zeigen“ auf – wer „Trump“ einträgt, will das auch dann nicht sehen, wenn die
+KI die Meldung als Politik für neutral hält. Nur ein eigener Wunsch „Will ich trotzdem sehen“ darf
+sie aufdecken (beides sind ausdrückliche Vorgaben). Außerdem treffen eigene Schlagwörter ohne `*` einfache Endungen mit („Trump“ → „Trumps“,
+„Krieg“ → „Krieges“; Endungen -s, -es, -n, -en).
+
 Ist der Bedeutungs-Filter an, prüft das Modell Schlagwort-Treffer zusätzlich gegen
 (abschaltbar unter Erkennung → „Schlagwort-Treffer gegenprüfen“). Liegt der Text klar näher
 an neutralen Themen (Sport, Kultur, Alltag …) als an den gesperrten Themen und deinen
@@ -588,6 +595,14 @@ bevor Ruhepol sie unscharf stellte. Drei Änderungen verhindern das:
 
 Treffer weiter unten auf der Seite werden teils erst später erkannt, sind aber unscharf, bevor
 man dorthin scrollt.
+
+**Bilder warten auf die KI (seit 1.29.3):** Ein Bild ohne Treffer wird erst freigegeben, wenn auch
+die KI über seinen Teaser entschieden hat (längstens 8 s). Vorher wurde etwa auf nachrichten.at
+ein Unfallfoto nach der Texterkennung scharf und erst danach mit dem Teaser unscharf, wenn nur die
+KI die Schlagzeile erkannte. Nachgestellt in `test/semantik.mjs` (KI künstlich verlangsamt; mit
+1.29.2 war das Bild vorher scharf, jetzt nicht). Preis, gemessen mit eingeschalteter KI (erster
+Besuch, sichtbare Bilder, Median): orf.at 1,5 → 2,1 s bzw. 1,3 → 3,7 s, derStandard 2,0 → 2,8 s
+bzw. 2,7 → 2,7 s bis harmlose Bilder scharf sind. Ohne KI ändert sich nichts.
 
 ### Nur Inhalte, nicht die Bedienoberfläche
 
