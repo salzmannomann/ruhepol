@@ -206,18 +206,26 @@
   async function init() {
     // Nur HTML-Dokumente (keine XML-Ansichten wie RSS/Sitemaps: dort fehlen style und dataset).
     if (!(document.documentElement instanceof HTMLElement)) return;
+    // Bis die Einstellungen geladen sind, Bilder schon unscharf (sonst blitzen sie kurz auf).
+    // apply() hebt das gleich wieder auf; Sicherheitsnetz, falls etwas hängt.
+    document.documentElement.classList.add('sf-boot');
+    bootTimer = setTimeout(endBoot, BOOT_MAX_MS);
     const [s, local] = await Promise.all([S.load(), chrome.storage.local.get('model')]);
     settings = s;
     model = local.model || null;
-    // Über einen sichtbaren Teaser geöffnet? Vor dem ersten Ausblenden klären (nur Hauptseite).
-    if (settings.trustOpened && window === window.top) {
-      try {
-        const r = await withTimeout(chrome.runtime.sendMessage({ type: 'isTrusted', url: location.href }), 400);
-        trustedPage = !!(r && r.trusted);
-      } catch (_) { /* dann normal filtern */ }
-    }
     for (const type of ['click', 'auxclick', 'contextmenu']) document.addEventListener(type, onLinkIntent, true);
+    // Sofort filtern – nicht erst auf den Hintergrund warten (der muss oft erst aufwachen, und so
+    // lange blitzten Teaser kurz auf). Über einen sichtbaren Teaser geöffnet? Dann werden
+    // automatische Treffer im Artikel danach wieder aufgedeckt (nur Hauptseite).
     apply();
+    if (settings.trustOpened && window === window.top) {
+      withTimeout(chrome.runtime.sendMessage({ type: 'isTrusted', url: location.href }), 3000).then((r) => {
+        if (!(r && r.trusted) || !active) return;
+        trustedPage = true;
+        for (const b of [...hitBlocks]) if (AUTO_WHY.has(b.dataset.sfWhy) && inTrustedArea(b)) unhide(b);
+        reportCount();
+      }).catch(() => { /* dann normal filtern */ });
+    }
     // Sprachmodell und Bezugstexte schon laden, während die Seite noch aufbaut.
     if (active && semanticOn()) chrome.runtime.sendMessage({ type: 'semWarm' }).catch(() => {});
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -244,7 +252,16 @@
     });
   }
 
+  function endBoot() {
+    clearTimeout(bootTimer);
+    document.documentElement.classList.remove('sf-boot');
+  }
+
   function apply() {
+    try { applyNow(); } finally { endBoot(); }
+  }
+
+  function applyNow() {
     teardown();
     const host = location.hostname || (window.top !== window ? safeTopHost() : '');
     const keywords = S.allKeywords(settings);
@@ -282,8 +299,10 @@
     document.addEventListener(SHADOW_EVENT, onShadowAttached, true);
     window.addEventListener('load', sweepShadowsSoon, { once: true });
 
-    // Bilder sofort markieren, Text dann im Leerlauf prüfen.
+    // Bilder sofort markieren, vorhandenen Text gleich prüfen (Rest im Leerlauf).
+    startEager();
     enqueue(document.documentElement);
+    eagerScan([document.documentElement], EAGER_START_BUDGET_MS);
     applyZones();
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => { if (active) { enqueue(document.documentElement); applyZones(); } }, { once: true });
@@ -309,6 +328,9 @@
 
   function teardown() {
     active = false;
+    eagerOpen = false;
+    clearTimeout(preTimer);
+    clearStalePre();
     if (observer) observer.disconnect();
     if (io) io.disconnect();
     observer = io = null;
@@ -455,6 +477,78 @@
     : (cb) => setTimeout(() => cb({ timeRemaining: () => IDLE_BUDGET_MS, didTimeout: true }), 16);
   const cancelIdle = window.cancelIdleCallback || clearTimeout;
 
+  /*
+   * Neue Inhalte sofort prüfen (gegen kurzes Aufblitzen von Texten): Mutation-Callbacks laufen,
+   * bevor der Browser zeichnet. Solange die Seite lädt, mit großzügigem Zeitbudget, danach mit
+   * kleinem (nachgeladene Teaser, z. B. der Videobereich auf orf.at); der Rest läuft im Leerlauf.
+   */
+  const BOOT_MAX_MS = 3000;
+  const EAGER_START_BUDGET_MS = 20;
+  const EAGER_LOADING_BUDGET_MS = 20;
+  const EAGER_BUDGET_MS = 8;
+  let bootTimer = null;
+  let eagerOpen = false;
+
+  function startEager() { eagerOpen = true; }
+  function eagerBudget() { return document.readyState === 'loading' ? EAGER_LOADING_BUDGET_MS : EAGER_BUDGET_MS; }
+
+  /**
+   * Knoten sofort prüfen – nur den Text, ohne Layout-Abfragen (die sind beim Laden teuer, weil
+   * der Browser dafür die halbfertige Seite neu setzen muss). Bei einem Treffer wird der
+   * umgebende Teaser vorsorglich unscharf (sf-pre); die genaue Entscheidung (welcher Block,
+   * Ausnahmen, Gegenprüfung) folgt im Leerlauf und hebt die Vorsorge wieder auf.
+   */
+  const PRE_BLOCKS = 'h1, h2, h3, h4, h5, h6, p, a';
+  const PRE_MAX_MS = 3000;
+  const preBlurred = new Set();
+  let preTimer = null;
+
+  function eagerScan(nodes, budgetMs) {
+    if (!active || !matcher) return;
+    const start = performance.now();
+    for (const node of nodes) {
+      if (!node.isConnected) continue;
+      if (node.nodeType === 3) { preCheck(node); continue; }
+      if (node.nodeType !== 1 && node.nodeType !== 9) continue;
+      const walker = scanNode(node);
+      if (!walker) continue;
+      let n, i = 0;
+      while ((n = walker.nextNode())) {
+        if (n.nodeType === 3) preCheck(n);
+        if (++i % 64 === 0 && performance.now() - start > budgetMs) return;
+      }
+      if (performance.now() - start > budgetMs) return;
+    }
+  }
+
+  function preCheck(textNode) {
+    const el = textNode.parentElement;
+    if (!el || SKIP_TAGS.has(el.tagName.toUpperCase()) || !matcher.find(textNode.nodeValue)) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed], .sf-pre')) return;
+    const para = el.closest('p');
+    const pre = (para && para.parentElement && para.parentElement.querySelectorAll(':scope > p').length >= 3 && !inTeaserCard(para) ? para : null) ||
+      el.closest('article, li, figure') || el.closest(PRE_BLOCKS) || el;
+    if (pre === document.body || pre === document.documentElement) return;
+    pre.classList.add('sf-pre');
+    preBlurred.add(pre);
+    // Sicherheitsnetz: Vorsorge nie dauerhaft stehen lassen.
+    if (!preTimer) preTimer = setTimeout(clearStalePre, PRE_MAX_MS);
+  }
+
+  /** Genaue Entscheidung für diesen Text ist gefallen: Vorsorge des umgebenden Blocks aufheben. */
+  function endPre(el) {
+    const pre = el && el.closest('.sf-pre');
+    if (!pre) return;
+    pre.classList.remove('sf-pre');
+    preBlurred.delete(pre);
+  }
+
+  function clearStalePre() {
+    preTimer = null;
+    for (const p of preBlurred) p.classList.remove('sf-pre');
+    preBlurred.clear();
+  }
+
   function enqueue(node) {
     if (!active || !node) return;
     // Bilder sofort unscharf stellen (nicht erst im Leerlauf).
@@ -495,6 +589,16 @@
   }
 
   function onMutations(records) {
+    if (eagerOpen) {
+      // Neue Texte prüfen, bevor der Browser sie zeichnet; was nicht ins Zeitbudget passt, läuft
+      // normal weiter.
+      const nodes = [];
+      for (const r of records) {
+        if (r.type === 'childList') for (const n of r.addedNodes) { if ((n.nodeType === 1 && !isOwn(n)) || n.nodeType === 3) nodes.push(n); }
+        else if (r.type === 'characterData') nodes.push(r.target);
+      }
+      if (nodes.length) eagerScan(nodes, eagerBudget());
+    }
     for (const r of records) mutationBuffer.push(r);
     // Bilder dürfen nicht kurz scharf aufblitzen: neue <img> sofort markieren.
     for (const r of records) {
@@ -577,10 +681,14 @@
 
   function checkText(el, text) {
     if (!el || !text || !matcher) return;
-    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed]')) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed]')) { endPre(el); return; }
     if (SKIP_TAGS.has(el.tagName.toUpperCase())) return;
     const kw = matcher.find(text);
     if (!kw) return;
+    try { decideText(el, kw); } finally { endPre(el); }
+  }
+
+  function decideText(el, kw) {
     const block = findBlock(el);
     if (isArticleParagraph(block) && onlyOneMildHit(block)) {
       // Einzelner Treffer aus einer milden Liste mitten im Fließtext (z. B. „Massenentlassungen“

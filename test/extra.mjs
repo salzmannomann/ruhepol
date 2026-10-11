@@ -349,6 +349,9 @@ async function main() {
         'ok-teaser': false,
         promo: false, // kurzer Hinweis in der Fußzeile der Seite
       });
+      // Vorsorgliche Unschärfe beim Laden (sf-pre) bleibt nirgends hängen – auch nicht bei
+      // Menüpunkten, die danach als Bedienoberfläche freigegeben werden.
+      assert.equal(await p.evaluate(() => document.querySelectorAll('.sf-pre').length), 0);
       await p.close();
     });
 
