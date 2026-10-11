@@ -583,6 +583,11 @@ Weiter gefiltert werden:
   Teasers in ein `<header>`.
 - **Bilder im Seitenkopf.** Ausgenommen sind nur Symbole in Knöpfen.
 
+Gezählt werden dabei nur sichtbare Wörter (seit 1.28.1). Unsichtbare Hinweise für
+Bildschirmleser und Bildbeschreibungen zählen nicht mehr: Auf amazon.de machte ein Knopf
+„Rufus“ mit unsichtbarem Text „… KI-Shopping-Assistent …“ die Leiste „Rufus / Prime entdecken“
+sonst zu einem Inhalt, der die Themenliste KI traf.
+
 Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
 ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
 Ebenso Kennzeichnungen KI-erstellter Bilder wie „KI-generiertes Bild“, „mit KI erstellt“
