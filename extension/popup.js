@@ -16,6 +16,12 @@
   } catch (_) { /* keine URL */ }
 
   let settings = await S.load();
+  const { autoKinds = {} } = await chrome.storage.local.get('autoKinds');
+
+  /** Einstufung ohne eigene Einstellung: Liste, sonst automatische Einstufung, sonst Nachrichten. */
+  function baseKind(h) {
+    return globalThis.SFSiteKind.hostKind(h) || autoKinds[h] || 'news';
+  }
 
   function render() {
     $('global').checked = settings.enabled;
@@ -24,12 +30,15 @@
     $('site').checked = !!host && S.isActiveOn(Object.assign({}, settings, { enabled: true }), host);
     // Nachrichtenseite oder nicht: entscheidet, ob Bilder bis zur Prüfung unscharf sind.
     const K = globalThis.SFSiteKind;
-    const news = !host || K.classify(host, settings.siteKinds) === 'news';
+    const h = S.normalizeHost(host);
+    const own = K.hostKind(h, settings.siteKinds);
+    const auto = !K.hostKind(h) && !settings.siteKinds[h] && autoKinds[h] === 'calm';
+    const news = !host || (own || baseKind(h)) === 'news';
     $('kindRow').hidden = !host || !settings.enabled || !settings.calmImages || !$('site').checked;
     $('kind').checked = news;
     $('kindInfo').textContent = news
       ? 'Bilder bleiben unscharf, bis sie geprüft sind'
-      : 'Keine Nachrichtenseite: Bilder sofort sichtbar, im Hintergrund geprüft';
+      : (auto ? 'Automatisch erkannt: keine Nachrichtenseite, Bilder sofort sichtbar' : 'Keine Nachrichtenseite: Bilder sofort sichtbar, im Hintergrund geprüft');
     const n = settings.keywords.length;
     const p = settings.presets.length;
     $('kwInfo').textContent = (n === 1 ? '1 eigenes Schlagwort' : `${n} eigene Schlagwörter`) + (p ? ` + ${p} Listen` : '');
@@ -61,13 +70,12 @@
   });
 
   $('kind').addEventListener('change', async (e) => {
-    const K = globalThis.SFSiteKind;
     const h = S.normalizeHost(host);
     const kinds = Object.assign({}, settings.siteKinds);
     const want = e.target.checked ? 'news' : 'calm';
-    // Eintrag nur, wenn er von der eingebauten Einstufung abweicht.
+    // Eintrag nur, wenn er von der Liste bzw. automatischen Einstufung abweicht.
     delete kinds[h];
-    if (K.classify(h, kinds) !== want) kinds[h] = want;
+    if (baseKind(h) !== want) kinds[h] = want;
     settings = await S.save({ siteKinds: kinds });
     render();
   });

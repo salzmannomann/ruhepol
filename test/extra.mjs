@@ -375,7 +375,7 @@ async function main() {
     });
 
     await step('Nicht-Nachrichtenseite: Bilder sofort scharf, Bild mit Treffer danach unscharf; Nachrichtenseite wie bisher', async () => {
-      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: { '127.0.0.1': 'calm' } });
+      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: { '127.0.0.1': 'calm' }, semantic: false });
       const p = await ctx.newPage();
       // Zustand jedes Bildes beim ersten Prüfschritt (wait/pending) festhalten: Unschärfe ja/nein.
       // Beobachtet ab Seitenstart, damit eine schnelle Prüfung nicht verpasst wird.
@@ -408,6 +408,7 @@ async function main() {
       const tabId = await sw.evaluate(async (u) => (await chrome.tabs.query({})).find((t) => t.url && t.url.includes(u)).id, '/shop.html?news');
       const pop = await ctx.newPage();
       await pop.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+      await pop.waitForFunction(() => document.getElementById('kindInfo').textContent.length > 0, null, { timeout: 5000 });
       assert.equal(await pop.isChecked('#kind'), true);
       await pop.click('#kind');
       await pop.waitForFunction(() => /Keine Nachrichtenseite/.test(document.getElementById('kindInfo').textContent));
@@ -417,26 +418,44 @@ async function main() {
       await p.close();
     });
 
-    await step('Nachfrage: unbekannte Seite ohne Treffer → einmal fragen; „Ja“ stuft sie ein; mit Treffer keine Frage', async () => {
-      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: {} });
-      // Zwei frühere Besuche mit 29 harmlosen Bildern; dieser dritte bringt weitere.
-      await sw.evaluate(async () => chrome.storage.local.set({ siteStats: { '127.0.0.1': { pages: 2, imgOk: 29, hits: 0, t: 1 } } }));
+    await step('Automatisch: unbekannte Seite ohne Treffer wird still eingestuft; ein Treffer nimmt es zurück; mit Treffer nie', async () => {
+      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: {}, semantic: false, zones: [], allow: [] });
+      // Andere offene Tabs derselben Adresse mit Treffern würden die Einstufung (richtig) zurücknehmen.
+      for (const pg of ctx.pages()) if (pg.url().startsWith(srv.base)) await pg.close();
+      const seed = () => sw.evaluate(async () => { await chrome.storage.local.remove('autoKinds'); await chrome.storage.local.set({ siteStats: { '127.0.0.1': { pages: 2, imgOk: 29, hits: 0, t: 1 } } }); });
+      const auto = () => sw.evaluate(async () => ((await chrome.storage.local.get('autoKinds')).autoKinds || {})['127.0.0.1']);
+      // Seite mit Treffer: wird nicht umgestellt.
+      await seed();
       const withHit = await ctx.newPage();
-      await withHit.goto(srv.base + '/shop.html?ask');
+      await withHit.goto(srv.base + '/shop.html?auto');
       await withHit.waitForTimeout(13500);
-      assert.equal(await withHit.locator('.sf-ask').count(), 0, 'Seite mit Treffer wurde gefragt');
+      assert.equal(await auto(), undefined, 'Seite mit Treffer wurde eingestuft');
       await withHit.close();
-      await sw.evaluate(async () => chrome.storage.local.set({ siteStats: { '127.0.0.1': { pages: 2, imgOk: 29, hits: 0, t: 1 } } }));
+      // Dritter Aufruf ohne Treffer: still eingestuft, keine Frage, Bilder ab dann sofort sichtbar.
+      await seed();
       const p = await ctx.newPage();
       await p.goto(srv.base + '/shop2.html');
-      await p.waitForSelector('.sf-ask', { timeout: 20000 });
-      assert.match(await p.textContent('.sf-ask'), /127\.0\.0\.1/);
-      assert.equal(await p.evaluate(() => document.documentElement.classList.contains('sf-calm')), false);
-      await p.click('.sf-ask .sf-primary');
-      await p.waitForFunction(() => document.documentElement.classList.contains('sf-calm'), null, { timeout: 5000 });
-      assert.deepEqual(await sw.evaluate(async () => (await chrome.storage.sync.get('siteKinds')).siteKinds), { '127.0.0.1': 'calm' });
-      await setSettings(sw, { siteKinds: {} });
-      await sw.evaluate(async () => chrome.storage.local.remove('siteStats'));
+      await p.waitForFunction(() => document.documentElement.classList.contains('sf-calm'), null, { timeout: 20000 });
+      assert.equal(await auto(), 'calm');
+      assert.equal(await p.locator('.sf-feedback').count(), 0, 'es wurde etwas eingeblendet');
+      // Popup zeigt die automatische Einstufung.
+      const tabId = await sw.evaluate(async (u) => (await chrome.tabs.query({})).find((t) => t.url && t.url.includes(u)).id, '/shop2.html');
+      const pop = await ctx.newPage();
+      await pop.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+      await pop.waitForFunction(() => /Automatisch erkannt/.test(document.getElementById('kindInfo').textContent), null, { timeout: 5000 }).catch(async (e) => {
+        throw new Error('Popup: ' + JSON.stringify(await pop.evaluate(async () => ({ info: document.getElementById('kindInfo').textContent, host: document.getElementById('host').textContent, ak: await chrome.storage.local.get('autoKinds'), sk: (await chrome.storage.sync.get(['siteKinds', 'calmImages', 'enabled'])) }))) + ' Seite: ' + await p.evaluate(() => document.documentElement.className + ' Treffer: ' + JSON.stringify([...document.querySelectorAll('[data-sf-hit]')].map((e) => [e.dataset.sfHit, e.dataset.sfWhy, e.tagName]))));
+      });
+      assert.equal(await pop.isChecked('#kind'), false, 'Popup: Schalter „Nachrichtenseite“ an');
+      await pop.close();
+      // Treffer auf der eingestuften Seite: sofort wieder Nachrichtenseite, dauerhaft.
+      await p.goto(srv.base + '/shop.html?zurueck');
+      await p.waitForFunction(() => document.getElementById('p-hit').classList.contains('sf-blurred'), null, { timeout: 20000 });
+      await p.waitForFunction(() => !document.documentElement.classList.contains('sf-calm'), null, { timeout: 5000 });
+      assert.equal(await auto(), 'news');
+      await p.goto(srv.base + '/shop2.html?danach');
+      await p.waitForTimeout(1000);
+      assert.equal(await p.evaluate(() => document.documentElement.classList.contains('sf-calm')), false, 'nach Rücknahme wieder still eingestuft');
+      await sw.evaluate(async () => chrome.storage.local.remove(['siteStats', 'autoKinds']));
       await p.close();
     });
 
