@@ -381,7 +381,12 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 200–300 MB Arbeitsspeicher.
 
 **Wie entschieden wird:** Der Teaser-Text wird zuerst bereinigt (Postingzähler, Uhrzeiten,
-Videolängen, Bildnachweise). Dann zählt das Mittel aus zwei Vergleichen:
+Videolängen, Bildnachweise; seit 1.29.1 auch alles nach „©“ und doppelte Textstücke, etwa die
+Desktop- und Mobil-Fassung desselben Teasers auf orf.at). Anlass: „Nächster Angriff auf Flughafen
+Riad“ blieb bei einem Nutzer scharf, weil der Rest der Bildquelle („Copernicus Sentinel-2“) und die
+doppelte Schlagzeile den Text knapp ins Harmlose zogen (0,855 belastend gegen 0,856 harmlos; die
+Schlagzeile allein: 0,850 gegen 0,828). An den 844 eingestuften Teasern: gleich viele erkannt
+(144/152), gleich viele Fehltreffer (9/692), 6 harmlose Schlagwort-Treffer mehr richtig aufgedeckt. Dann zählt das Mittel aus zwei Vergleichen:
 1. Nähe zu den Themenbeschreibungen (und deinen Bewertungen, Schlagwörtern, Wünschen) minus
    Nähe zu neutralen Vergleichstexten,
 2. Nähe zu den 3 ähnlichsten belastenden Beispielen der aktivierten Themen minus Nähe zu den

@@ -449,3 +449,10 @@ test('Wortfolgen: ein Artikel dazwischen ist erlaubt; „Angriff auf“ + Kriegs
     assert.equal(m.find(t), null, t);
   }
 });
+
+test('KI-Text: Bildquelle ab © und doppelte Teaser-Fassung werden entfernt', () => {
+  const S = require('../extension/lib/semantic.js');
+  assert.equal(S.cleanText('Nächster Angriff auf Flughafen Riad Nächster Angriff auf Flughafen Riad Satellitenbild vom Flughafen in Riad © Reuters/European Union/Copernicus Sentinel-2'),
+    'Nächster Angriff auf Flughafen Riad Satellitenbild vom Flughafen in Riad');
+  assert.equal(S.cleanText('Herbstfest im Stadtpark mit Musik und Spielen'), 'Herbstfest im Stadtpark mit Musik und Spielen');
+});
