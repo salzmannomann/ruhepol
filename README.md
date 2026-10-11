@@ -290,7 +290,7 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 
 **Ablauf:**
 - Geprüft wird nur, was Schlagwörter und Lernfilter durchgelassen haben, gesammelt in
-  Paketen von bis zu 24 Teasern.
+  Paketen von bis zu 24 Teasern (sichtbare: 12).
 - Das Modell läuft in einem eigenen Worker-Thread des Offscreen Documents (transformers.js
   mit onnxruntime-web, WebAssembly), damit es die Bildvorbereitung für die Texterkennung
   nicht aufhält. Es lädt ausschließlich aus dem Paket, Downloads aus dem Internet sind
@@ -306,6 +306,35 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
   Textscan sonst nie fertig.
 - Vektoren der Bewertungen werden lokal gespeichert (int8, ca. 0,5 KB je Bewertung) und
   nicht synchronisiert; jeder Rechner berechnet sie aus den synchronisierten Bewertungen.
+- **Sichtbares zuerst (seit 1.22):** Teaser im sichtbaren Bereich (und eine halbe
+  Bildschirmhöhe darunter) gehen in kleineren Paketen (12) zuerst ans Modell und überholen
+  im Hintergrund Gegenprüfungen und Teaser weiter unten.
+- **Pakete nach Länge (seit 1.22):** Das Modell füllt jeden Text eines Pakets auf die Länge des
+  längsten auf. Ein Artikelabsatz mit 600 Zeichen machte so 15 kurze Schlagzeilen im selben
+  Paket gleich teuer. Jetzt wird nach Länge sortiert und in Pakete von höchstens 2400
+  Zeichen (Anzahl × längster Text) geteilt.
+
+  Gemessen an den 844 eingestuften echten Teasern (siehe unten): Rechenzeit 108 s → 76 s. Die
+  Entscheidungen bleiben gleich gut, 144 statt 142 von 152 belastenden erkannt, harmlose
+  fälschlich unscharf unverändert 9 von 692.
+
+  Gemessen auf echten Seiten mit frischen Schlagzeilen: Zeit vom Einfügen eines Teasers, den
+  nur die KI erkennt, bis er unscharf ist, sichtbare Teaser, Median aus drei bis vier Läufen.
+
+  | Modell schon geladen | vorher | jetzt |
+  |---|---|---|
+  | orf.at | 6,4 s | 1,9 s |
+  | derStandard.at | 3,9 s | 2,9 s |
+  | kurier.at | 13,0 s | 4,3 s |
+  | heute.at | 5,0 s | 2,6 s |
+
+  Nach einem Chrome-Neustart, Modell noch nicht geladen, je ein Lauf: orf 5,5 → 4,7 s,
+  derStandard 13,3 → 9,8 s, kurier 14,8 → 7,2 s, heute 8,1 → 5,6 s. Bei krone.at und spiegel.de
+  gab es zu wenige sichtbare KI-Treffer für einen Vergleich.
+
+  Je Seite sind das nur 1 bis 4 sichtbare Treffer, und die Seiten ändern sich zwischen den
+  Läufen. Die einzelnen Zahlen schwanken deshalb stark. Schneller war die neue Version aber in 16 von
+  18 Einzelvergleichen; die beiden Ausnahmen waren Läufe auf derStandard.
 
 **Speicher:** ca. 135 MB Modell + 27 MB Laufzeit auf der Festplatte, beim Rechnen ca.
 200–300 MB Arbeitsspeicher.
@@ -638,6 +667,11 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    bestimmt die Texterkennung selbst; auf dem Testrechner sind das rund 0,6 s je Bild, auf
    schnelleren Rechnern weniger. Eine Texterkennung „auf Verdacht“ vor dem Sichtbarwerden
    brachte nichts Messbares und ist nicht eingebaut.
+   Ebenso nichts Messbares brachte es, die Texterkennung beim Seitenstart vorzuwärmen
+   (Worker laden, bevor das erste Bild kommt). Nach einem Kaltstart blieben die Bilder auf
+   orf.at, derStandard und kurier gleich lange unscharf (je zwei Läufe, Unterschiede im
+   Rauschen). Der Kaltstart der Worker kostet nur rund 0,2 s und läuft ohnehin parallel zum
+   Laden der Bilder.
 6. Übernommen werden nur Wörter, bei denen Tesseract ziemlich sicher ist (Sicherheit ≥ 70,
    überwiegend Buchstaben). Fotos ohne Schrift – Rasen, Laub, Stoff – liefern sonst
    Buchstabensalat, der die Schlagwort- und KI-Prüfung in die Irre führt.

@@ -1324,7 +1324,14 @@
   /* ---------------- Bedeutungs-Filter (Stufe 2) ---------------- */
 
   const SEM_BATCH = 24;
+  const SEM_PRIO_BATCH = 12;
   const SEM_MIN_WORDS = 4;
+
+  /** Im sichtbaren Bereich oder knapp darunter (eine halbe Bildschirmhöhe). */
+  function inView(el) {
+    const r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < innerHeight * 1.5 && r.width > 0 && r.height > 0;
+  }
 
   function wordCount(text) {
     return text.split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
@@ -1336,19 +1343,23 @@
   /** Teaser gesammelt an das lokale Sprachmodell geben (immer nur eine Anfrage gleichzeitig). */
   async function flushSem() {
     if (semBusy || !semQueue.size || !semanticOn() || !active) return;
-    const blocks = [];
+    // Sichtbare Teaser zuerst, in kleinerem Paket und mit Vorrang (überholen im Hintergrund die
+    // Gegenprüfungen); der Rest danach in großen Paketen.
+    const live = [];
     for (const b of semQueue) {
-      semQueue.delete(b);
-      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || closestDeep(b, '[data-sf-hit]') || clearedBlocks.has(b)) continue;
-      blocks.push(b);
-      if (blocks.length >= SEM_BATCH) break;
+      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || closestDeep(b, '[data-sf-hit]') || clearedBlocks.has(b)) semQueue.delete(b);
+      else live.push(b);
     }
-    if (!blocks.length) return;
+    if (!live.length) return;
+    const visible = live.filter(inView);
+    const prio = visible.length > 0;
+    const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
+    for (const b of blocks) semQueue.delete(b);
     semBusy = true;
     const gen = generation;
     let res = null;
     try {
-      res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
+      res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
     semBusy = false;
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
