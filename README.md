@@ -538,6 +538,12 @@ Geprüft auf derStandard: Im Artikel „Ein Stück Beton in Prishtina“ waren b
 Öffnen vier Absätze zum Kosovo-Krieg unscharf; über den sichtbaren Teaser geöffnet ist er
 vollständig lesbar.
 
+**Nur echte Artikel (seit 1.29.2):** Links auf die Startseite oder eine einfache Rubrik (Logo,
+„News“, `/wirtschaft/`) zählen nicht als „bewusst geöffnet“. Außerdem gilt eine Seite mit mindestens 5
+verlinkten Überschriften als Übersichtsseite und nie als Artikel. Anlass: Nach einem Klick auf
+„News“ hielt Ruhepol die orf.at-Startseite für einen Artikel, weil deren Aufmacher als
+Hauptüberschrift (`<h1>`) ausgezeichnet ist, und deckte die Teaser darin auf.
+
 ### Artikelseiten: nur der betroffene Absatz
 
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze

@@ -267,6 +267,17 @@ async function main() {
       await p.close();
     });
 
+    await step('Startseite über „News“-Link geöffnet: Teaser bleiben gefiltert (kein „bewusst geöffneter Artikel“)', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/start.html');
+      await p.waitForFunction(() => document.querySelector('#g1').closest('.sf-blurred'), null, { timeout: 10000 });
+      await Promise.all([p.waitForURL('**/start.html?neu'), p.click('#news-link')]);
+      await p.waitForFunction(() => document.querySelector('#g1').closest('.sf-blurred'), null, { timeout: 10000 });
+      await p.waitForTimeout(1500);
+      assert.ok(await p.evaluate(() => !!document.querySelector('#g1').closest('.sf-blurred')), 'Teaser auf der Startseite wieder aufgedeckt');
+      await p.close();
+    });
+
     await step('Unscharfer Teaser: erst aufdecken, dann öffnen → Artikel lesbar', async () => {
       const p = await ctx.newPage();
       await p.goto(srv.base + '/teaser.html');
