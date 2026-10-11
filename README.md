@@ -583,10 +583,17 @@ Weiter gefiltert werden:
   Teasers in ein `<header>`.
 - **Bilder im Seitenkopf.** Ausgenommen sind nur Symbole in Knöpfen.
 
-Gezählt werden dabei nur sichtbare Wörter (seit 1.28.1). Unsichtbare Hinweise für
-Bildschirmleser und Bildbeschreibungen zählen nicht mehr: Auf amazon.de machte ein Knopf
-„Rufus“ mit unsichtbarem Text „… KI-Shopping-Assistent …“ die Leiste „Rufus / Prime entdecken“
-sonst zu einem Inhalt, der die Themenliste KI traf.
+Gezählt werden dabei nur sichtbare Wörter (seit 1.28.1), unsichtbare Hinweise für
+Bildschirmleser und Bildbeschreibungen zählen nicht.
+
+**Navigation der Seite (seit 1.28.2):** Was in einem Navigationsbereich außerhalb des Artikels
+steht (`nav`, `role="navigation"`, Menüs), ist nur dann Inhalt, wenn ein Link auf eine einzelne
+Meldung dabei ist (Teaser im Menü), egal wie viel Text. Anlass: amazon.de hält in der Kopfleiste
+das eingeklappte Rufus-Chatfenster bereit („Rufus AI Logo“ und Chat-Texte). Es ist nicht
+ausgeblendet, nur verschoben, und machte die Leiste „Alle / Rufus / Prime entdecken“ zu einem
+Inhalt, der die Themenliste KI traf. Nachgebaut in `test/site/oberflaeche.html` (mit 1.28.1
+unscharf, jetzt scharf). Gegenprobe auf 13 Nachrichtenseiten: In keiner Version lag dort ein
+Treffer in einem Navigationsbereich, die Regel ändert dort nichts.
 
 Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
 ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
