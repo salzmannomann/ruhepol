@@ -792,6 +792,10 @@
     }
     img.dataset.sf = 'pending';
     if (!settings.ocr) { img.dataset.sf = 'ok'; return; }
+    // Schon herunterladen lassen; die Texterkennung startet, sobald das Bild sichtbar ist.
+    if (/^https?:/i.test(src)) {
+      try { chrome.runtime.sendMessage({ type: 'ocrPrefetch', url: src }).catch(() => {}); } catch (_) { /* neu geladen */ }
+    }
     if (io) io.observe(img);
   }
 
@@ -909,16 +913,17 @@
    * OCR erst starten, wenn der Textscan durch ist: Steht das Schlagwort schon im Teaser-Text,
    * ist der Block bereits ausgeblendet und das Bild muss nicht gelesen werden.
    */
-  const OCR_MAX_WAIT_MS = 400; // Texterkennung kostet nur noch ~0,2 s: nicht lange auf den Textscan warten
+  const OCR_MAX_WAIT_MS = 400;
   let ocrWaitTimer = null;
 
   function flushOcr() {
-    // Normalerweise erst nach dem Textscan; auf Seiten, die sich ständig ändern (Ticker,
-    // Werbung), aber spätestens nach OCR_MAX_WAIT_MS, damit Bilder nicht ewig unscharf bleiben.
-    const busy = pendingRoots.size || activeWalker || mutationTimer;
+    // Sofort losschicken: Der Teaser-Text wurde beim Einfügen schon auf Schlagwörter geprüft
+    // (vorsorglich unscharf = sf-pre). Nur bei solchen Teasern auf die genaue Entscheidung warten –
+    // wird der Block ausgeblendet, entfällt die Texterkennung –, höchstens OCR_MAX_WAIT_MS.
+    // (Bis 1.20 wurde auf den ganzen Textscan gewartet: im Mittel 0,7 s je Bild.)
     const now = performance.now();
     for (const [img, since] of ocrWaiting) {
-      if (busy && now - since < OCR_MAX_WAIT_MS) continue;
+      if (img.closest('.sf-pre') && now - since < OCR_MAX_WAIT_MS) continue;
       ocrWaiting.delete(img);
       if (!img.isConnected || closestDeep(img, '[data-sf-hit], [data-sf-revealed]')) continue;
       runOcr(img);

@@ -194,6 +194,37 @@ function pump() {
   }
 }
 
+/*
+ * Vorab laden: Sobald ein Bild auf der Seite zur Prüfung vorgemerkt ist, wird es hier schon
+ * heruntergeladen. Die Texterkennung startet erst, wenn es sichtbar ist – das meldet der Browser
+ * beim Laden einer Seite aber erst spät (gemessen ~0,6 s). So laufen Warten und Laden parallel.
+ */
+const PREFETCH_MAX = 30;
+const PREFETCH_TTL_MS = 60 * 1000;
+const PREFETCH_PARALLEL = 6;
+const prefetched = new Map(); // url -> Promise<dataUrl|null>
+let prefetchActive = 0;
+
+function prefetchImage(url) {
+  if (!/^https?:/i.test(url) || prefetched.has(url) || inflight.has(url)) return;
+  if (prefetchActive >= PREFETCH_PARALLEL) return;
+  while (prefetched.size >= PREFETCH_MAX) prefetched.delete(prefetched.keys().next().value);
+  prefetchActive++;
+  const p = cacheGet(url)
+    .then((cached) => (cached ? null : fetchAsDataUrl(url)))
+    .catch(() => null)
+    .finally(() => { prefetchActive--; });
+  prefetched.set(url, p);
+  setTimeout(() => { if (prefetched.get(url) === p) prefetched.delete(url); }, PREFETCH_TTL_MS);
+}
+
+async function takePrefetched(url) {
+  const p = prefetched.get(url);
+  if (!p) return null;
+  prefetched.delete(url);
+  return p;
+}
+
 async function runJob(url, dataUrl) {
   // Offscreen Document zuerst starten: der Kaltstart soll nicht in die 10 s zählen.
   await ensureOffscreen();
@@ -206,7 +237,7 @@ async function runJob(url, dataUrl) {
     }, OCR_TIMEOUT_MS);
   });
   const work = (async () => {
-    const src = dataUrl || (await fetchAsDataUrl(url, controller.signal));
+    const src = dataUrl || (await takePrefetched(url)) || (await fetchAsDataUrl(url, controller.signal));
     const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'recognize', dataUrl: src });
     if (!r) return { ok: false, error: 'keine Antwort vom Offscreen Document' };
     if (!r.ok) return { ok: false, error: r.error || 'OCR fehlgeschlagen' };
@@ -952,6 +983,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Verwaltung (löschen, importieren, exportieren) nur von den eigenen Seiten, nicht aus Tabs.
   if (ADMIN_MESSAGES.has(msg.type) && !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return false;
   switch (msg.type) {
+    case 'ocrPrefetch':
+      if (typeof msg.url === 'string') prefetchImage(msg.url);
+      return false;
     case 'ocr':
       if (typeof msg.url !== 'string') return false;
       requestOcr(msg.url, typeof msg.dataUrl === 'string' ? msg.dataUrl : null).then(sendResponse);

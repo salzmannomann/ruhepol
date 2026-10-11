@@ -625,6 +625,19 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    Gemessen auf orf.at beim Durchscrollen (erster Besuch): Bilder bleiben nach dem
    Sichtbarwerden im Median 1,1 s unscharf (vorher 7 s), höchstens 2 s (vorher 15 s);
    beim zweiten Besuch meist gar nicht (Cache).
+
+   Seit 1.21 beim Öffnen einer Seite zusätzlich:
+   - **Vorab laden:** Sobald ein Bild zur Prüfung vorgemerkt ist, lädt der Service Worker es
+     schon herunter. Die Texterkennung startet erst, wenn es sichtbar ist, und diese Meldung
+     kommt beim Laden einer Seite spät (rund 0,5 bis 0,6 s).
+   - **Nicht mehr auf den ganzen Textscan warten:** Der Teaser-Text ist dank der Sofort-Prüfung
+     schon bekannt. Gewartet wird nur noch bei vorsorglich unscharfen Teasern.
+
+   Gemessen auf orf.at beim Öffnen (erster Besuch, je drei Läufe, sichtbare Bilder): Bild
+   laden 0,7 s → 0,08 s. Unscharf im Median 1,32 s → 1,18 s, höchstens 1,78 s → 1,51 s. Den Rest
+   bestimmt die Texterkennung selbst; auf dem Testrechner sind das rund 0,6 s je Bild, auf
+   schnelleren Rechnern weniger. Eine Texterkennung „auf Verdacht“ vor dem Sichtbarwerden
+   brachte nichts Messbares und ist nicht eingebaut.
 6. Übernommen werden nur Wörter, bei denen Tesseract ziemlich sicher ist (Sicherheit ≥ 70,
    überwiegend Buchstaben). Fotos ohne Schrift – Rasen, Laub, Stoff – liefern sonst
    Buchstabensalat, der die Schlagwort- und KI-Prüfung in die Irre führt.
