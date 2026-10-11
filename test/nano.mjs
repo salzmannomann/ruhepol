@@ -149,6 +149,18 @@ async function main() {
       assert.equal(await opt.isHidden('#assistBox'), true);
       await opt.close();
     });
+    await step('Chrome-Modell anhalten/entfernen: Knopf öffnet die passende Chrome-Einstellung', async () => {
+      const opt = await ctx.newPage();
+      await opt.goto(`chrome-extension://${extId}/options.html#themen`);
+      await opt.click('#nanoManage summary');
+      const tab = ctx.waitForEvent('page', { timeout: 5000 });
+      await opt.click('#nanoFlags');
+      const flags = await tab;
+      await flags.waitForLoadState().catch(() => {});
+      assert.match(flags.url(), /^chrome:\/\/flags\/#optimization-guide-on-device-model/);
+      await flags.close();
+      await opt.close();
+    });
   } finally {
     await close();
     srv.close();

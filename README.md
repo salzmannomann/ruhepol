@@ -188,6 +188,20 @@ Die einzelnen Optionen:
 - **Cache leeren**: löscht die gespeicherten OCR-Ergebnisse.
 - **Exportieren/Importieren**: speichert alle Einstellungen als JSON-Datei bzw. lädt sie.
 
+### Angriffe auf Kriegsziele (seit 1.29)
+
+„Angriff“ allein steht in keiner Liste („Angriff auf die Tabellenspitze“). Die Liste „Krieg und
+Militär“ enthält aber „Angriff/Angriffe/Attacke auf“ mit Zielen, die nur im Krieg angegriffen
+werden: Flughafen, Hafen, Krankenhaus, Spital, Schule, Kraftwerk, Raffinerie, Botschaft,
+Wohnhaus, Konvoi, Tanker, Stützpunkt, Kaserne, Flüchtlingslager, Stromnetz sowie Städte wie
+Kyjiw, Charkiw, Riad, Teheran, Tel Aviv, Beirut. Anlass: „Nächster Angriff auf Flughafen Riad“
+(orf.at) wurde nur von der KI erkannt.
+
+Der Abgleich erlaubt dafür zwischen zwei Wörtern eines Begriffs einen Artikel („Angriff auf den
+Flughafen“, „Angriffe auf das Krankenhaus“). So reichen rund 220 Einträge statt mehrerer tausend
+Kombinationen; das Vorbereiten der Listen beim Seitenstart bleibt bei 4–9 ms. Gemessen an den
+844 eingestuften echten Teasern: keine neuen Fehltreffer, keine Änderung bei den Treffern.
+
 ### Rechtsklickmenü
 
 Rechtsklick auf einen Artikel, ein Bild oder markierten Text → Untermenü **Ruhepol**:
@@ -367,7 +381,12 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 200–300 MB Arbeitsspeicher.
 
 **Wie entschieden wird:** Der Teaser-Text wird zuerst bereinigt (Postingzähler, Uhrzeiten,
-Videolängen, Bildnachweise). Dann zählt das Mittel aus zwei Vergleichen:
+Videolängen, Bildnachweise; seit 1.29.1 auch alles nach „©“ und doppelte Textstücke, etwa die
+Desktop- und Mobil-Fassung desselben Teasers auf orf.at). Anlass: „Nächster Angriff auf Flughafen
+Riad“ blieb bei einem Nutzer scharf, weil der Rest der Bildquelle („Copernicus Sentinel-2“) und die
+doppelte Schlagzeile den Text knapp ins Harmlose zogen (0,855 belastend gegen 0,856 harmlos; die
+Schlagzeile allein: 0,850 gegen 0,828). An den 844 eingestuften Teasern: gleich viele erkannt
+(144/152), gleich viele Fehltreffer (9/692), 6 harmlose Schlagwort-Treffer mehr richtig aufgedeckt. Dann zählt das Mittel aus zwei Vergleichen:
 1. Nähe zu den Themenbeschreibungen (und deinen Bewertungen, Schlagwörtern, Wünschen) minus
    Nähe zu neutralen Vergleichstexten,
 2. Nähe zu den 3 ähnlichsten belastenden Beispielen der aktivierten Themen minus Nähe zu den
@@ -490,6 +509,12 @@ Texte in Vergleichsvektoren umzurechnen – Lernfilter, Gegenprüfung und „gut
 beruhen aber darauf. Außerdem bräuchte Nano für jede Meldung eine eigene Antwort; bei 85
 Überschriften auf orf.at wäre das viel langsamer als das mitgelieferte Modell, das alle in
 Paketen vergleicht.
+
+**Anhalten oder entfernen:** Ruhepol kann Chromes Modell nur benutzen, nicht löschen oder den
+Download abbrechen. In den Einstellungen (Themen → Assistent → „Chrome-Modell anhalten oder
+entfernen“) öffnet ein Knopf die Chrome-Einstellung `chrome://flags/#optimization-guide-on-device-model`;
+dort auf „Disabled“ stellen und Chrome neu starten, dann lädt Chrome das Modell nicht mehr und gibt
+den Speicher frei. Ruhepol läuft auch ohne Gemini Nano.
 
 ### Bewusst geöffnete Artikel vollständig lesen
 

@@ -230,7 +230,12 @@
       .replace(/Mein Forum: Diskutieren Sie dieses Thema mit der STANDARD-Community.*$/i, ' ')
       .replace(/\b(?:Livebericht|Live|Teilen|Kolumne|Ö1 Mittagsjournal|Bildquelle:?)\b/g, ' ')
       .replace(/\b(?:APA|AFP|Reuters|AP|dpa|EPA|GEPA|picturedesk\.com|colourbox\.de|ORF)(?:\/[\wÄÖÜäöüß.-]+)*\b/g, ' ')
+      // Bildquelle ab „©“: bis zu acht weitere Wörter („© Reuters/European Union/Copernicus Sentinel-2“);
+      // Reste wie „Copernicus Sentinel-2“ rückten Kriegsmeldungen sonst zu Technik und Wissenschaft.
+      .replace(/(?:©|\(c\)|Copyright)\s*\S+(?:\s+\S+){0,7}/gi, ' ')
       .replace(/\s+/g, ' ')
+      // Doppelte Textstücke (Desktop- und Mobil-Fassung desselben Teasers) nur einmal.
+      .replace(/(.{20,}?) \1(?= |$)/g, '$1')
       .trim();
   }
 

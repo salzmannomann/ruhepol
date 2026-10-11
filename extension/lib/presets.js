@@ -56,6 +56,16 @@
         // „russische Angriffslust“ im Sport nicht trifft
         ...['russisch', 'ukrainisch', 'israelisch', 'iranisch'].flatMap((a) =>
           [`${a}e Angriffe`, `${a}en Angriffen`, `${a}en Angriff`, `${a}er Angriff`, `${a}em Angriff`]),
+        // „Angriff auf“ + Ziel, das nur im Krieg angegriffen wird („Nächster Angriff auf Flughafen
+        // Riad“, orf.at). „Angriff“ allein trifft nicht: „Angriff auf die Tabellenspitze“ (Sport).
+        // (Artikel dazwischen erlaubt der Abgleich: „Angriff auf den Flughafen“.)
+        ...['Angriff', 'Angriffe', 'Angriffen', 'Attacke', 'Attacken'].flatMap((h) =>
+          ['Flughafen*', 'Hafen', 'Hafenstadt', 'Krankenhaus*', 'Krankenhäuser*', 'Klinik', 'Kliniken', 'Spital', 'Spitäler',
+            'Schule', 'Schulen', 'Kraftwerk*', 'Atomkraftwerk*', 'Raffinerie*', 'Ölanlage*', 'Botschaft', 'Wohnhaus', 'Wohnhäuser',
+            'Wohnblock', 'Wohngebiet*', 'Zivilist*', 'Konvoi*', 'Hilfskonvoi*', 'Tanker', 'Öltanker', 'Frachter', 'Frachtschiff*',
+            'Militärbasis', 'Stützpunkt*', 'Militärstützpunkt*', 'Kaserne', 'Flüchtlingslager', 'Energieinfrastruktur',
+            'Stromnetz', 'Kyjiw', 'Kiew', 'Charkiw', 'Odessa', 'Israel', 'Iran', 'Riad', 'Teheran', 'Tel Aviv', 'Beirut']
+            .map((z) => `${h} auf ${z}`)),
       ],
     },
     {

@@ -148,6 +148,15 @@
         <p class="hint">Sag in eigenen Worten, was du ändern möchtest – Chromes eingebautes Sprachmodell (Gemini Nano, lokal) macht daraus einen Vorschlag, den du vor dem Übernehmen siehst.</p>
         <div id="nanoStatus" class="status-box">…</div>
         <button id="nanoDownload" hidden>Chrome-Modell herunterladen</button>
+        <details id="nanoManage" class="hint" style="margin-top:8px">
+          <summary>Chrome-Modell anhalten oder entfernen</summary>
+          <p>Ruhepol kann Chromes Modell nur benutzen, nicht löschen – das geht nur in Chrome selbst. Ruhepol funktioniert auch ohne (dann fehlen nur der Assistent und die zweite Meinung bei Grenzfällen).</p>
+          <ol>
+            <li><button id="nanoFlags" type="button">Chrome-Einstellung öffnen</button> und „Enables optimization guide on device“ auf <b>Disabled</b> stellen.</li>
+            <li>Chrome neu starten. Das Modell wird dann nicht mehr geladen, und Chrome gibt den Speicher frei.</li>
+          </ol>
+          <p>Ein laufender Download lässt sich nicht abbrechen; Schließen von Chrome hält ihn nur an.</p>
+        </details>
         <div id="assistBox" hidden>
           <textarea id="assistInput" rows="3" placeholder="z. B. Fußball soll nie unscharf sein, außer es geht um Gewalt im Stadion"></textarea>
           <div class="row" style="margin-top:6px"><button id="assistGo" class="primary">Vorschlag machen</button></div>

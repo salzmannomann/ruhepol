@@ -20,6 +20,7 @@
   const FUZZY_MIN_LEN = 8; // kürzere Wörter: "Gruppen" → "Truppen", "leicht" → "Leiche"
   const PARTIAL_MIN_LEN = 4; // "KI" als Wortteil träfe "Mai", "Kaiser", "Skifahren"
   const WILDCARD_MIN_LEN = 3; // kürzere Platzhalter-Kerne ("*e") würden fast alles treffen
+  const ARTICLES = new Set(['der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen', 'einem', 'einer', 'eines']);
 
   function normalize(str) {
     if (!str) return '';
@@ -182,10 +183,20 @@
       return fuzzy && p.t.length >= FUZZY_MIN_LEN && fuzzyContains(textTok, p.t);
     }
 
+    /** Wortfolge ab i; zwischen zwei Wörtern des Begriffs darf ein Artikel stehen („Angriff auf
+     *  Flughafen“ trifft „Angriff auf den Flughafen“). */
+    function seqEnd(toks, i, k) {
+      if (i + k.length > toks.length) return -1;
+      let p = i;
+      for (let j = 0; j < k.length; j++, p++) {
+        if (j > 0 && p < toks.length && ARTICLES.has(toks[p]) && !tokenEq(toks[p], k[j])) p++;
+        if (p >= toks.length || !tokenEq(toks[p], k[j])) return -1;
+      }
+      return p;
+    }
+
     function seqAt(toks, i, k) {
-      if (i + k.length > toks.length) return false;
-      for (let j = 0; j < k.length; j++) if (!tokenEq(toks[i + j], k[j])) return false;
-      return true;
+      return seqEnd(toks, i, k) !== -1;
     }
 
     function matchSequence(toks, k) {
@@ -218,7 +229,8 @@
     function scanIndexed(toks, joins, c) {
       for (let i = 0; i < toks.length; i++) {
         for (const e of candidates(toks[i])) {
-          if (seqAt(toks, i, e.pats) && !c.add(e, shown(e, toks.slice(i, i + e.pats.length)))) return;
+          const end = seqEnd(toks, i, e.pats);
+          if (end !== -1 && !c.add(e, shown(e, toks.slice(i, end)))) return;
         }
       }
       // Zwei per Bindestrich getrennte Wörter ergeben zusammen den Begriff ("Fuß-ball", OCR-Trennung).
