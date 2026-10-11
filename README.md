@@ -492,8 +492,15 @@ bevor Ruhepol sie unscharf stellte. Drei Änderungen verhindern das:
   die Vorsorge wieder auf. Bisher hätte jeder Treffer beim Laden eine teure Neuberechnung des
   Layouts erzwungen (rund 8 ms je Treffer), und der Browser zeichnete dazwischen.
 
-**Gemessen** auf orf.at, Bild für Bild: Vorher waren 14 bis 18 von 19 Treffern mindestens ein
-gezeichnetes Bild lang scharf sichtbar, jetzt in vier von vier Läufen keiner.
+**Gemessen** Bild für Bild, je drei Läufe, nur Treffer im sichtbaren Bereich beim Öffnen:
+
+| Seite | vorher scharf aufgeblitzt | jetzt |
+|---|---|---|
+| orf.at | 10 von 11, je 2–3 Bilder lang | 0 von 19 |
+| derstandard.at (Cookie-Abfrage bestätigt) | der Aufmacher, 17–24 Bilder lang (ca. 0,3–0,4 s) | 0 von 7–12 |
+
+Treffer weiter unten auf der Seite werden teils erst später erkannt, sind aber unscharf, bevor
+man dorthin scrollt.
 
 ### Nur Inhalte, nicht die Bedienoberfläche
 
