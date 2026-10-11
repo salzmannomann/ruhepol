@@ -17,7 +17,8 @@
     'orf.at', 'derstandard.at', 'krone.at', 'kurier.at', 'heute.at', 'oe24.at', 'diepresse.com', 'kleinezeitung.at',
     'salzburg.com', 'sn.at', 'nachrichten.at', 'tt.com', 'vol.at', 'vn.at', 'noen.at', 'meinbezirk.at', 'falter.at',
     'profil.at', 'puls24.at', 'servustv.com', 'atv.at', 'exxpress.at', 'wienerzeitung.at', 'news.at', 'apa.at',
-    'trend.at', 'moment.at', 'zackzack.at', 'tips.at', 'bvz.at', 'msn.com', 'news.google.com',
+    'trend.at', 'moment.at', 'zackzack.at', 'tips.at', 'bvz.at', 'msn.com', 'news.google.com', 'news.joyn.at',
+    'futurezone.at', 'vienna.at', 'salto.bz', 'heise.de', 'golem.de', 'derbrutkasten.com',
     // Deutschland
     'spiegel.de', 'zeit.de', 'faz.net', 'sueddeutsche.de', 'welt.de', 'bild.de', 'tagesschau.de', 'zdf.de', 'zdfheute.de',
     'ard.de', 'br.de', 'ndr.de', 'wdr.de', 'swr.de', 'mdr.de', 'hr.de', 'rbb24.de', 'n-tv.de', 'stern.de', 'focus.de',

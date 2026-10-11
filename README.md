@@ -615,6 +615,18 @@ Unscharfstellen beim Laden bleibt.
   heißt: keine Nachrichtenseite, Bilder sofort sichtbar. Gespeichert wird nur, was von der
   eingebauten Liste abweicht (`siteKinds`).
 - **Unbekannte Seiten** gelten als Nachrichtenseite, dort bleibt alles wie bisher.
+- **Nachfrage (seit 1.26):** Zeigt eine unbekannte Seite über mindestens 3 Aufrufe zusammen
+  mindestens 30 geprüfte, harmlose Bilder und keinen einzigen Treffer (Text, Bild oder KI),
+  fragt Ruhepol einmal unten rechts: „Ist das keine Nachrichtenseite?“. „Ja“ stuft sie ein,
+  „Nein“ wird ebenfalls gespeichert (keine weitere Frage), „Später“ fragt frühestens nach 10
+  weiteren Aufrufen wieder. Gezählt wird lokal (`siteStats` in `chrome.storage.local`, höchstens
+  300 Seiten), je Aufruf nach 12 Sekunden.
+
+  Geprüft an 11 Seiten, die in keiner Liste stehen, je ein Aufruf: Die Nachrichtenseiten
+  futurezone, vienna.at, salto.bz, news.joyn.at (puls24) und heise hatten 9 bis 41 Treffer und
+  würden nie gefragt. Die Shops Thomann, Bergfreunde, Lidl, Tchibo und Cyberport hatten 0
+  Treffer und 5 bis 34 harmlose Bilder und würden nach etwa 3 Aufrufen gefragt. Die
+  Nachrichtenseiten daraus stehen jetzt in der Liste.
 - **Werbe-Frames fremder Seiten** gelten ebenfalls als Nachrichtenseite.
 
 **Warum eine Liste und keine automatische Erkennung:** Geprüft an 32 Seiten (18
