@@ -150,6 +150,22 @@ html.sf-active .sf-ph-actions { display: inline-flex !important; gap: 6px !impor
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
 }
 
+/* Nachfrage: unbekannte Seite ohne Treffer als Nicht-Nachrichtenseite einstufen? */
+.sf-feedback.sf-ask {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  right: 16px !important;
+  bottom: 16px !important;
+  max-width: min(420px, calc(100vw - 32px)) !important;
+  padding: 10px 12px !important;
+  background: #fff !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
+}
+.sf-feedback.sf-ask .sf-ask-text { flex: 1 1 100% !important; line-height: 1.4 !important; }
+@media (prefers-color-scheme: dark) {
+  .sf-feedback.sf-ask { background: #1f2a36 !important; }
+}
+
 /* Aufdecken durch Gedrückthalten: Ladekreis an der Druckstelle bzw. im Knopf */
 .sf-holdring {
   position: fixed !important;

@@ -299,6 +299,7 @@
     calmSite = settings.calmImages && globalThis.SFSiteKind.classify(topHost, settings.siteKinds) === 'calm';
     document.documentElement.classList.toggle('sf-calm', calmSite);
     if (shadowSheet) shadowSheet.replaceSync(calmSite ? SHADOW_CSS_CALM : SHADOW_CSS);
+    scheduleSiteStats();
 
     io = new IntersectionObserver(onIntersect, { rootMargin: OCR_MARGIN });
     observer = new MutationObserver(onMutations);
@@ -343,6 +344,8 @@
     eagerOpen = false;
     clearTimeout(fastTimer);
     fastTimer = null;
+    clearTimeout(statsTimer);
+    statsTimer = null;
     clearTimeout(preTimer);
     clearStalePre();
     if (observer) observer.disconnect();
@@ -968,6 +971,7 @@
       if (kw) hitImage(img, kw, 'ocr');
       else {
         setState(img, 'ok');
+        pageImgOk++;
         // Der Bildtext kann für den Lernfilter den Ausschlag geben.
         if (learnHandleable()) {
           const block = findBlock(img);
@@ -1449,6 +1453,92 @@
     setTimeout(() => t.remove(), ms || 2600);
   }
 
+  /* ---------------- Nachfragen: unbekannte Seite ohne jeden Treffer ----------------
+   * Nicht gelistete Seiten gelten als Nachrichtenseite (Bilder bis zur Prüfung unscharf). Zeigt
+   * eine solche Seite über mehrere Besuche viele geprüfte, harmlose Bilder und keinen einzigen
+   * Treffer (Text, Bild, KI), fragt Ruhepol einmal, ob Bilder dort sofort sichtbar sein sollen.
+   * Echte Nachrichtenseiten haben praktisch immer Treffer und werden nicht gefragt.
+   */
+  const ASK_PAGES = 3; // Seitenaufrufe
+  const ASK_IMAGES = 30; // geprüfte, harmlose Bilder insgesamt
+  const ASK_AFTER_MS = 12000; // je Seitenaufruf erst danach zählen
+  const ASK_SNOOZE_PAGES = 10; // „Später“: frühestens nach so vielen weiteren Aufrufen
+  const STATS_MAX_HOSTS = 300;
+  let pageImgOk = 0;
+  let pageHits = 0;
+  let statsTimer = null;
+
+  /** Host, für den gezählt und gefragt werden darf, sonst ''. */
+  function askHost() {
+    if (window !== window.top || !settings.calmImages || !settings.ocr) return '';
+    const h = S.normalizeHost(location.hostname);
+    // Gelistet oder schon selbst eingestuft (auch „Nein“ wird als Einstufung gespeichert).
+    if (!h || globalThis.SFSiteKind.hostKind(h, settings.siteKinds) !== null) return '';
+    return h;
+  }
+
+  function scheduleSiteStats() {
+    pageImgOk = 0;
+    pageHits = 0;
+    if (askHost()) statsTimer = setTimeout(() => { statsTimer = null; recordSiteStats().catch(() => {}); }, ASK_AFTER_MS);
+  }
+
+  async function recordSiteStats() {
+    const h = askHost();
+    if (!h || !active) return;
+    const all = (await chrome.storage.local.get('siteStats')).siteStats || {};
+    const st = all[h] || { pages: 0, imgOk: 0, hits: 0, snooze: 0 };
+    st.pages++;
+    st.imgOk += pageImgOk;
+    st.hits += pageHits;
+    st.t = Date.now();
+    all[h] = st;
+    const hosts = Object.keys(all);
+    if (hosts.length > STATS_MAX_HOSTS) {
+      hosts.sort((a, b) => (all[a].t || 0) - (all[b].t || 0));
+      for (const old of hosts.slice(0, hosts.length - STATS_MAX_HOSTS)) delete all[old];
+    }
+    await chrome.storage.local.set({ siteStats: all });
+    if (st.hits === 0 && st.pages >= ASK_PAGES && st.imgOk >= ASK_IMAGES && st.pages >= (st.snooze || 0) && active) {
+      showSiteAsk(h, st);
+    }
+  }
+
+  function showSiteAsk(h, st) {
+    document.querySelectorAll('.sf-ask').forEach((b) => b.remove());
+    const bar = document.createElement('div');
+    bar.className = 'sf-feedback sf-ask';
+    bar.setAttribute('role', 'dialog');
+    const text = document.createElement('span');
+    text.className = 'sf-ask-text';
+    text.textContent = `Ruhepol: Auf ${h} waren bisher alle ${st.imgOk} geprüften Bilder harmlos, ohne einen Treffer. ` +
+      'Ist das keine Nachrichtenseite? Dann zeigt Ruhepol Bilder hier sofort und prüft sie im Hintergrund.';
+    const decide = async (kind) => {
+      bar.remove();
+      const kinds = Object.assign({}, settings.siteKinds, { [h]: kind });
+      await S.save({ siteKinds: kinds }); // löst apply() über storage.onChanged aus
+      if (kind === 'calm') toast('Bilder auf dieser Seite werden ab jetzt sofort gezeigt.', 3200);
+    };
+    const yes = document.createElement('button');
+    yes.className = 'sf-btn sf-primary';
+    yes.textContent = 'Ja, Bilder sofort zeigen';
+    yes.addEventListener('click', () => decide('calm'));
+    const no = document.createElement('button');
+    no.className = 'sf-btn';
+    no.textContent = 'Nein, ist eine Nachrichtenseite';
+    no.addEventListener('click', () => decide('news'));
+    const later = document.createElement('button');
+    later.className = 'sf-btn';
+    later.textContent = 'Später';
+    later.addEventListener('click', async () => {
+      bar.remove();
+      const all = (await chrome.storage.local.get('siteStats')).siteStats || {};
+      if (all[h]) { all[h].snooze = all[h].pages + ASK_SNOOZE_PAGES; await chrome.storage.local.set({ siteStats: all }); }
+    });
+    bar.append(text, yes, no, later);
+    (document.body || document.documentElement).appendChild(bar);
+  }
+
   /** Rechtsklickmenü: "Will ich nicht sehen" / "Will ich sehen". */
   function onContextAction(action) {
     const target = lastCtxTarget;
@@ -1874,6 +1964,7 @@
     // Bereits markierte Treffer im Inneren zählen nicht doppelt.
     for (const inner of hitBlocks) if (inner !== block && containsDeep(block, inner)) unhide(inner);
     hitBlocks.add(block);
+    pageHits++;
 
     if (settings.display === 'hide') {
       block.classList.add('sf-hidden');

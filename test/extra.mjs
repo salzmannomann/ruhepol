@@ -378,17 +378,21 @@ async function main() {
       await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: { '127.0.0.1': 'calm' } });
       const p = await ctx.newPage();
       // Zustand jedes Bildes beim ersten Prüfschritt (wait/pending) festhalten: Unschärfe ja/nein.
-      const watch = () => p.evaluate(() => new Promise((resolve) => {
-        const seen = {};
-        const tick = () => {
-          for (const id of ['ok-img', 'hit-img']) {
-            const img = document.getElementById(id);
-            if (img && !seen[id] && (img.dataset.sf === 'wait' || img.dataset.sf === 'pending')) seen[id] = getComputedStyle(img).filter;
+      // Beobachtet ab Seitenstart, damit eine schnelle Prüfung nicht verpasst wird.
+      await p.addInitScript(() => {
+        window.__seen = {};
+        new MutationObserver((recs) => {
+          for (const r of recs) {
+            const img = r.target;
+            if (!img.id || window.__seen[img.id] || !(img.dataset.sf === 'wait' || img.dataset.sf === 'pending')) continue;
+            window.__seen[img.id] = getComputedStyle(img).filter;
           }
-          if (seen['ok-img'] && seen['hit-img']) resolve(seen); else requestAnimationFrame(tick);
-        };
-        tick();
-      }));
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-sf'] });
+      });
+      const watch = async () => {
+        await p.waitForFunction(() => window.__seen['ok-img'] && window.__seen['hit-img'], null, { timeout: 20000 });
+        return p.evaluate(() => ({ 'ok-img': window.__seen['ok-img'], 'hit-img': window.__seen['hit-img'] }));
+      };
       await p.goto(srv.base + '/shop.html');
       const calm = await watch();
       assert.deepEqual(calm, { 'ok-img': 'none', 'hit-img': 'none' }, 'während der Prüfung unscharf');
@@ -410,6 +414,29 @@ async function main() {
       assert.deepEqual(await sw.evaluate(async () => (await chrome.storage.sync.get('siteKinds')).siteKinds), { '127.0.0.1': 'calm' });
       await pop.close();
       await setSettings(sw, { siteKinds: {} });
+      await p.close();
+    });
+
+    await step('Nachfrage: unbekannte Seite ohne Treffer → einmal fragen; „Ja“ stuft sie ein; mit Treffer keine Frage', async () => {
+      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: {} });
+      // Zwei frühere Besuche mit 29 harmlosen Bildern; dieser dritte bringt weitere.
+      await sw.evaluate(async () => chrome.storage.local.set({ siteStats: { '127.0.0.1': { pages: 2, imgOk: 29, hits: 0, t: 1 } } }));
+      const withHit = await ctx.newPage();
+      await withHit.goto(srv.base + '/shop.html?ask');
+      await withHit.waitForTimeout(13500);
+      assert.equal(await withHit.locator('.sf-ask').count(), 0, 'Seite mit Treffer wurde gefragt');
+      await withHit.close();
+      await sw.evaluate(async () => chrome.storage.local.set({ siteStats: { '127.0.0.1': { pages: 2, imgOk: 29, hits: 0, t: 1 } } }));
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/shop2.html');
+      await p.waitForSelector('.sf-ask', { timeout: 20000 });
+      assert.match(await p.textContent('.sf-ask'), /127\.0\.0\.1/);
+      assert.equal(await p.evaluate(() => document.documentElement.classList.contains('sf-calm')), false);
+      await p.click('.sf-ask .sf-primary');
+      await p.waitForFunction(() => document.documentElement.classList.contains('sf-calm'), null, { timeout: 5000 });
+      assert.deepEqual(await sw.evaluate(async () => (await chrome.storage.sync.get('siteKinds')).siteKinds), { '127.0.0.1': 'calm' });
+      await setSettings(sw, { siteKinds: {} });
+      await sw.evaluate(async () => chrome.storage.local.remove('siteStats'));
       await p.close();
     });
 
