@@ -102,7 +102,9 @@
   function isPageChrome(el, block) {
     const node = el && el.nodeType === 1 ? el : block;
     if (!node || !node.closest) return false;
-    const words = blockText(block).split(/\s+/).filter(Boolean).length;
+    // Nur sichtbare Wörter: Unsichtbare Hinweise für Bildschirmleser und Bildbeschreibungen machten
+    // aus Knöpfen wie Amazons „Rufus“ (dahinter „… KI-Shopping-Assistent …“) sonst einen Inhalt.
+    const words = visibleWords(block, TOPIC_BAR_MAX_WORDS + 1);
     // Leiste aus kurzen Links auf Themen- und Rubrikseiten („Aktuelle Themen: SPÖ, Teuerung“,
     // „Erderwärmung“, Menü „Club Shop Trauerportal“) – Navigation, keine Meldung.
     if (node.tagName !== 'IMG' && isTopicLinkBar(block, words)) return true;
@@ -116,6 +118,31 @@
     if (!bar || bar.closest('article, [role="article"]')) return false;
     const a = node.closest('a[href]') || block.querySelector('a[href]');
     return !(a && looksLikeArticleLink(a));
+  }
+
+  /** Zahl der sichtbaren Wörter im Block (höchstens max): Text, dessen Element mehr als 1×1 px groß ist. */
+  function visibleWords(block, max) {
+    let n = 0;
+    const sizes = new Map();
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode: (t) => (t.parentElement && SKIP_TAGS.has(t.parentElement.tagName.toUpperCase())
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    for (let t; (t = walker.nextNode());) {
+      const w = t.nodeValue.split(/\s+/).filter(Boolean).length;
+      if (!w) continue;
+      const el = t.parentElement;
+      let shown = sizes.get(el);
+      if (shown === undefined) {
+        const r = el.getBoundingClientRect();
+        // Unscharf gestellte Blöcke bleiben messbar; nur display:none und 1×1-„sr-only“ fallen weg.
+        shown = r.width > 1 && r.height > 1;
+        sizes.set(el, shown);
+      }
+      if (shown) n += w;
+      if (n >= max) return n;
+    }
+    return n;
   }
 
   const TOPIC_BAR_MAX_WORDS = 15;

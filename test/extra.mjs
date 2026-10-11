@@ -331,11 +331,12 @@ async function main() {
       await p.waitForFunction(() => document.querySelector('#std-teaser').closest('[data-sf-hit]'), null, { timeout: 10000 });
       await p.waitForTimeout(500);
       const state = await p.evaluate(() => Object.fromEntries(
-        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ticker', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'credit', 'caption', 'foto-label', 'ok-teaser', 'promo']
+        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'rufus', 'prime', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ticker', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'credit', 'caption', 'foto-label', 'ok-teaser', 'promo']
           .map((id) => { const el = document.getElementById(id); return [id, !!(el.closest('[data-sf-hit]') || el.querySelector('[data-sf-hit]'))]; })));
       assert.deepEqual(state, {
         'nav-krieg': false, 'nav-terror': false, // Menüpunkte
         'nav-teaser': true, // Teaser im Menü (ganzer Satz)
+        rufus: false, prime: false, // Knöpfe mit unsichtbarem Hinweistext („KI-Shopping-Assistent“, wie amazon.de)
         eil: true, // Eilmeldung im Seitenkopf: Link auf eine Meldung
         ressort: true, // Überschrift im Seitenkopf
         'btn-ki': false, 'btn-kimodus': false, // Knöpfe
