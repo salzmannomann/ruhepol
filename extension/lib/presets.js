@@ -51,7 +51,11 @@
         'Bombardierung*', 'Bombenangriff*', 'Invasion', 'Militäroffensive*', 'Gegenoffensive*',
         'Militärschlag', 'Waffenstillstand*', 'Waffenruhe', 'Kampfhandlungen', 'Frontlinie*',
         'Truppen', 'Soldaten', 'Gefechte', 'Genozid', 'Völkermord', 'Gaza*', 'Hamas', 'Hisbollah',
-        'Huthi*', 'Atomwaffe*', 'Atomkrieg*', 'Mobilmachung', 'Wehrpflicht',
+        'Huthi*', 'Atomwaffe*', 'Atomkrieg*', 'Mobilmachung', 'Wehrpflicht', 'Gleitbombe*',
+        // Angriffe mit Herkunftsangabe („Tote nach russischen Angriffen“); genaue Formen, damit
+        // „russische Angriffslust“ im Sport nicht trifft
+        ...['russisch', 'ukrainisch', 'israelisch', 'iranisch'].flatMap((a) =>
+          [`${a}e Angriffe`, `${a}en Angriffen`, `${a}en Angriff`, `${a}er Angriff`, `${a}em Angriff`]),
       ],
     },
     {
@@ -75,6 +79,10 @@
         'Mord', 'Morde', 'Mordes', 'Mordfall*', 'Mordprozess*', 'Mordversuch*', 'Mordanklage*', 'ermordet*',
         'Mörder*', 'Totschlag', 'Tötung*', 'getötet', 'Leiche', 'Leichen', 'Leichnam', 'Messerstecherei*',
         'Raubüberfall*', 'Überfall', 'Einbrecher*', 'Entführung*', 'entführt', 'Menschenhandel',
+        // Gewalttaten mit Todesopfer – „Tote“ allein steht nur in „Unglücke“
+        'tote Frau', 'toter Mann', 'tote Person', 'toten Frau', 'toten Mann', 'tot aufgefunden', 'Frauenmord*',
+        'Bluttat*', 'erstochen', 'erschlagen', 'erwürgt', 'erdrosselt', 'Mordverdacht*', 'Leichenfund*',
+        'Tötungsdelikt*', 'Mordermittlung*',
       ],
     },
     {
@@ -232,7 +240,13 @@
    * Belastendes bedeutet (gefunden in echten Teasern von orf.at/derStandard/FM4).
    */
   const ALLOW = ['Die Toten Hosen', 'Toten Hosen', 'Rosenkrieg*', 'Katastrophenübung*', 'Katastrophenschutzübung*',
-    'Vermisste und zugelaufene'];
+    'Vermisste und zugelaufene',
+    // Feste Bezeichnungen von Suchmaschinen-Oberflächen, keine Meldungen über KI
+    'KI-Modus', 'KI-Übersicht',
+    // Kennzeichnung KI-erstellter Bilder (z. B. Werbebanner auf willhaben.at), keine Meldung über KI
+    // – nur die Bildkennzeichnung selbst; „KI-generierte Fakes …“ bleibt ein Treffer.
+    'KI-generiertes Bild', 'KI-generiertes Foto', 'KI-generierte Grafik', 'KI-generierte Illustration',
+    'mit KI generiert', 'mit KI erstellt', 'AI-generated image'];
 
   function examplesFor(ids) {
     const set = new Set(ids || []);

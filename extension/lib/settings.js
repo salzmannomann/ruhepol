@@ -23,6 +23,11 @@
     // 'hide' | 'blur' | 'placeholder'
     display: 'blur',
     ocr: true,
+    // Auf Nicht-Nachrichtenseiten (Shops, Marktplätze, Reisen) Bilder sofort zeigen und im
+    // Hintergrund prüfen, statt sie bis zur Prüfung unscharf zu stellen
+    calmImages: true,
+    // Eigene Einstufung einzelner Seiten: {host: 'news' | 'calm'}
+    siteKinds: {},
     partial: false,
     fuzzy: false,
     // Lernfilter: aus Bewertungen lernen
@@ -122,7 +127,15 @@
       if (Number.isFinite(n) && n >= 0) s[k] = Math.round(n);
     }
     if (['hide', 'blur', 'placeholder'].includes(raw.display)) s.display = raw.display;
-    for (const k of ['ocr', 'partial', 'fuzzy']) {
+    if (raw.siteKinds && typeof raw.siteKinds === 'object' && !Array.isArray(raw.siteKinds)) {
+      const kinds = {};
+      for (const [h, v] of Object.entries(raw.siteKinds).slice(0, 300)) {
+        const host = normalizeHost(h);
+        if (host && (v === 'news' || v === 'calm')) kinds[host] = v;
+      }
+      s.siteKinds = kinds;
+    }
+    for (const k of ['ocr', 'partial', 'fuzzy', 'calmImages']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     if (['show', 'blur', 'hide'].includes(raw.onError)) s.onError = raw.onError;

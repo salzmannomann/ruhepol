@@ -12,8 +12,11 @@ env.allowLocalModels = true;
 env.localModelPath = base + 'vendor/models/';
 env.useBrowserCache = false;
 env.backends.onnx.wasm.wasmPaths = base + 'vendor/transformers/';
-// Mehrere Threads bräuchten eine cross-origin-isolierte Seite; ein Thread reicht für Teaser.
-env.backends.onnx.wasm.numThreads = 1;
+// Mehrere Threads: Die Erweiterungsseiten sind cross-origin-isoliert (manifest.json, COOP/COEP).
+// Gemessen an 844 echten Teasern (4 Kerne): 1 Thread 80 s, 2 Threads 47 s, 4 Threads 30 s, gleiche
+// Ergebnisse. Ein Kern bleibt für Seite und Texterkennung frei, höchstens 4.
+const cores = navigator.hardwareConcurrency || 4;
+env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, Math.max(2, cores - 1)) : 1;
 
 let extractor = null; // { model, promise }
 

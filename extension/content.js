@@ -47,7 +47,15 @@
       color: #444 !important; font: 14px/1.4 system-ui, sans-serif !important; cursor: pointer !important; }
     .sf-pick { outline: 3px dashed #3d5afe !important; outline-offset: 2px !important; }`;
 
+  // Auf Nicht-Nachrichtenseiten nur fertige Treffer und Fehler unscharf (siehe content.css).
+  const SHADOW_CSS_CALM = SHADOW_CSS.replace(
+    'img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],\n    [data-sf-bg="pending"], [data-sf-bg="err"]',
+    'img[data-sf="hit"], img[data-sf="err"], [data-sf-bg="err"]');
+
   let settings = null;
+  let calmSite = false; // Nicht-Nachrichtenseite: Bilder sofort zeigen (lib/sitekind.js)
+  let calmAuto = false; // … und zwar nur durch die automatische Einstufung (siehe unten)
+  let autoKinds = {}; // automatische Einstufung unbekannter Seiten: {host: 'calm' | 'news'}
   let matcher = null;
   let mildMatcher = null; // nur die milden Vorschlagslisten (Wirtschaft, Krise & Skandal)
   let strongMatcher = null; // alles andere inkl. eigener Schlagwörter
@@ -76,6 +84,114 @@
   let shadowSheet = null;
   let zoneRules = []; // Bereichsregeln für diese Seite
 
+  /* ---------------- Feste Bedienoberfläche ---------------- */
+
+  // Knöpfe, Menüs und Navigation sind keine Meldungen („KI-Modus“ bei Google, Menüpunkt „Klima“).
+  const UI_MENUS = 'nav, [role="navigation"], [role="menubar"], [role="menu"], [role="tablist"], [role="toolbar"]';
+  const UI_CONTROLS = 'button, [role="button"], [role="tab"], [role="menuitem"], [role="menuitemradio"], ' +
+    '[role="menuitemcheckbox"], [role="option"], [role="switch"], [role="search"], label, ' + UI_MENUS;
+  // Kopf- und Fußbereich der Seite. Ein <header> innerhalb eines Artikels gehört zum Inhalt
+  // (derStandard: Überschrift und Vorspann jedes Teasers stehen in einem <header>).
+  const PAGE_BARS = 'header, footer, [role="banner"], [role="contentinfo"]';
+  const UI_MAX_WORDS = 6;
+
+  /**
+   * Liegt der Treffer in fester Bedienoberfläche statt in einem Inhalt? Nur bei kurzen Texten:
+   * Teaser in Aufklapp-Menüs oder ein Eilmeldungs-Band im Seitenkopf bleiben gefiltert.
+   */
+  function isPageChrome(el, block) {
+    const node = el && el.nodeType === 1 ? el : block;
+    if (!node || !node.closest) return false;
+    // Nur sichtbare Wörter: Unsichtbare Hinweise für Bildschirmleser und Bildbeschreibungen machten
+    // aus Knöpfen wie Amazons „Rufus“ (dahinter „… KI-Shopping-Assistent …“) sonst einen Inhalt.
+    const words = visibleWords(block, TOPIC_BAR_MAX_WORDS + 1);
+    // Leiste aus kurzen Links auf Themen- und Rubrikseiten („Aktuelle Themen: SPÖ, Teuerung“,
+    // „Erderwärmung“, Menü „Club Shop Trauerportal“) – Navigation, keine Meldung.
+    if (node.tagName !== 'IMG' && isTopicLinkBar(block, words)) return true;
+    // Navigation der Seite (nicht im Artikel): Inhalt nur, wenn ein Link auf eine einzelne Meldung
+    // dabei ist (Teaser im Menü). Sonst Bedienoberfläche, auch bei viel Text – amazon.de hält dort
+    // ein eingeklapptes Chatfenster („Rufus AI …“) bereit, das die ganze Leiste unscharf machte.
+    const menu = node.closest(UI_MENUS);
+    if (menu && !menu.closest('article, [role="article"], main, [role="main"]') && node.tagName !== 'IMG') {
+      const own = node.closest('a[href]');
+      const links = own ? [own] : [...block.querySelectorAll('a[href]')];
+      return !links.some(looksLikeArticleLink);
+    }
+    if (words > UI_MAX_WORDS) return false;
+    // Überschriften sind Inhalt, auch als „Knopf“ (orf.at: Video-Titel sind <a role="button"> in <h3>).
+    if (node.closest('h1, h2, h3, h4, h5, h6') || block.matches('h1, h2, h3, h4') || block.querySelector('h1, h2, h3, h4')) return false;
+    if (node.closest(UI_CONTROLS)) return true;
+    // Bilder nur in Knöpfen und Menüs (Symbole); ein Aufmacherbild im Seitenkopf ist Inhalt.
+    if (node.tagName === 'IMG') return false;
+    const bar = node.closest(PAGE_BARS);
+    if (!bar || bar.closest('article, [role="article"]')) return false;
+    const a = node.closest('a[href]') || block.querySelector('a[href]');
+    return !(a && looksLikeArticleLink(a));
+  }
+
+  /** Zahl der sichtbaren Wörter im Block (höchstens max): Text, dessen Element mehr als 1×1 px groß ist. */
+  function visibleWords(block, max) {
+    let n = 0;
+    const sizes = new Map();
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode: (t) => (t.parentElement && SKIP_TAGS.has(t.parentElement.tagName.toUpperCase())
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    for (let t; (t = walker.nextNode());) {
+      const w = t.nodeValue.split(/\s+/).filter(Boolean).length;
+      if (!w) continue;
+      const el = t.parentElement;
+      let shown = sizes.get(el);
+      if (shown === undefined) {
+        const r = el.getBoundingClientRect();
+        // Unscharf gestellte Blöcke bleiben messbar; nur display:none und 1×1-„sr-only“ fallen weg.
+        shown = r.width > 1 && r.height > 1;
+        sizes.set(el, shown);
+      }
+      if (shown) n += w;
+      if (n >= max) return n;
+    }
+    return n;
+  }
+
+  const TOPIC_BAR_MAX_WORDS = 15;
+  const TOPIC_LINK_MAX_WORDS = 4;
+
+  /** Block besteht (fast) nur aus kurzen Links, und keiner davon führt zu einer einzelnen Meldung. */
+  function isTopicLinkBar(block, words) {
+    if (!words || words > TOPIC_BAR_MAX_WORDS) return false;
+    if (block.matches('h1, h2, h3, h4, h5, h6') || block.querySelector('h1, h2, h3, h4, h5, h6') || block.closest('h1, h2, h3, h4, h5, h6')) return false;
+    const links = [...block.querySelectorAll('a[href]')];
+    const own = block.closest('a[href]');
+    if (own) links.push(own);
+    if (!links.length) return false;
+    let linkWords = 0;
+    for (const a of links) {
+      const n = (a.textContent || '').trim().split(/\s+/).filter(Boolean).length;
+      if (n > TOPIC_LINK_MAX_WORDS || looksLikeArticleLink(a)) return false;
+      linkWords += n;
+    }
+    // Höchstens eine kurze Überschrift wie „Aktuelle Themen“ außerhalb der Links.
+    return own ? true : words - linkWords <= 3;
+  }
+
+  /** Link auf eine einzelne Meldung (Artikelnummer, langer Titel in der Adresse), nicht auf eine Rubrik. */
+  function looksLikeArticleLink(a) {
+    try {
+      const u = new URL(a.href, location.href);
+      const segs = u.pathname.split('/').filter(Boolean);
+      const last = segs[segs.length - 1] || '';
+      return /\d{5,}/.test(u.pathname) ||
+        segs.some((seg) => seg.length > 30) ||
+        /-\d+(\.s?html?)?$/.test(last) || // tagesschau.de: /panama-erdbeben-102.html
+        (/\.s?html?$/.test(last) && (last.match(/-/g) || []).length >= 2) ||
+        /^[a-z]-[0-9a-f]{6,}/.test(last) || // spiegel.de: …-a-1a2b3c4d
+        segs.some((seg) => seg.length >= 10 && !seg.includes('-') && /[a-z]/i.test(seg) && /\d{3,}|(?:\d\D*){6,}/.test(seg)); // krone.at: /das-freie-wort/6ac9870a3e8ab3777f01bc32
+    } catch (_) {
+      return false;
+    }
+  }
+
   /* ---------------- Bewusst geöffnete Artikel ---------------- */
 
   // Automatische Gründe; was die Person selbst gesperrt hat (👎, Bereiche), gilt weiter.
@@ -98,7 +214,7 @@
       a = card && card.querySelector('a[href]');
     }
     if (!a || !/^https?:/i.test(a.href)) return;
-    if (a.closest('[data-sf-hit], .sf-placeholder')) return; // unscharf/ausgeblendet: nicht bewusst gewählt
+    if (closestDeep(a, '[data-sf-hit], .sf-placeholder')) return; // unscharf/ausgeblendet: nicht bewusst gewählt
     try { chrome.runtime.sendMessage({ type: 'trustLink', url: a.href }).catch(() => {}); } catch (_) { /* neu geladen */ }
   }
 
@@ -134,22 +250,39 @@
   async function init() {
     // Nur HTML-Dokumente (keine XML-Ansichten wie RSS/Sitemaps: dort fehlen style und dataset).
     if (!(document.documentElement instanceof HTMLElement)) return;
-    const [s, local] = await Promise.all([S.load(), chrome.storage.local.get('model')]);
+    // Bis die Einstellungen geladen sind, Bilder schon unscharf (sonst blitzen sie kurz auf).
+    // apply() hebt das gleich wieder auf; Sicherheitsnetz, falls etwas hängt.
+    document.documentElement.classList.add('sf-boot');
+    bootTimer = setTimeout(endBoot, BOOT_MAX_MS);
+    const [s, local] = await Promise.all([S.load(), chrome.storage.local.get(['model', 'autoKinds'])]);
     settings = s;
     model = local.model || null;
-    // Über einen sichtbaren Teaser geöffnet? Vor dem ersten Ausblenden klären (nur Hauptseite).
-    if (settings.trustOpened && window === window.top) {
-      try {
-        const r = await withTimeout(chrome.runtime.sendMessage({ type: 'isTrusted', url: location.href }), 400);
-        trustedPage = !!(r && r.trusted);
-      } catch (_) { /* dann normal filtern */ }
-    }
+    autoKinds = local.autoKinds || {};
     for (const type of ['click', 'auxclick', 'contextmenu']) document.addEventListener(type, onLinkIntent, true);
+    // Sofort filtern – nicht erst auf den Hintergrund warten (der muss oft erst aufwachen, und so
+    // lange blitzten Teaser kurz auf). Über einen sichtbaren Teaser geöffnet? Dann werden
+    // automatische Treffer im Artikel danach wieder aufgedeckt (nur Hauptseite).
     apply();
+    if (settings.trustOpened && window === window.top) {
+      withTimeout(chrome.runtime.sendMessage({ type: 'isTrusted', url: location.href }), 3000).then((r) => {
+        if (!(r && r.trusted) || !active) return;
+        trustedPage = true;
+        for (const b of [...hitBlocks]) if (AUTO_WHY.has(b.dataset.sfWhy) && inTrustedArea(b)) unhide(b);
+        reportCount();
+      }).catch(() => { /* dann normal filtern */ });
+    }
     // Sprachmodell und Bezugstexte schon laden, während die Seite noch aufbaut.
     if (active && semanticOn()) chrome.runtime.sendMessage({ type: 'semWarm' }).catch(() => {});
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local' || !changes.model) return;
+      if (area !== 'local') return;
+      if (changes.autoKinds) {
+        // Andere Seite (oder anderer Tab) hat eine Seite automatisch eingestuft.
+        const h = S.normalizeHost(location.hostname);
+        const before = autoKinds[h];
+        autoKinds = changes.autoKinds.newValue || {};
+        if (autoKinds[h] !== before && settings) apply();
+      }
+      if (!changes.model) return;
       const wasHiding = learningHides();
       model = changes.model.newValue || null;
       // Modell ist erstmals einsatzbereit (oder nicht mehr): neu starten, sonst nur weiterverwenden.
@@ -172,7 +305,16 @@
     });
   }
 
+  function endBoot() {
+    clearTimeout(bootTimer);
+    document.documentElement.classList.remove('sf-boot');
+  }
+
   function apply() {
+    try { applyNow(); } finally { endBoot(); }
+  }
+
+  function applyNow() {
     teardown();
     const host = location.hostname || (window.top !== window ? safeTopHost() : '');
     const keywords = S.allKeywords(settings);
@@ -199,6 +341,16 @@
     generation++;
     document.documentElement.classList.add('sf-active');
     document.documentElement.style.setProperty('--sf-min-w', settings.minWidth + 'px');
+    // In eingebetteten Frames zählt die Hauptseite (Werbe-Frames fremder Seiten: deren Host).
+    const topHost = window.top !== window ? (safeTopHost() || host) : host;
+    const K = globalThis.SFSiteKind;
+    const listed = K.hostKind(topHost, settings.siteKinds); // Liste oder eigene Einstufung
+    const auto = autoKinds[S.normalizeHost(topHost)];
+    calmSite = settings.calmImages && (listed ? listed === 'calm' : auto === 'calm');
+    calmAuto = calmSite && !listed;
+    document.documentElement.classList.toggle('sf-calm', calmSite);
+    if (shadowSheet) shadowSheet.replaceSync(calmSite ? SHADOW_CSS_CALM : SHADOW_CSS);
+    scheduleSiteStats();
 
     io = new IntersectionObserver(onIntersect, { rootMargin: OCR_MARGIN });
     observer = new MutationObserver(onMutations);
@@ -207,9 +359,14 @@
     document.addEventListener('error', onErrorCapture, true);
     document.addEventListener('pointerdown', onPendingDown, true);
     document.addEventListener('click', onPendingClick, true);
+    document.addEventListener(SHADOW_EVENT, onShadowAttached, true);
+    window.addEventListener('load', sweepShadowsSoon, { once: true });
 
-    // Bilder sofort markieren, Text dann im Leerlauf prüfen.
+    // Bilder sofort markieren, vorhandenen Text gleich prüfen (Rest im Leerlauf).
+    startEager();
     enqueue(document.documentElement);
+    eagerScan([document.documentElement], EAGER_START_BUDGET_MS);
+    scheduleFastLane();
     applyZones();
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => { if (active) { enqueue(document.documentElement); applyZones(); } }, { once: true });
@@ -235,6 +392,13 @@
 
   function teardown() {
     active = false;
+    eagerOpen = false;
+    clearTimeout(fastTimer);
+    fastTimer = null;
+    clearTimeout(statsTimer);
+    statsTimer = null;
+    clearTimeout(preTimer);
+    clearStalePre();
     if (observer) observer.disconnect();
     if (io) io.disconnect();
     observer = io = null;
@@ -266,7 +430,8 @@
     document.removeEventListener('error', onErrorCapture, true);
     document.removeEventListener('pointerdown', onPendingDown, true);
     document.removeEventListener('click', onPendingClick, true);
-    document.documentElement.classList.remove('sf-active');
+    document.removeEventListener(SHADOW_EVENT, onShadowAttached, true);
+    document.documentElement.classList.remove('sf-active', 'sf-calm');
     for (const el of document.querySelectorAll('.sf-placeholder, .sf-feedback')) el.remove();
     cancelHold();
     for (const el of document.querySelectorAll('[data-sf-hit]')) {
@@ -304,13 +469,65 @@
 
   /* ---------------- Shadow-DOM (offene Shadow-Roots) ---------------- */
 
+  /**
+   * Wie el.closest(sel), aber über Shadow-Grenzen hinweg: Bei MSN liegt der Text einer Karte in
+   * einem Shadow-Bereich innerhalb der (schon unscharfen) Karte.
+   */
+  function closestDeep(el, sel) {
+    for (let n = el; n;) {
+      const c = n.closest ? n.closest(sel) : null;
+      if (c) return c;
+      const root = n.getRootNode ? n.getRootNode() : null;
+      n = root && root.host ? root.host : null;
+    }
+    return null;
+  }
+
+  /** Liegt node in block – auch innerhalb von Shadow-Bereichen darin? */
+  function containsDeep(block, node) {
+    for (let n = node; n;) {
+      if (block.contains(n)) return true;
+      const root = n.getRootNode ? n.getRootNode() : null;
+      n = root && root.host ? root.host : null;
+    }
+    return false;
+  }
+
+  /** Alle Bilder im Block, auch in (beobachteten) Shadow-Bereichen darin. */
+  function imagesDeep(block) {
+    const out = [...block.querySelectorAll('img')];
+    for (const root of shadowRoots) if (containsDeep(block, root.host)) out.push(...root.querySelectorAll('img'));
+    return out;
+  }
+
+  // Meldung von shadow-hook.js (läuft in der Seite): ein Element hat nachträglich einen
+  // offenen Shadow-Bereich bekommen.
+  const SHADOW_EVENT = '__ruhepol_shadow';
+  function onShadowAttached(ev) {
+    const host = ev.composedPath()[0];
+    if (host && host.shadowRoot) watchShadow(host.shadowRoot);
+  }
+
+  /** Ersatz-Durchgang nach dem Laden: Shadow-Bereiche, die ohne Meldung entstanden sind. */
+  function sweepShadowsSoon() {
+    for (const ms of [500, 3000]) setTimeout(() => { if (active) sweepShadows(document); }, ms);
+  }
+  function sweepShadows(root) {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) {
+        if (!shadowRoots.has(el.shadowRoot)) watchShadow(el.shadowRoot);
+        sweepShadows(el.shadowRoot);
+      }
+    }
+  }
+
   function watchShadow(root) {
     if (!active || shadowRoots.has(root)) return;
     shadowRoots.add(root);
     try {
       if (!shadowSheet) {
         shadowSheet = new CSSStyleSheet();
-        shadowSheet.replaceSync(SHADOW_CSS);
+        shadowSheet.replaceSync(calmSite ? SHADOW_CSS_CALM : SHADOW_CSS);
       }
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, shadowSheet];
     } catch (_) { /* ältere Browser */ }
@@ -327,6 +544,78 @@
     ? (cb) => window.requestIdleCallback(cb, { timeout: 500 })
     : (cb) => setTimeout(() => cb({ timeRemaining: () => IDLE_BUDGET_MS, didTimeout: true }), 16);
   const cancelIdle = window.cancelIdleCallback || clearTimeout;
+
+  /*
+   * Neue Inhalte sofort prüfen (gegen kurzes Aufblitzen von Texten): Mutation-Callbacks laufen,
+   * bevor der Browser zeichnet. Solange die Seite lädt, mit großzügigem Zeitbudget, danach mit
+   * kleinem (nachgeladene Teaser, z. B. der Videobereich auf orf.at); der Rest läuft im Leerlauf.
+   */
+  const BOOT_MAX_MS = 3000;
+  const EAGER_START_BUDGET_MS = 20;
+  const EAGER_LOADING_BUDGET_MS = 20;
+  const EAGER_BUDGET_MS = 8;
+  let bootTimer = null;
+  let eagerOpen = false;
+
+  function startEager() { eagerOpen = true; }
+  function eagerBudget() { return document.readyState === 'loading' ? EAGER_LOADING_BUDGET_MS : EAGER_BUDGET_MS; }
+
+  /**
+   * Knoten sofort prüfen – nur den Text, ohne Layout-Abfragen (die sind beim Laden teuer, weil
+   * der Browser dafür die halbfertige Seite neu setzen muss). Bei einem Treffer wird der
+   * umgebende Teaser vorsorglich unscharf (sf-pre); die genaue Entscheidung (welcher Block,
+   * Ausnahmen, Gegenprüfung) folgt im Leerlauf und hebt die Vorsorge wieder auf.
+   */
+  const PRE_BLOCKS = 'h1, h2, h3, h4, h5, h6, p, a';
+  const PRE_MAX_MS = 3000;
+  const preBlurred = new Set();
+  let preTimer = null;
+
+  function eagerScan(nodes, budgetMs) {
+    if (!active || !matcher) return;
+    const start = performance.now();
+    for (const node of nodes) {
+      if (!node.isConnected) continue;
+      if (node.nodeType === 3) { preCheck(node); continue; }
+      if (node.nodeType !== 1 && node.nodeType !== 9) continue;
+      const walker = scanNode(node);
+      if (!walker) continue;
+      let n, i = 0;
+      while ((n = walker.nextNode())) {
+        if (n.nodeType === 3) preCheck(n);
+        if (++i % 64 === 0 && performance.now() - start > budgetMs) return;
+      }
+      if (performance.now() - start > budgetMs) return;
+    }
+  }
+
+  function preCheck(textNode) {
+    const el = textNode.parentElement;
+    if (!el || SKIP_TAGS.has(el.tagName.toUpperCase()) || !matcher.find(textNode.nodeValue)) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed], .sf-pre')) return;
+    const para = el.closest('p');
+    const pre = (para && para.parentElement && para.parentElement.querySelectorAll(':scope > p').length >= 3 && !inTeaserCard(para) ? para : null) ||
+      el.closest('article, li, figure') || el.closest(PRE_BLOCKS) || el;
+    if (pre === document.body || pre === document.documentElement) return;
+    pre.classList.add('sf-pre');
+    preBlurred.add(pre);
+    // Sicherheitsnetz: Vorsorge nie dauerhaft stehen lassen.
+    if (!preTimer) preTimer = setTimeout(clearStalePre, PRE_MAX_MS);
+  }
+
+  /** Genaue Entscheidung für diesen Text ist gefallen: Vorsorge des umgebenden Blocks aufheben. */
+  function endPre(el) {
+    const pre = el && el.closest('.sf-pre');
+    if (!pre) return;
+    pre.classList.remove('sf-pre');
+    preBlurred.delete(pre);
+  }
+
+  function clearStalePre() {
+    preTimer = null;
+    for (const p of preBlurred) p.classList.remove('sf-pre');
+    preBlurred.clear();
+  }
 
   function enqueue(node) {
     if (!active || !node) return;
@@ -368,6 +657,16 @@
   }
 
   function onMutations(records) {
+    if (eagerOpen) {
+      // Neue Texte prüfen, bevor der Browser sie zeichnet; was nicht ins Zeitbudget passt, läuft
+      // normal weiter.
+      const nodes = [];
+      for (const r of records) {
+        if (r.type === 'childList') for (const n of r.addedNodes) { if ((n.nodeType === 1 && !isOwn(n)) || n.nodeType === 3) nodes.push(n); }
+        else if (r.type === 'characterData') nodes.push(r.target);
+      }
+      if (nodes.length) eagerScan(nodes, eagerBudget());
+    }
     for (const r of records) mutationBuffer.push(r);
     // Bilder dürfen nicht kurz scharf aufblitzen: neue <img> sofort markieren.
     for (const r of records) {
@@ -445,15 +744,19 @@
 
   function skipElement(el) {
     if (SKIP_TAGS.has(el.tagName.toUpperCase()) || isOwn(el)) return true;
-    return !!el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-feedback, .sf-toast, [contenteditable=""], [contenteditable="true"]');
+    return !!closestDeep(el, '[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-feedback, .sf-toast, [contenteditable=""], [contenteditable="true"]');
   }
 
   function checkText(el, text) {
     if (!el || !text || !matcher) return;
-    if (el.closest('[data-sf-hit], [data-sf-revealed]')) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed]')) { endPre(el); return; }
     if (SKIP_TAGS.has(el.tagName.toUpperCase())) return;
     const kw = matcher.find(text);
     if (!kw) return;
+    try { decideText(el, kw); } finally { endPre(el); }
+  }
+
+  function decideText(el, kw) {
     const block = findBlock(el);
     if (isArticleParagraph(block) && onlyOneMildHit(block)) {
       // Einzelner Treffer aus einer milden Liste mitten im Fließtext (z. B. „Massenentlassungen“
@@ -523,8 +826,8 @@
   function processImage(img) {
     if (!active || img.dataset.sfRevealed) return;
     // Im aufgedeckten Block nachgeladen: gleich mit aufdecken (sonst bliebe es per CSS unscharf).
-    if (img.closest('[data-sf-revealed]')) { img.dataset.sfRevealed = '1'; return; }
-    if (img.closest('[data-sf-hit]')) return;
+    if (closestDeep(img, '[data-sf-revealed]')) { img.dataset.sfRevealed = '1'; return; }
+    if (closestDeep(img, '[data-sf-hit]')) return;
     // Bewusst geöffneter Artikel: Fotos im Artikel gar nicht erst prüfen.
     if (trustedPage && inTrustedArea(findBlock(img))) { img.dataset.sf = 'ok'; return; }
     // Vorauswahl: Bildhinweise (alt, title, aria-label, figcaption) sofort prüfen, noch bevor
@@ -557,6 +860,10 @@
     }
     img.dataset.sf = 'pending';
     if (!settings.ocr) { img.dataset.sf = 'ok'; return; }
+    // Schon herunterladen lassen; die Texterkennung startet, sobald das Bild sichtbar ist.
+    if (/^https?:/i.test(src)) {
+      try { chrome.runtime.sendMessage({ type: 'ocrPrefetch', url: src }).catch(() => {}); } catch (_) { /* neu geladen */ }
+    }
     if (io) io.observe(img);
   }
 
@@ -612,7 +919,7 @@
     const url = bgUrl(el);
     if (!url) return;
     if (el.dataset.sfSrc === url && el.dataset.sfBg) return;
-    if (el.closest('[data-sf-hit], [data-sf-revealed]')) return;
+    if (closestDeep(el, '[data-sf-hit], [data-sf-revealed]')) return;
     const r = el.getBoundingClientRect();
     const w = r.width || Number(el.getAttribute('width')) || 0;
     const h = r.height || Number(el.getAttribute('height')) || 0;
@@ -636,13 +943,25 @@
     return items.length >= 6 && items.every((x) => x.split(/\s+/).length <= 3);
   }
 
+  /**
+   * Bildquelle („© Foto: Stadt Innsbruck, Amt Klimaneutrale Stadt“) ist keine Meldung: ab ©,
+   * „(c)“ oder „Copyright“ bis zum Ende weglassen. Bewusst nicht bei „Foto:“ allein – das leitet
+   * manchmal auch eine Bildbeschreibung ein („Foto: Zerstörte Häuser nach Luftangriff“).
+   */
+  const CREDIT = /(?:^|\s|\()(?:©|\(c\)|copyright\b)/i;
+  function withoutCredit(text) {
+    const t = String(text || '');
+    const m = CREDIT.exec(t);
+    return m ? t.slice(0, m.index) : t;
+  }
+
   function imageContextText(img) {
     const parts = [img.getAttribute('alt'), img.getAttribute('title'), img.getAttribute('aria-label')]
-      .filter((t) => !isTagList(t));
+      .filter((t) => !isTagList(t)).map(withoutCredit);
     const fig = img.closest('figure');
     if (fig) {
       const cap = fig.querySelector('figcaption');
-      if (cap) parts.push(cap.textContent);
+      if (cap) parts.push(withoutCredit(cap.textContent));
     }
     return parts.filter(Boolean).join(' \n ');
   }
@@ -662,18 +981,19 @@
    * OCR erst starten, wenn der Textscan durch ist: Steht das Schlagwort schon im Teaser-Text,
    * ist der Block bereits ausgeblendet und das Bild muss nicht gelesen werden.
    */
-  const OCR_MAX_WAIT_MS = 400; // Texterkennung kostet nur noch ~0,2 s: nicht lange auf den Textscan warten
+  const OCR_MAX_WAIT_MS = 400;
   let ocrWaitTimer = null;
 
   function flushOcr() {
-    // Normalerweise erst nach dem Textscan; auf Seiten, die sich ständig ändern (Ticker,
-    // Werbung), aber spätestens nach OCR_MAX_WAIT_MS, damit Bilder nicht ewig unscharf bleiben.
-    const busy = pendingRoots.size || activeWalker || mutationTimer;
+    // Sofort losschicken: Der Teaser-Text wurde beim Einfügen schon auf Schlagwörter geprüft
+    // (vorsorglich unscharf = sf-pre). Nur bei solchen Teasern auf die genaue Entscheidung warten –
+    // wird der Block ausgeblendet, entfällt die Texterkennung –, höchstens OCR_MAX_WAIT_MS.
+    // (Bis 1.20 wurde auf den ganzen Textscan gewartet: im Mittel 0,7 s je Bild.)
     const now = performance.now();
     for (const [img, since] of ocrWaiting) {
-      if (busy && now - since < OCR_MAX_WAIT_MS) continue;
+      if (img.closest('.sf-pre') && now - since < OCR_MAX_WAIT_MS) continue;
       ocrWaiting.delete(img);
-      if (!img.isConnected || img.closest('[data-sf-hit], [data-sf-revealed]')) continue;
+      if (!img.isConnected || closestDeep(img, '[data-sf-hit], [data-sf-revealed]')) continue;
       runOcr(img);
     }
     clearTimeout(ocrWaitTimer);
@@ -702,6 +1022,7 @@
       if (kw) hitImage(img, kw, 'ocr');
       else {
         setState(img, 'ok');
+        pageImgOk++;
         // Der Bildtext kann für den Lernfilter den Ausschlag geben.
         if (learnHandleable()) {
           const block = findBlock(img);
@@ -777,7 +1098,7 @@
     // Absatz nehmen – nicht den ganzen Textbereich samt Fotos.
     const para = el.closest && el.closest('p');
     if (para && para.parentElement && para.textContent.length > 40 &&
-        para.parentElement.querySelectorAll(':scope > p').length >= 3) {
+        para.parentElement.querySelectorAll(':scope > p').length >= 3 && !inTeaserCard(para)) {
       return para;
     }
     let primary = null, section = null, link = null;
@@ -807,6 +1128,19 @@
     return base;
   }
 
+  /**
+   * Absatz im Text einer Teaser-Karte (orf.at: ausklappbarer Text unter jeder Ticker-Meldung):
+   * Die Karte hat eine verlinkte Überschrift. Dann gehört der Treffer zur ganzen Meldung, nicht
+   * nur zum (oft eingeklappten, unsichtbaren) Absatz.
+   */
+  function inTeaserCard(para) {
+    const card = para.closest('article, li');
+    // Maßgeblich ist die erste Überschrift: Artikelseiten haben eine unverlinkte <h1>, auch wenn
+    // weiter unten verlinkte „Mehr zum Thema“-Teaser im selben <article> stehen.
+    const head = card && card.querySelector('h1, h2, h3, h4');
+    return !!head && !!(head.closest('a[href]') || head.querySelector('a[href]'));
+  }
+
   /** Größter Vorfahre (max. 6 Ebenen), der höchstens eine Überschrift und wenige Links enthält. */
   function expandTeaser(el) {
     let best = el;
@@ -815,6 +1149,8 @@
       if (cur.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 1) break;
       if (cur.querySelectorAll('a[href]').length > 6) break;
       if (cur.querySelectorAll('img').length > 3) break;
+      // Nicht über ein Menü hinweg erweitern (Eilmeldung im Seitenkopf ≠ ganzer Kopf samt Navigation).
+      if ([...cur.querySelectorAll(UI_MENUS)].some((m) => !m.contains(el))) break;
       if (!blockOk(cur)) break;
       best = cur;
     }
@@ -869,28 +1205,68 @@
     const budget = () => (deadline.didTimeout ? IDLE_BUDGET_MS - (performance.now() - start) : deadline.timeRemaining());
     for (const el of learnCandidates) {
       learnCandidates.delete(el);
-      if (!el.isConnected || el.closest('[data-sf-hit], [data-sf-revealed], .sf-placeholder')) continue;
-      const heading = /^H[1-6]$/.test(el.tagName);
-      const block = heading ? findBlock(el) : el;
-      if (scoredBlocks.has(block) || clearedBlocks.has(block)) continue;
-      if (!heading && !blockOk(block)) continue;
-      if (trustedPage && inTrustedArea(block)) continue; // bewusst geöffneter Artikel
-      scoredBlocks.add(block);
-      const text = blockText(block);
-      if (text.length >= 25) {
-        const s = learningHides() ? L.score(model, text) : null;
-        if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
-          hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true, why: 'gelernt' });
-        } else if (semanticOn() && wordCount(text) >= SEM_MIN_WORDS) {
-          // Sehr kurze Texte (Bildnachweise, Rubriknamen) liegen beim Modell zufällig nah an allem.
-          semQueue.add(block);
-        }
-      }
+      learnOne(el, false);
       if (budget() <= 1) break;
     }
     if (learnCandidates.size) learnHandle = requestIdle(learnWork);
     flushSem();
     reportCount();
+  }
+
+  /**
+   * Einen Kandidaten an Lernfilter bzw. Sprachmodell geben. fast: Überholspur beim Laden – der
+   * Textscan war noch nicht da. Dann nur fertige Teaser ohne Schlagwort (die übernimmt gleich der
+   * Textscan) und nichts als erledigt merken, was noch unvollständig sein könnte.
+   */
+  function learnOne(el, fast) {
+    if (!el.isConnected || closestDeep(el, fast ? '[data-sf-hit], [data-sf-revealed], .sf-placeholder, .sf-pre' : '[data-sf-hit], [data-sf-revealed], .sf-placeholder')) return;
+    const heading = /^H[1-6]$/.test(el.tagName);
+    const block = heading ? findBlock(el) : el;
+    if (scoredBlocks.has(block) || clearedBlocks.has(block)) return;
+    if (!heading && !blockOk(block)) return;
+    if (trustedPage && inTrustedArea(block)) return; // bewusst geöffneter Artikel
+    const text = blockText(block);
+    if (fast && (text.length < 25 || wordCount(text) < SEM_MIN_WORDS || matcher.find(text))) return;
+    scoredBlocks.add(block);
+    if (text.length >= 25) {
+      const s = learningHides() ? L.score(model, text) : null;
+      if (s && s.known >= 3 && s.p >= settings.learnThreshold) {
+        hit(block, `gelernt, ${Math.round(s.p * 100)} %`, { block, force: true, why: 'gelernt' });
+      } else if (semanticOn() && wordCount(text) >= SEM_MIN_WORDS) {
+        // Sehr kurze Texte (Bildnachweise, Rubriknamen) liegen beim Modell zufällig nah an allem.
+        semQueue.add(block);
+      }
+    }
+  }
+
+  /*
+   * Überholspur beim Laden: Der Textscan läuft nur im Leerlauf, und den hat eine große
+   * Nachrichtenseite beim Aufbau oft erst nach Sekunden (gemessen kurier.at: erster Teaser nach
+   * 4 s geprüft, das Modell selbst brauchte dann 0,8 s). Darum alle 300 ms die sichtbaren Teaser
+   * direkt nehmen, je höchstens 6 ms, bis die Seite geladen ist (längstens 15 s).
+   */
+  const FAST_EVERY_MS = 300;
+  const FAST_BUDGET_MS = 6;
+  const FAST_MAX_MS = 15000;
+  let fastTimer = null;
+
+  function scheduleFastLane() {
+    if (fastTimer || !active || window !== window.top) return;
+    fastTimer = setTimeout(fastLane, FAST_EVERY_MS);
+  }
+
+  function fastLane() {
+    fastTimer = null;
+    if (!active || !semanticOn() || semUnavailable || !learnHandleable() || !matcher) return;
+    const start = performance.now();
+    let n = 0;
+    for (const el of document.querySelectorAll(LEARN_CANDIDATES)) {
+      if (++n % 16 === 0 && performance.now() - start > FAST_BUDGET_MS) break;
+      if (!inView(el)) continue;
+      learnOne(el, true);
+    }
+    flushSem();
+    if (performance.now() < FAST_MAX_MS && document.readyState !== 'complete') scheduleFastLane();
   }
 
   /* ---------------- KI-Gegenprüfung von Schlagwort-Treffern ---------------- */
@@ -1057,7 +1433,14 @@
   /* ---------------- Bedeutungs-Filter (Stufe 2) ---------------- */
 
   const SEM_BATCH = 24;
+  const SEM_PRIO_BATCH = 12;
   const SEM_MIN_WORDS = 4;
+
+  /** Im sichtbaren Bereich oder knapp darunter (eine halbe Bildschirmhöhe). */
+  function inView(el) {
+    const r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < innerHeight * 1.5 && r.width > 0 && r.height > 0;
+  }
 
   function wordCount(text) {
     return text.split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
@@ -1069,19 +1452,23 @@
   /** Teaser gesammelt an das lokale Sprachmodell geben (immer nur eine Anfrage gleichzeitig). */
   async function flushSem() {
     if (semBusy || !semQueue.size || !semanticOn() || !active) return;
-    const blocks = [];
+    // Sichtbare Teaser zuerst, in kleinerem Paket und mit Vorrang (überholen im Hintergrund die
+    // Gegenprüfungen); der Rest danach in großen Paketen.
+    const live = [];
     for (const b of semQueue) {
-      semQueue.delete(b);
-      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || b.closest('[data-sf-hit]') || clearedBlocks.has(b)) continue;
-      blocks.push(b);
-      if (blocks.length >= SEM_BATCH) break;
+      if (!b.isConnected || b.dataset.sfHit || b.dataset.sfRevealed || closestDeep(b, '[data-sf-hit]') || clearedBlocks.has(b)) semQueue.delete(b);
+      else live.push(b);
     }
-    if (!blocks.length) return;
+    if (!live.length) return;
+    const visible = live.filter(inView);
+    const prio = visible.length > 0;
+    const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
+    for (const b of blocks) semQueue.delete(b);
     semBusy = true;
     const gen = generation;
     let res = null;
     try {
-      res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
+      res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
     semBusy = false;
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
@@ -1117,6 +1504,73 @@
     setTimeout(() => t.remove(), ms || 2600);
   }
 
+  /* ---------------- Automatische Einstufung unbekannter Seiten ----------------
+   * Nicht gelistete Seiten gelten als Nachrichtenseite (Bilder bis zur Prüfung unscharf). Zeigt
+   * eine solche Seite über mehrere Aufrufe viele geprüfte, harmlose Bilder und keinen einzigen
+   * Treffer (Text, Bild, KI), gilt sie still als Nicht-Nachrichtenseite. Gemessen: Echte
+   * Nachrichtenseiten hatten schon beim ersten Aufruf 9 bis 41 Treffer. Kommt auf einer so
+   * eingestuften Seite doch ein Treffer, gilt sie sofort und dauerhaft wieder als Nachrichtenseite.
+   */
+  const AUTO_PAGES = 3; // Seitenaufrufe
+  const AUTO_IMAGES = 30; // geprüfte, harmlose Bilder insgesamt
+  const AUTO_AFTER_MS = 12000; // je Seitenaufruf erst danach zählen
+  const STATS_MAX_HOSTS = 300;
+  let pageImgOk = 0;
+  let pageHits = 0;
+  let statsTimer = null;
+
+  /** Host, der automatisch eingestuft werden darf (nicht gelistet, nicht selbst eingestuft), sonst ''. */
+  function autoHost() {
+    if (window !== window.top || !settings.calmImages || !settings.ocr) return '';
+    const h = S.normalizeHost(location.hostname);
+    if (!h || globalThis.SFSiteKind.hostKind(h, settings.siteKinds) !== null) return '';
+    if (autoKinds[h] === 'news') return ''; // schon einmal zurückgenommen: bleibt Nachrichtenseite
+    return h;
+  }
+
+  function scheduleSiteStats() {
+    pageImgOk = 0;
+    pageHits = 0;
+    if (autoHost() && !calmAuto) statsTimer = setTimeout(() => { statsTimer = null; recordSiteStats().catch(() => {}); }, AUTO_AFTER_MS);
+  }
+
+  async function recordSiteStats() {
+    const h = autoHost();
+    if (!h || !active || calmAuto) return;
+    const all = (await chrome.storage.local.get('siteStats')).siteStats || {};
+    const st = all[h] || { pages: 0, imgOk: 0, hits: 0 };
+    st.pages++;
+    st.imgOk += pageImgOk;
+    st.hits += pageHits;
+    st.t = Date.now();
+    all[h] = st;
+    const hosts = Object.keys(all);
+    if (hosts.length > STATS_MAX_HOSTS) {
+      hosts.sort((a, b) => (all[a].t || 0) - (all[b].t || 0));
+      for (const old of hosts.slice(0, hosts.length - STATS_MAX_HOSTS)) delete all[old];
+    }
+    await chrome.storage.local.set({ siteStats: all });
+    if (st.hits === 0 && st.pages >= AUTO_PAGES && st.imgOk >= AUTO_IMAGES) await setAutoKind(h, 'calm');
+  }
+
+  async function setAutoKind(h, kind) {
+    const cur = (await chrome.storage.local.get('autoKinds')).autoKinds || {};
+    cur[h] = kind;
+    const hosts = Object.keys(cur);
+    if (hosts.length > STATS_MAX_HOSTS) for (const old of hosts.slice(0, hosts.length - STATS_MAX_HOSTS)) delete cur[old];
+    await chrome.storage.local.set({ autoKinds: cur }); // storage.onChanged wendet die Einstufung an
+  }
+
+  /** Treffer auf einer automatisch als harmlos eingestuften Seite: sofort wieder Nachrichtenseite. */
+  function revertAutoCalm() {
+    calmAuto = false;
+    calmSite = false;
+    document.documentElement.classList.remove('sf-calm');
+    if (shadowSheet) shadowSheet.replaceSync(SHADOW_CSS);
+    const h = S.normalizeHost(window.top !== window ? (safeTopHost() || location.hostname) : location.hostname);
+    if (h) setAutoKind(h, 'news').catch(() => {});
+  }
+
   /** Rechtsklickmenü: "Will ich nicht sehen" / "Will ich sehen". */
   function onContextAction(action) {
     const target = lastCtxTarget;
@@ -1126,7 +1580,7 @@
     if (action === 'zone') { startZonePicker(el); return; }
     if (action === 'why') { whyAt(el); return; }
     const ph = el.closest('.sf-placeholder');
-    const hidden = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
+    const hidden = ph ? ph.__sfBlock : closestDeep(el, '[data-sf-hit]');
     if (action === 'block') {
       if (hidden) {
         train(hidden, 'b');
@@ -1362,7 +1816,7 @@
   /** Rechtsklick → „Warum unscharf?“ */
   function whyAt(el) {
     const ph = el.closest('.sf-placeholder');
-    const block = ph ? ph.__sfBlock : el.closest('[data-sf-hit]');
+    const block = ph ? ph.__sfBlock : closestDeep(el, '[data-sf-hit]');
     if (block) { toast(explain(block), 6000); return; }
     const img = el.tagName === 'IMG' ? el : el.querySelector && el.querySelector('img[data-sf]');
     const st = img && img.dataset.sf;
@@ -1387,7 +1841,7 @@
       let els;
       try { els = document.querySelectorAll(z.sel); } catch (_) { continue; }
       for (const el of els) {
-        if (el.dataset.sfHit || el.dataset.sfRevealed || el.closest('[data-sf-hit]')) continue;
+        if (el.dataset.sfHit || el.dataset.sfRevealed || closestDeep(el, '[data-sf-hit]')) continue;
         if (z.head && firstHeading(el) !== z.head) continue;
         el.__sfZone = z;
         hit(el, 'Bereich', { block: el, force: true, why: 'bereich' });
@@ -1513,9 +1967,11 @@
     // Nie die ganze Seite: Text direkt unter <body> o. Ä.
     if (block === document.body || block === document.documentElement || block.tagName === 'MAIN') return false;
     if (!opts.force && clearedBlocks.has(block)) return false;
-    if (block.dataset.sfHit || block.dataset.sfRevealed || block.closest('[data-sf-hit]')) return false;
+    if (block.dataset.sfHit || block.dataset.sfRevealed || closestDeep(block, '[data-sf-hit]')) return false;
     // Bewusst geöffneter Artikel: automatische Treffer im Artikeltext nicht ausblenden.
     if (AUTO_WHY.has(opts.why) && inTrustedArea(block)) return false;
+    // Knöpfe, Menüs, Kopf- und Fußleiste der Seite: keine Inhalte.
+    if (AUTO_WHY.has(opts.why) && isPageChrome(el, block)) return false;
     // Lernfilter: Schlagwort trifft, aber laut Bewertungen will der Nutzer das sehen.
     if (!opts.force && learningActive()) {
       const s = L.score(model, blockText(block));
@@ -1538,8 +1994,10 @@
       scheduleTone();
     }
     // Bereits markierte Treffer im Inneren zählen nicht doppelt.
-    for (const inner of hitBlocks) if (block.contains(inner)) unhide(inner);
+    for (const inner of hitBlocks) if (inner !== block && containsDeep(block, inner)) unhide(inner);
     hitBlocks.add(block);
+    pageHits++;
+    if (calmAuto) revertAutoCalm();
 
     if (settings.display === 'hide') {
       block.classList.add('sf-hidden');
@@ -1607,8 +2065,14 @@
     // (nach dem Aufrufer, der den Block meist noch als geprüft markiert).
     queueMicrotask(() => {
       if (!active || !block.isConnected || block.dataset.sfHit) return;
-      const imgs = block.tagName === 'IMG' ? [block] : block.querySelectorAll('img');
-      for (const img of imgs) if (img.dataset.sf !== 'ok' && img.dataset.sf !== 'small') processImage(img);
+      const imgs = block.tagName === 'IMG' ? [block] : imagesDeep(block);
+      for (const img of imgs) {
+        if (img.dataset.sf === 'ok' || img.dataset.sf === 'small') continue;
+        // Prüfung wurde abgebrochen, als der Block ausgeblendet wurde („pending“ ohne OCR-Auftrag):
+        // neu starten, sonst bliebe das Bild für immer unscharf.
+        if (['pending', 'wait', 'err'].includes(img.dataset.sf)) delete img.dataset.sfSrc;
+        processImage(img);
+      }
     });
   }
 
@@ -1632,7 +2096,7 @@
   function pendingImageAt(target) {
     const img = target && target.tagName === 'IMG' ? target : null;
     return img && ['wait', 'pending', 'err'].includes(img.dataset.sf) && !img.dataset.sfRevealed &&
-      !img.closest('[data-sf-hit]') ? img : null;
+      !closestDeep(img, '[data-sf-hit]') ? img : null;
   }
 
   function onPendingDown(ev) {
@@ -1878,7 +2342,7 @@
     unhide(block);
     if (ph) ph.remove();
     block.dataset.sfRevealed = '1';
-    for (const img of block.querySelectorAll('img')) img.dataset.sfRevealed = '1';
+    for (const img of imagesDeep(block)) img.dataset.sfRevealed = '1';
     if (block.tagName === 'IMG') block.dataset.sfRevealed = '1';
     if (kw && !(opts && opts.feedback === false)) showFeedback(block, kw);
     scheduleReport();

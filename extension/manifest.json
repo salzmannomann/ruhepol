@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ruhepol",
-  "version": "1.17.0",
+  "version": "1.28.2",
   "description": "Stellt belastende Nachrichten sanft unscharf – Text und Bilder, nach Schlagwörtern, Themen und dem, was du ihm beibringst. Alles lokal.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjOX7xQc/rJm0itcvfRPZPHzMpnp/29uQJ8tknxQsnKjqMmAUlziCjQN4pQmJOkg/DGIivaw8t2wE0pVucuZTfXgWsHbNcd62rK9aJ/gnZphpVMOC2fGlMwZRzAQeQpeyOn3jNqMOXo6xgbHIIH9sGyfUX32QyIqnQpIe1Z5eBUjfEXw8UjJ2djtQVTYalSVLmUKbDsNzI77/ZePWkUe374XcaFNVbk2FkRtCMxR8p+Kig1WOx/iU/oPiLLdBxDF0r3C6wOpqW3O/TJt9vtNhszF2w8+rF1gq/xsRoXn2aXteJGUP/AFhx+9UwFyFtXrt1HHL60qAtkqD9bukvwpiCQIDAQAB",
   "permissions": [
@@ -26,6 +26,7 @@
         "lib/presets.js",
         "lib/settings.js",
         "lib/learn.js",
+        "lib/sitekind.js",
         "content.js"
       ],
       "css": [
@@ -34,6 +35,18 @@
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "shadow-hook.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "world": "MAIN"
     }
   ],
   "action": {
@@ -52,6 +65,12 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "cross_origin_embedder_policy": {
+    "value": "require-corp"
+  },
+  "cross_origin_opener_policy": {
+    "value": "same-origin"
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

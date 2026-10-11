@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Testseite: spät angelegte Shadow-Bereiche (wie MSN)</title></head>
+<body>
+  <h1>Startseite</h1>
+  <x-feed id="feed"></x-feed>
+  <script>
+    // Komponenten erst nach dem ersten Durchgang der Erweiterung definieren; Inhalte zwei Ebenen tief.
+    setTimeout(() => {
+      customElements.define('x-card-late', class extends HTMLElement {
+        connectedCallback() {
+          const r = this.attachShadow({ mode: 'open' });
+          r.innerHTML = `<article><h3>${this.getAttribute('titel')}</h3><p>Ein kurzer Vorspann.</p></article>`;
+        }
+      });
+      customElements.define('x-feed', class extends HTMLElement {
+        connectedCallback() {
+          const r = this.attachShadow({ mode: 'open' });
+          r.innerHTML = '<section><x-card-late id="bad" titel="Lawine verschüttet Wanderer"></x-card-late>' +
+            '<x-card-late id="ok" titel="Herbstfest im Stadtpark"></x-card-late></section>';
+        }
+      });
+    }, 1000);
+  </script>
+</body>
+</html>

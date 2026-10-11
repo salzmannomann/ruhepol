@@ -12,12 +12,14 @@
     .footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     .footer .hint { text-align: right; }
     .warn { color: var(--err); font-size: 12.5px; margin-top: 6px; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <h1 class="brand"><img src="icons/icon.svg" alt="" width="24" height="24">Ruhepol</h1>
   <label class="switch">Filter aktiv <input type="checkbox" id="global"></label>
   <label class="switch"><span>Auf dieser Seite<br><span class="host" id="host">–</span></span> <input type="checkbox" id="site"></label>
+  <label class="switch" id="kindRow"><span>Nachrichtenseite<br><span class="host" id="kindInfo"></span></span> <input type="checkbox" id="kind"></label>
   <div class="count"><strong id="count">0</strong><span id="countLabel">ausgeblendete Elemente auf dieser Seite</span></div>
   <div class="hint" id="learnInfo"></div>
   <div class="warn" id="warn" hidden></div>
@@ -27,6 +29,7 @@
   </div>
   <script src="lib/presets.js"></script>
   <script src="lib/settings.js"></script>
+  <script src="lib/sitekind.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

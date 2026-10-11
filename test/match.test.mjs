@@ -298,6 +298,16 @@ test('Vorschlagslisten: eingebaute Ausnahmen (Toten Hosen, Rosenkrieg, Katastrop
   assert.ok(m.find('Die Toten Hosen sagen Konzert ab, zwei Tote bei Unfall'), 'Ausnahme schützt nicht den Rest');
 });
 
+test('Vorschlagslisten: Kennzeichnung KI-erstellter Bilder ist keine Meldung über KI', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
+  for (const t of ['Ki-generiertes Bild - Preis pro m2. Alle Preise sofort im Blick.', 'Grafik: mit KI erstellt', 'AI-generated image']) {
+    assert.equal(m.find(t), null, t);
+  }
+  assert.ok(m.find('KI-generierte Fakes bedrohen Wahlen'), 'Meldungen über KI-Fälschungen bleiben Treffer');
+  assert.ok(m.find('KI ersetzt Bürojobs'));
+});
+
 test('Bedeutungs-Filter: Teaser-Text bereinigen', () => {
   assert.equal(SEM.cleanText('Russland/Ukraine 276 Postings Brücke getroffen Livebericht Live'), 'Russland/Ukraine Brücke getroffen');
   assert.equal(SEM.cleanText('chronik 3.10. 11.29 Uhr Festnahme in Wien'), 'chronik Festnahme in Wien');
@@ -399,4 +409,31 @@ test('Kennenlernen: Auswahl und Stufe aus den Antworten', () => {
   r = O.infer(ans((q) => (q.topic === null ? (n++ < 2 ? true : null) : true)), qs);
   assert.equal(r.level, null);
   assert.equal(r.presets.length, 15);
+});
+
+test('Krieg und Verbrechen erkennen Todesmeldungen auch ohne die Liste „Unglücke“ (dort steht „Tote“)', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS.filter((id) => id !== 'unglueck')), { allow: P.ALLOW });
+  assert.ok(m.find('Ukraine: Tote nach russischen Angriffen in Saporischschja'));
+  assert.ok(m.find('Tote Frau in Wiener Stiegenhaus: Verdächtiger festgenommen'));
+  assert.equal(m.find('Russische Angriffslust im Eishockey'), null);
+  assert.equal(m.find('Frühstück im Stiegenhaus'), null);
+});
+
+test('Seitenart: eingebaute Listen, eigene Einstufung, unbekannt = Nachrichtenseite', () => {
+  const K = require('../extension/lib/sitekind.js');
+  assert.equal(K.classify('www.willhaben.at'), 'calm');
+  assert.equal(K.classify('www.amazon.de'), 'calm');
+  assert.equal(K.classify('wien.orf.at'), 'news');
+  assert.equal(K.classify('www.heise.de'), 'news', 'unbekannt gilt als Nachrichtenseite');
+  assert.equal(K.classify('willhaben.at', { 'willhaben.at': 'news' }), 'news');
+  assert.equal(K.classify('shop.example.com', { 'example.com': 'calm' }), 'calm');
+  for (const h of K.CALM) assert.equal(K.hostKind(h), 'calm', h + ' steht auch in NEWS');
+});
+
+test('Einstellungen: Seitenart wird bereinigt', () => {
+  const S = require('../extension/lib/settings.js');
+  assert.deepEqual(S.sanitize({ siteKinds: { 'https://www.Orf.at/x': 'calm', 'a.at': 'egal', b: 1 } }).siteKinds, { 'orf.at': 'calm' });
+  assert.equal(S.sanitize({}).calmImages, true);
+  assert.equal(S.sanitize({ calmImages: false }).calmImages, false);
 });

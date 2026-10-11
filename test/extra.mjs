@@ -324,6 +324,142 @@ async function main() {
       assert.equal(bad.length, 0, JSON.stringify(bad));
     });
 
+    await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {
+      await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck', 'krankheit', 'wirtschaft'], display: 'blur', learn: false, ocr: false });
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/oberflaeche.html');
+      await p.waitForFunction(() => document.querySelector('#std-teaser').closest('[data-sf-hit]'), null, { timeout: 10000 });
+      await p.waitForTimeout(500);
+      const state = await p.evaluate(() => Object.fromEntries(
+        ['nav-krieg', 'nav-terror', 'nav-teaser', 'eil', 'ressort', 'alle', 'rufus', 'rufus-panel', 'prime', 'btn-ki', 'btn-kimodus', 'std-teaser', 'video', 'ticker', 'themen', 'chip', 'kurz-meldung', 'leserbrief', 'kurz-teaser', 'credit', 'caption', 'foto-label', 'ok-teaser', 'promo']
+          .map((id) => { const el = document.getElementById(id); return [id, !!(el.closest('[data-sf-hit]') || el.querySelector('[data-sf-hit]'))]; })));
+      assert.deepEqual(state, {
+        'nav-krieg': false, 'nav-terror': false, // Menüpunkte
+        'nav-teaser': true, // Teaser im Menü (ganzer Satz)
+        alle: false, rufus: false, 'rufus-panel': false, prime: false, // amazon.de: Leiste mit eingeklapptem Chatfenster („Rufus AI …“)
+        eil: true, // Eilmeldung im Seitenkopf: Link auf eine Meldung
+        ressort: true, // Überschrift im Seitenkopf
+        'btn-ki': false, 'btn-kimodus': false, // Knöpfe
+        'std-teaser': true, // <header> im Artikel gehört zum Inhalt
+        video: true, // orf.at: Video-Titel als <a role="button"> in einer Überschrift
+        ticker: true, // Treffer nur im eingeklappten Text (orf.at-Ticker): ganze Meldung, nicht nur der Absatz
+        themen: false, chip: false, // Links auf Themenseiten (kleinezeitung, heute.at)
+        'kurz-meldung': true, // kurzer Link auf eine Meldung (tagesschau.de: …-102.html)
+        leserbrief: true, // Kennung aus Buchstaben und Ziffern (krone.at: /das-freie-wort/6ac98…)
+        'kurz-teaser': true, // Kurz-Teaser mit Artikelnummer (heute.at)
+        credit: false, // Bildquelle „© Foto: … Amt Klimaneutrale Stadt“ ist keine Meldung (nextroom.at)
+        caption: true, // Bildunterschrift vor der Quellenangabe zählt weiter
+        'foto-label': true, // „Foto: …“ als Beschriftung zählt weiter
+        'ok-teaser': false,
+        promo: false, // kurzer Hinweis in der Fußzeile der Seite
+      });
+      // Vorsorgliche Unschärfe beim Laden (sf-pre) bleibt nirgends hängen – auch nicht bei
+      // Menüpunkten, die danach als Bedienoberfläche freigegeben werden.
+      assert.equal(await p.evaluate(() => document.querySelectorAll('.sf-pre').length), 0);
+      await p.close();
+    });
+
+    await step('Spät angelegte, verschachtelte Shadow-Bereiche (wie MSN) werden geprüft', async () => {
+      await setSettings(sw, { keywords: ['Lawine'], presets: [], display: 'blur', learn: false });
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/shadow-spaet.html');
+      const state = () => p.evaluate(() => {
+        const feed = document.querySelector('x-feed').shadowRoot;
+        if (!feed) return null;
+        const card = (id) => feed.getElementById(id).shadowRoot.querySelector('article');
+        return { bad: card('bad').classList.contains('sf-blurred'), ok: card('ok').classList.contains('sf-blurred') };
+      }).catch(() => null);
+      let s = null;
+      for (let i = 0; i < 40 && !(s && s.bad); i++) { await p.waitForTimeout(250); s = await state(); }
+      assert.deepEqual(s, { bad: true, ok: false });
+      await p.close();
+    });
+
+    await step('Nicht-Nachrichtenseite: Bilder sofort scharf, Bild mit Treffer danach unscharf; Nachrichtenseite wie bisher', async () => {
+      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: { '127.0.0.1': 'calm' }, semantic: false });
+      const p = await ctx.newPage();
+      // Zustand jedes Bildes beim ersten Prüfschritt (wait/pending) festhalten: Unschärfe ja/nein.
+      // Beobachtet ab Seitenstart, damit eine schnelle Prüfung nicht verpasst wird.
+      await p.addInitScript(() => {
+        window.__seen = {};
+        new MutationObserver((recs) => {
+          for (const r of recs) {
+            const img = r.target;
+            if (!img.id || window.__seen[img.id] || !(img.dataset.sf === 'wait' || img.dataset.sf === 'pending')) continue;
+            window.__seen[img.id] = getComputedStyle(img).filter;
+          }
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-sf'] });
+      });
+      const watch = async () => {
+        await p.waitForFunction(() => window.__seen['ok-img'] && window.__seen['hit-img'], null, { timeout: 20000 });
+        return p.evaluate(() => ({ 'ok-img': window.__seen['ok-img'], 'hit-img': window.__seen['hit-img'] }));
+      };
+      await p.goto(srv.base + '/shop.html');
+      const calm = await watch();
+      assert.deepEqual(calm, { 'ok-img': 'none', 'hit-img': 'none' }, 'während der Prüfung unscharf');
+      await p.waitForFunction(() => document.getElementById('p-hit').classList.contains('sf-blurred'), null, { timeout: 20000 });
+      await p.waitForFunction(() => document.getElementById('ok-img').dataset.sf === 'ok', null, { timeout: 20000 });
+      assert.ok(!(await p.evaluate(() => document.getElementById('p-ok').closest('[data-sf-hit]'))), 'harmloses Angebot getroffen');
+      // Gleiche Seite als Nachrichtenseite eingestuft: Bilder bis zur Prüfung unscharf.
+      await setSettings(sw, { siteKinds: {} });
+      await p.goto(srv.base + '/shop.html?news');
+      const news = await watch();
+      assert.match(news['ok-img'], /blur/);
+      // Popup zeigt die Einstufung und schaltet um.
+      const tabId = await sw.evaluate(async (u) => (await chrome.tabs.query({})).find((t) => t.url && t.url.includes(u)).id, '/shop.html?news');
+      const pop = await ctx.newPage();
+      await pop.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+      await pop.waitForFunction(() => document.getElementById('kindInfo').textContent.length > 0, null, { timeout: 5000 });
+      assert.equal(await pop.isChecked('#kind'), true);
+      await pop.click('#kind');
+      await pop.waitForFunction(() => /Keine Nachrichtenseite/.test(document.getElementById('kindInfo').textContent));
+      assert.deepEqual(await sw.evaluate(async () => (await chrome.storage.sync.get('siteKinds')).siteKinds), { '127.0.0.1': 'calm' });
+      await pop.close();
+      await setSettings(sw, { siteKinds: {} });
+      await p.close();
+    });
+
+    await step('Automatisch: unbekannte Seite ohne Treffer wird still eingestuft; ein Treffer nimmt es zurück; mit Treffer nie', async () => {
+      await setSettings(sw, { keywords: ['Bürgermeister'], presets: [], display: 'blur', learn: false, ocr: true, calmImages: true, siteKinds: {}, semantic: false, zones: [], allow: [] });
+      // Andere offene Tabs derselben Adresse mit Treffern würden die Einstufung (richtig) zurücknehmen.
+      for (const pg of ctx.pages()) if (pg.url().startsWith(srv.base)) await pg.close();
+      const seed = () => sw.evaluate(async () => { await chrome.storage.local.remove('autoKinds'); await chrome.storage.local.set({ siteStats: { '127.0.0.1': { pages: 2, imgOk: 29, hits: 0, t: 1 } } }); });
+      const auto = () => sw.evaluate(async () => ((await chrome.storage.local.get('autoKinds')).autoKinds || {})['127.0.0.1']);
+      // Seite mit Treffer: wird nicht umgestellt.
+      await seed();
+      const withHit = await ctx.newPage();
+      await withHit.goto(srv.base + '/shop.html?auto');
+      await withHit.waitForTimeout(13500);
+      assert.equal(await auto(), undefined, 'Seite mit Treffer wurde eingestuft');
+      await withHit.close();
+      // Dritter Aufruf ohne Treffer: still eingestuft, keine Frage, Bilder ab dann sofort sichtbar.
+      await seed();
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/shop2.html');
+      await p.waitForFunction(() => document.documentElement.classList.contains('sf-calm'), null, { timeout: 20000 });
+      assert.equal(await auto(), 'calm');
+      assert.equal(await p.locator('.sf-feedback').count(), 0, 'es wurde etwas eingeblendet');
+      // Popup zeigt die automatische Einstufung.
+      const tabId = await sw.evaluate(async (u) => (await chrome.tabs.query({})).find((t) => t.url && t.url.includes(u)).id, '/shop2.html');
+      const pop = await ctx.newPage();
+      await pop.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+      await pop.waitForFunction(() => /Automatisch erkannt/.test(document.getElementById('kindInfo').textContent), null, { timeout: 5000 }).catch(async (e) => {
+        throw new Error('Popup: ' + JSON.stringify(await pop.evaluate(async () => ({ info: document.getElementById('kindInfo').textContent, host: document.getElementById('host').textContent, ak: await chrome.storage.local.get('autoKinds'), sk: (await chrome.storage.sync.get(['siteKinds', 'calmImages', 'enabled'])) }))) + ' Seite: ' + await p.evaluate(() => document.documentElement.className + ' Treffer: ' + JSON.stringify([...document.querySelectorAll('[data-sf-hit]')].map((e) => [e.dataset.sfHit, e.dataset.sfWhy, e.tagName]))));
+      });
+      assert.equal(await pop.isChecked('#kind'), false, 'Popup: Schalter „Nachrichtenseite“ an');
+      await pop.close();
+      // Treffer auf der eingestuften Seite: sofort wieder Nachrichtenseite, dauerhaft.
+      await p.goto(srv.base + '/shop.html?zurueck');
+      await p.waitForFunction(() => document.getElementById('p-hit').classList.contains('sf-blurred'), null, { timeout: 20000 });
+      await p.waitForFunction(() => !document.documentElement.classList.contains('sf-calm'), null, { timeout: 5000 });
+      assert.equal(await auto(), 'news');
+      await p.goto(srv.base + '/shop2.html?danach');
+      await p.waitForTimeout(1000);
+      assert.equal(await p.evaluate(() => document.documentElement.classList.contains('sf-calm')), false, 'nach Rücknahme wieder still eingestuft');
+      await sw.evaluate(async () => chrome.storage.local.remove(['siteStats', 'autoKinds']));
+      await p.close();
+    });
+
     await step('Kennenlernen: öffnet sich bei der Installation; Antworten → Themenauswahl und Stufe', async () => {
       let p = ctx.pages().find((x) => x.url().includes('kennenlernen.html'));
       if (!p) p = await ctx.waitForEvent('page', { predicate: (x) => x.url().includes('kennenlernen.html'), timeout: 5000 });
