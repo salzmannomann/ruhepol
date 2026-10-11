@@ -595,6 +595,14 @@ Inhalt, der die Themenliste KI traf. Nachgebaut in `test/site/oberflaeche.html` 
 unscharf, jetzt scharf). Gegenprobe auf 13 Nachrichtenseiten: In keiner Version lag dort ein
 Treffer in einem Navigationsbereich, die Regel ändert dort nichts.
 
+**Gegenprobe 1.21 → 1.28.2** (alle Änderungen dieses Tages zusammen, 21 Seiten: Google-Suche,
+Google News, MSN, orf, derStandard, krone, kurier, heute, oe24, diepresse, kleinezeitung,
+spiegel, zeit, t-online, Wikipedia, wetter.com, Amazon, willhaben, geizhals, nextroom, YouTube):
+Treffer insgesamt 314 → 318, davon in Bedienoberfläche 1 → 0. Weggefallen sind dort die
+Menüpunkte „Politik“ und „Panorama“ auf t-online (ausgeklappte Rubrik-Links mit „Krieg“ und
+„Unfälle“), ein Eintrag im Inhaltsverzeichnis von Wikipedia und das willhaben-Banner. Die übrigen
+Unterschiede kamen von wechselnden Schlagzeilen zwischen den beiden Durchläufen.
+
 Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
 ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
 Ebenso Kennzeichnungen KI-erstellter Bilder wie „KI-generiertes Bild“, „mit KI erstellt“
