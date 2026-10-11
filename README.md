@@ -325,6 +325,17 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 - **Sichtbares zuerst (seit 1.22):** Teaser im sichtbaren Bereich (und eine halbe
   Bildschirmhöhe darunter) gehen in kleineren Paketen (12) zuerst ans Modell und überholen
   im Hintergrund Gegenprüfungen und Teaser weiter unten.
+- **Überholspur beim Laden (seit 1.24):** Der Textscan läuft nur im Leerlauf der Seite, und
+  den hat eine große Nachrichtenseite beim Aufbau oft erst nach Sekunden. Gemessen auf kurier.at:
+  Der erste Teaser wurde nach 4 s geprüft, das Modell brauchte dann nur 0,8 s. Darum werden beim
+  Laden alle 300 ms die sichtbaren Teaser ohne Schlagwort direkt ans Modell gegeben, je
+  höchstens 6 ms Rechenzeit, bis die Seite geladen ist.
+
+  Gemessen (frische Schlagzeilen, Modell geladen, je zwei Läufe 1.23 → 1.24, Mittel der Mediane
+  sichtbarer KI-Treffer): derStandard 4,6 → 1,5 s, kurier 4,5 → 2,8 s, spiegel 2,3 → 1,6 s. Auf
+  orf (1,4 → 1,9 s) und krone (2,5 → 2,9 s) kein Gewinn: Dort war der Textscan schon schnell, die
+  Unterschiede liegen im Rauschen. Nach einem Chrome-Neustart bestimmt das Laden des Modells die
+  Zeit, dort ändert sich nichts.
 - **Pakete nach Länge (seit 1.22):** Das Modell füllt jeden Text eines Pakets auf die Länge des
   längsten auf. Ein Artikelabsatz mit 600 Zeichen machte so 15 kurze Schlagzeilen im selben
   Paket gleich teuer. Jetzt wird nach Länge sortiert und in Pakete von höchstens 2400
