@@ -44,6 +44,29 @@ async function main() {
       });
     });
 
+    await step('KI-Teaser mit Bild: Bild wird nicht scharf, bevor die KI über den Teaser entschieden hat', async () => {
+      const p = await ctx.newPage();
+      // Langsame KI nachstellen (wie auf großen Seiten): jede KI-Anfrage 6 s verzögern.
+      await sw.evaluate(() => { globalThis.__semDelay = 6000; });
+      await p.addInitScript(() => {
+        window.__early = [];
+        new MutationObserver((recs) => {
+          for (const r of recs) {
+            const img = r.target;
+            if (img.tagName !== 'IMG' || img.dataset.sf !== 'ok') continue;
+            const block = img.closest('article');
+            if (!block.dataset.sfHit) window.__early.push(img.id);
+          }
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-sf'] });
+      });
+      await p.goto(srv.base + '/semantik-bild.html');
+      await p.waitForFunction(() => document.querySelector('#b-klima').dataset.sfHit === 'Bedeutung', null, { timeout: 20000 });
+      await p.waitForFunction(() => document.querySelector('#b-img2').dataset.sf === 'ok', null, { timeout: 20000 });
+      await sw.evaluate(() => { globalThis.__semDelay = 0; });
+      assert.deepEqual(await p.evaluate(() => window.__early.filter((id) => id === 'b-img')), [], 'Bild des KI-Treffers war vorher scharf');
+      await p.close();
+    });
+
     await step('Ohne Schlagwort: Klima-Artikel über Themen-Beschreibung erkannt', async () => {
       await page.goto(srv.base + '/semantik.html');
       await hidden(page, '#s-klima');

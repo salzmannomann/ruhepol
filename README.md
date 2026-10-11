@@ -589,6 +589,14 @@ bevor Ruhepol sie unscharf stellte. Drei Änderungen verhindern das:
 Treffer weiter unten auf der Seite werden teils erst später erkannt, sind aber unscharf, bevor
 man dorthin scrollt.
 
+**Bilder warten auf die KI (seit 1.29.3):** Ein Bild ohne Treffer wird erst freigegeben, wenn auch
+die KI über seinen Teaser entschieden hat (längstens 8 s). Vorher wurde etwa auf nachrichten.at
+ein Unfallfoto nach der Texterkennung scharf und erst danach mit dem Teaser unscharf, wenn nur die
+KI die Schlagzeile erkannte. Nachgestellt in `test/semantik.mjs` (KI künstlich verlangsamt; mit
+1.29.2 war das Bild vorher scharf, jetzt nicht). Preis, gemessen mit eingeschalteter KI (erster
+Besuch, sichtbare Bilder, Median): orf.at 1,5 → 2,1 s bzw. 1,3 → 3,7 s, derStandard 2,0 → 2,8 s
+bzw. 2,7 → 2,7 s bis harmlose Bilder scharf sind. Ohne KI ändert sich nichts.
+
 ### Nur Inhalte, nicht die Bedienoberfläche
 
 Knöpfe, Menüs und die feste Kopf- und Fußleiste einer Seite sind keine Meldungen. „KI-Modus“

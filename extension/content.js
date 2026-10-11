@@ -428,6 +428,8 @@
     ocrWaiting.clear();
     learnCandidates.clear();
     semQueue.clear();
+    kiHold.clear();
+    semInflight.clear();
     semUnavailable = false;
     toneQueue.clear();
     toneUnavailable = false;
@@ -1039,7 +1041,6 @@
       const kw = matcher.find(res.text);
       if (kw) hitImage(img, kw, 'ocr');
       else {
-        setState(img, 'ok');
         pageImgOk++;
         // Der Bildtext kann für den Lernfilter den Ausschlag geben.
         if (learnHandleable()) {
@@ -1048,11 +1049,48 @@
           learnCandidates.add(block);
           scheduleLearn();
         }
+        releaseOrHold(img);
       }
     } else {
       onOcrError(img);
     }
     reportCount();
+  }
+
+  /*
+   * Bild ohne Treffer erst freigeben, wenn auch die KI über seinen Teaser entschieden hat. Sonst
+   * wurde etwa auf nachrichten.at ein Unfallfoto nach der Texterkennung (~1 s) scharf und erst
+   * danach mit dem Teaser unscharf, wenn nur die KI die Schlagzeile erkennt. Längstens KI_HOLD_MS.
+   */
+  const KI_HOLD_MS = 8000;
+  const kiHold = new Map(); // Teaser-Block -> Bilder, die auf die KI warten
+  const semInflight = new Set(); // Blöcke in einer laufenden KI-Anfrage
+
+  function releaseOrHold(img) {
+    if (!calmSite && semanticOn()) {
+      const block = findBlock(img);
+      if (block && block.isConnected && !block.dataset.sfHit && !clearedBlocks.has(block)) {
+        if (!scoredBlocks.has(block)) { learnOne(block, false); flushSem(); }
+        if (semQueue.has(block) || semInflight.has(block)) {
+          let set = kiHold.get(block);
+          if (!set) {
+            set = new Set();
+            kiHold.set(block, set);
+            setTimeout(() => releaseHeld(block), KI_HOLD_MS);
+          }
+          set.add(img);
+          return; // bleibt „pending“ und damit unscharf
+        }
+      }
+    }
+    setState(img, 'ok');
+  }
+
+  function releaseHeld(block) {
+    const set = kiHold.get(block);
+    if (!set) return;
+    kiHold.delete(block);
+    for (const img of set) if (img.isConnected && getState(img) === 'pending') setState(img, 'ok');
   }
 
   function onOcrError(img) {
@@ -1481,7 +1519,7 @@
     const visible = live.filter(inView);
     const prio = visible.length > 0;
     const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
-    for (const b of blocks) semQueue.delete(b);
+    for (const b of blocks) { semQueue.delete(b); semInflight.add(b); }
     semBusy = true;
     const gen = generation;
     let res = null;
@@ -1489,8 +1527,9 @@
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
     semBusy = false;
+    for (const b of blocks) semInflight.delete(b);
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
-    if (gen !== generation || !active) { if (active) flushSem(); return; }
+    if (gen !== generation || !active) { for (const b of blocks) releaseHeld(b); if (active) flushSem(); return; }
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
@@ -1500,8 +1539,10 @@
     } else if (res && isOffError(res.error)) {
       semUnavailable = true;
       semQueue.clear();
+      for (const b of [...kiHold.keys()]) releaseHeld(b);
       return;
     }
+    for (const b of blocks) releaseHeld(b); // Treffer: Block ist ohnehin unscharf
     if (semQueue.size) flushSem();
   }
 
