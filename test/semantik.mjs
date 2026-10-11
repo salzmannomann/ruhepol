@@ -107,6 +107,16 @@ async function main() {
       assert.ok(!(await visible(page, '#s-suizid')), 'Suizid-Erwähnung darf nie aufgedeckt werden');
     });
 
+    await step('Gute Nachricht mit eigenem Schlagwort bleibt unscharf', async () => {
+      await setSettings(sw, { keywords: ['Waffenstillstand'] });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#s-frieden').dataset.sfHit, null, { timeout: 15000 });
+      await page.waitForTimeout(2500);
+      assert.equal(await page.evaluate(() => document.querySelector('#s-frieden').dataset.sfPositive), undefined);
+      assert.ok(!(await visible(page, '#s-frieden')), 'eigenes Schlagwort wegen guten Tons aufgedeckt');
+      await setSettings(sw, { keywords: [] });
+    });
+
     await step('Ohne die Option bleiben alle Treffer unscharf', async () => {
       await setSettings(sw, { positiveShow: false });
       await page.reload();
