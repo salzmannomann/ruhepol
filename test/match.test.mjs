@@ -437,3 +437,22 @@ test('Einstellungen: Seitenart wird bereinigt', () => {
   assert.equal(S.sanitize({}).calmImages, true);
   assert.equal(S.sanitize({ calmImages: false }).calmImages, false);
 });
+
+test('Wortfolgen: ein Artikel dazwischen ist erlaubt; „Angriff auf“ + Kriegsziel trifft, Sport nicht', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
+  for (const t of ['Nächster Angriff auf Flughafen Riad', 'Angriffe auf das Krankenhaus in Gaza', 'Erneuter Angriff auf einen Hilfskonvoi']) {
+    assert.ok(m.find(t), t);
+  }
+  assert.match(m.find('Angriffe auf das Krankenhaus in Gaza'), /krankenhaus/i, 'Grund nennt das ganze Ziel');
+  for (const t of ['Angriff auf die Tabellenspitze', 'Rapid bläst zum Angriff auf Platz eins', 'Angriff auf den Titel: Sturm will Meister werden']) {
+    assert.equal(m.find(t), null, t);
+  }
+});
+
+test('KI-Text: Bildquelle ab © und doppelte Teaser-Fassung werden entfernt', () => {
+  const S = require('../extension/lib/semantic.js');
+  assert.equal(S.cleanText('Nächster Angriff auf Flughafen Riad Nächster Angriff auf Flughafen Riad Satellitenbild vom Flughafen in Riad © Reuters/European Union/Copernicus Sentinel-2'),
+    'Nächster Angriff auf Flughafen Riad Satellitenbild vom Flughafen in Riad');
+  assert.equal(S.cleanText('Herbstfest im Stadtpark mit Musik und Spielen'), 'Herbstfest im Stadtpark mit Musik und Spielen');
+});

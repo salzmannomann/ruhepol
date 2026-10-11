@@ -403,6 +403,9 @@
     $('nanoCheckStatus').textContent = b === 'available' ? 'bereit.' : b === 'unavailable' ? 'auf diesem Rechner nicht verfügbar.' : 'noch nicht heruntergeladen (siehe Themen → Assistent).';
   }
 
+  // Chrome-Seiten lassen sich nicht verlinken, aber über die Tabs-Schnittstelle öffnen.
+  $('nanoFlags').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://flags/#optimization-guide-on-device-model' }));
+
   $('nanoDownload').addEventListener('click', async () => {
     $('nanoDownload').disabled = true;
     try {
