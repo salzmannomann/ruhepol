@@ -2054,7 +2054,7 @@
       scheduleVeto();
     }
     // Gute Nachrichten trotz Thema: Ton nachträglich prüfen (bleibt bis dahin unscharf).
-    // Eigene Schlagwörter nie: wer „Tesla“ einträgt, will auch freundliche Tesla-Meldungen nicht sehen.
+    // Eigene Schlagwörter nie: wer einen Namen einträgt, will auch freundliche Meldungen dazu nicht sehen.
     if (settings.positiveShow && !toneUnavailable && !opts.noTone && !NO_TONE_REASONS.has(kw) &&
       !(ownMatcher && !ownMatcher.empty && ownMatcher.find(blockText(block)))) {
       toneQueue.add(block);

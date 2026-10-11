@@ -459,7 +459,7 @@ test('KI-Text: Bildquelle ab © und doppelte Teaser-Fassung werden entfernt', ()
 
 test('Eigene Schlagwörter treffen einfache Endungen („Tesla“ → „Teslas“), nicht andere Wörter', () => {
   const m = compile(S.ownKeywordForms(['Tesla', 'Hitzewelle*', 'Formel 1']));
-  assert.ok(m.find('Teslas Umfeld baut weiter an Verbindungen zur Republika Srpska'));
+  assert.ok(m.find('Teslas Werk in Grünheide wächst weiter'));
   assert.ok(m.find('Formel 1 in Spa'));
-  assert.equal(m.find('Teslaf ausgespielt'), null);
+  assert.equal(m.find('Teslaspule im Physiksaal'), null);
 });
