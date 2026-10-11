@@ -295,6 +295,22 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
   mit onnxruntime-web, WebAssembly), damit es die Bildvorbereitung für die Texterkennung
   nicht aufhält. Es lädt ausschließlich aus dem Paket, Downloads aus dem Internet sind
   abgeschaltet.
+- **Mehrere Prozessorkerne (seit 1.23):** Das Modell rechnet mit bis zu 4 Threads (Anzahl
+  Kerne minus eins, mindestens 2). Dafür sind die Seiten der Erweiterung cross-origin-isoliert
+  (`cross_origin_embedder_policy` / `cross_origin_opener_policy` in `manifest.json`). Sie laden
+  ohnehin nur Dateien aus dem Paket. Auf Nachrichtenseiten selbst ändert das nichts.
+
+  Gemessen an den 844 eingestuften echten Teasern (Testrechner mit 4 Kernen, je zwei Läufe):
+  1 Thread 80 s, 2 Threads 47 s, 4 Threads 30 s. Die Entscheidungen sind identisch.
+
+  Auf echten Seiten (frische Schlagzeilen, Modell geladen, je zwei Läufe 1.22 → 1.23), Median
+  über alle KI-Treffer der Seite, gemittelt über beide Läufe: orf 5,7 → 2,7 s, derStandard 15,0 → 10,1 s, kurier 13,5 → 8,8 s,
+  heute 4,3 → 3,2 s, spiegel 13,1 → 11,4 s. In den ersten 15 s fand die KI mehr: kurier 12 → 19,
+  spiegel 6–7 → 12 Treffer. Die allerersten sichtbaren Teaser kommen nicht durchweg früher, auf
+  orf und heute ja, auf derStandard und kurier nicht. Dort bremst nicht das Rechnen, sondern
+  der Seitenaufbau. Nach einem Chrome-Neustart, sichtbare Teaser: orf 10,2 → 4,7 s, kurier
+  12,7 → 6,3 s, heute 7,3 → 6,7 s, derStandard 6,5 → 6,8 s. Die Bilder werden nicht langsamer
+  scharf (orf 1,53 → 1,50 s, kurier 1,09 → 1,03 s).
 - Das Laden dauert beim ersten Mal ca. 5 s. Ruhepol beginnt damit schon beim Start von
   Chrome (und beim Einschalten des Bedeutungs-Filters), sonst beim ersten Seitenaufbau. So
   wird auch eine Nachrichten-Startseite gleich nach dem Start schneller beurteilt.
