@@ -290,11 +290,27 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
 
 **Ablauf:**
 - Geprüft wird nur, was Schlagwörter und Lernfilter durchgelassen haben, gesammelt in
-  Paketen von bis zu 24 Teasern.
+  Paketen von bis zu 24 Teasern (sichtbare: 12).
 - Das Modell läuft in einem eigenen Worker-Thread des Offscreen Documents (transformers.js
   mit onnxruntime-web, WebAssembly), damit es die Bildvorbereitung für die Texterkennung
   nicht aufhält. Es lädt ausschließlich aus dem Paket, Downloads aus dem Internet sind
   abgeschaltet.
+- **Mehrere Prozessorkerne (seit 1.23):** Das Modell rechnet mit bis zu 4 Threads (Anzahl
+  Kerne minus eins, mindestens 2). Dafür sind die Seiten der Erweiterung cross-origin-isoliert
+  (`cross_origin_embedder_policy` / `cross_origin_opener_policy` in `manifest.json`). Sie laden
+  ohnehin nur Dateien aus dem Paket. Auf Nachrichtenseiten selbst ändert das nichts.
+
+  Gemessen an den 844 eingestuften echten Teasern (Testrechner mit 4 Kernen, je zwei Läufe):
+  1 Thread 80 s, 2 Threads 47 s, 4 Threads 30 s. Die Entscheidungen sind identisch.
+
+  Auf echten Seiten (frische Schlagzeilen, Modell geladen, je zwei Läufe 1.22 → 1.23), Median
+  über alle KI-Treffer der Seite, gemittelt über beide Läufe: orf 5,7 → 2,7 s, derStandard 15,0 → 10,1 s, kurier 13,5 → 8,8 s,
+  heute 4,3 → 3,2 s, spiegel 13,1 → 11,4 s. In den ersten 15 s fand die KI mehr: kurier 12 → 19,
+  spiegel 6–7 → 12 Treffer. Die allerersten sichtbaren Teaser kommen nicht durchweg früher, auf
+  orf und heute ja, auf derStandard und kurier nicht. Dort bremst nicht das Rechnen, sondern
+  der Seitenaufbau. Nach einem Chrome-Neustart, sichtbare Teaser: orf 10,2 → 4,7 s, kurier
+  12,7 → 6,3 s, heute 7,3 → 6,7 s, derStandard 6,5 → 6,8 s. Die Bilder werden nicht langsamer
+  scharf (orf 1,53 → 1,50 s, kurier 1,09 → 1,03 s).
 - Das Laden dauert beim ersten Mal ca. 5 s. Ruhepol beginnt damit schon beim Start von
   Chrome (und beim Einschalten des Bedeutungs-Filters), sonst beim ersten Seitenaufbau. So
   wird auch eine Nachrichten-Startseite gleich nach dem Start schneller beurteilt.
@@ -306,6 +322,46 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
   Textscan sonst nie fertig.
 - Vektoren der Bewertungen werden lokal gespeichert (int8, ca. 0,5 KB je Bewertung) und
   nicht synchronisiert; jeder Rechner berechnet sie aus den synchronisierten Bewertungen.
+- **Sichtbares zuerst (seit 1.22):** Teaser im sichtbaren Bereich (und eine halbe
+  Bildschirmhöhe darunter) gehen in kleineren Paketen (12) zuerst ans Modell und überholen
+  im Hintergrund Gegenprüfungen und Teaser weiter unten.
+- **Überholspur beim Laden (seit 1.24):** Der Textscan läuft nur im Leerlauf der Seite, und
+  den hat eine große Nachrichtenseite beim Aufbau oft erst nach Sekunden. Gemessen auf kurier.at:
+  Der erste Teaser wurde nach 4 s geprüft, das Modell brauchte dann nur 0,8 s. Darum werden beim
+  Laden alle 300 ms die sichtbaren Teaser ohne Schlagwort direkt ans Modell gegeben, je
+  höchstens 6 ms Rechenzeit, bis die Seite geladen ist.
+
+  Gemessen (frische Schlagzeilen, Modell geladen, je zwei Läufe 1.23 → 1.24, Mittel der Mediane
+  sichtbarer KI-Treffer): derStandard 4,6 → 1,5 s, kurier 4,5 → 2,8 s, spiegel 2,3 → 1,6 s. Auf
+  orf (1,4 → 1,9 s) und krone (2,5 → 2,9 s) kein Gewinn: Dort war der Textscan schon schnell, die
+  Unterschiede liegen im Rauschen. Nach einem Chrome-Neustart bestimmt das Laden des Modells die
+  Zeit, dort ändert sich nichts.
+- **Pakete nach Länge (seit 1.22):** Das Modell füllt jeden Text eines Pakets auf die Länge des
+  längsten auf. Ein Artikelabsatz mit 600 Zeichen machte so 15 kurze Schlagzeilen im selben
+  Paket gleich teuer. Jetzt wird nach Länge sortiert und in Pakete von höchstens 2400
+  Zeichen (Anzahl × längster Text) geteilt.
+
+  Gemessen an den 844 eingestuften echten Teasern (siehe unten): Rechenzeit 108 s → 76 s. Die
+  Entscheidungen bleiben gleich gut, 144 statt 142 von 152 belastenden erkannt, harmlose
+  fälschlich unscharf unverändert 9 von 692.
+
+  Gemessen auf echten Seiten mit frischen Schlagzeilen: Zeit vom Einfügen eines Teasers, den
+  nur die KI erkennt, bis er unscharf ist, sichtbare Teaser, Median aus drei bis vier Läufen.
+
+  | Modell schon geladen | vorher | jetzt |
+  |---|---|---|
+  | orf.at | 6,4 s | 1,9 s |
+  | derStandard.at | 3,9 s | 2,9 s |
+  | kurier.at | 13,0 s | 4,3 s |
+  | heute.at | 5,0 s | 2,6 s |
+
+  Nach einem Chrome-Neustart, Modell noch nicht geladen, je ein Lauf: orf 5,5 → 4,7 s,
+  derStandard 13,3 → 9,8 s, kurier 14,8 → 7,2 s, heute 8,1 → 5,6 s. Bei krone.at und spiegel.de
+  gab es zu wenige sichtbare KI-Treffer für einen Vergleich.
+
+  Je Seite sind das nur 1 bis 4 sichtbare Treffer, und die Seiten ändern sich zwischen den
+  Läufen. Die einzelnen Zahlen schwanken deshalb stark. Schneller war die neue Version aber in 16 von
+  18 Einzelvergleichen; die beiden Ausnahmen waren Läufe auf derStandard.
 
 **Speicher:** ca. 135 MB Modell + 27 MB Laufzeit auf der Festplatte, beim Rechnen ca.
 200–300 MB Arbeitsspeicher.
@@ -462,6 +518,10 @@ vollständig lesbar.
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze
 nebeneinander), wird nur dieser Absatz unscharf, nicht der ganze Textbereich samt Fotos.
 
+Ausnahme sind Teaser-Karten, deren erste Überschrift verlinkt ist. Bei orf.at steht unter
+jeder Ticker-Meldung ein ausklappbarer Text. Ein Treffer darin macht die ganze Meldung samt
+Schlagzeile unscharf, nicht nur den oft eingeklappten Absatz.
+
 **Milde Listen im Fließtext:** Wörter aus „Wirtschaftskrise“ und „Krise & Skandal“
 („Massenentlassungen“, „Skandal“, „Inflation“ …) stehen in Artikeln oft nur nebenbei, etwa
 in einem historischen Rückblick. In einem langen Artikel-Absatz (über 200 Zeichen) genügt
@@ -471,6 +531,144 @@ deshalb ein einzelnes solches Wort nicht. Unscharf wird der Absatz erst, wenn
 - das Sprachmodell (falls eingeschaltet) den Absatz als belastend einstuft.
 
 Schlagzeilen, Teaser und kurze Texte bleiben so streng wie bisher.
+
+### Kein kurzes Aufblitzen beim Laden
+
+Beim Öffnen einer Seite wurden Teaser früher für einige Bilder (30–80 ms) scharf gezeichnet,
+bevor Ruhepol sie unscharf stellte. Drei Änderungen verhindern das:
+
+- **Sofort starten:** Ruhepol filtert, sobald die Einstellungen geladen sind. Die Rückfrage
+  „über einen Teaser geöffnet?“ beim Hintergrund-Teil (der oft erst aufwachen muss) läuft
+  nebenher. Ist die Antwort ja, werden die automatischen Treffer im Artikel danach wieder
+  aufgedeckt.
+- **Bilder vorsorglich unscharf,** schon bevor die Einstellungen geladen sind.
+- **Texte sofort prüfen, ohne Layout:** Neue Inhalte werden noch vor dem nächsten Zeichnen
+  auf Schlagwörter geprüft. Bei einem Treffer wird der umgebende Teaser vorsorglich unscharf.
+  Die genaue Entscheidung (welcher Block, Ausnahmen, Gegenprüfung) folgt kurz danach und hebt
+  die Vorsorge wieder auf. Bisher hätte jeder Treffer beim Laden eine teure Neuberechnung des
+  Layouts erzwungen (rund 8 ms je Treffer), und der Browser zeichnete dazwischen.
+
+**Gemessen** Bild für Bild, je drei Läufe, nur Treffer im sichtbaren Bereich beim Öffnen:
+
+| Seite | vorher scharf aufgeblitzt | jetzt |
+|---|---|---|
+| orf.at | 10 von 11, je 2–3 Bilder lang | 0 von 19 |
+| derstandard.at (Cookie-Abfrage bestätigt) | der Aufmacher, 17–24 Bilder lang (ca. 0,3–0,4 s) | 0 von 7–12 |
+
+Treffer weiter unten auf der Seite werden teils erst später erkannt, sind aber unscharf, bevor
+man dorthin scrollt.
+
+### Nur Inhalte, nicht die Bedienoberfläche
+
+Knöpfe, Menüs und die feste Kopf- und Fußleiste einer Seite sind keine Meldungen. „KI-Modus“
+bei Google oder ein Menüpunkt „Krieg“ werden deshalb nicht unscharf. Ausgenommen werden
+nur kurze Texte (bis 6 Wörter):
+
+- in Knöpfen, Reitern, Menüeinträgen, Suchfeldern und in der Navigation;
+- in der Kopf- und Fußleiste der Seite, sofern sie keine Überschrift sind und nicht auf eine
+  einzelne Meldung verlinken.
+
+Ebenso Leisten aus kurzen Links (bis 4 Wörter je Link) auf Themen- oder Rubrikseiten, wo sie
+auch stehen: „Aktuelle Themen: SPÖ, Teuerung“, ein Themen-Schlagwort „Erderwärmung“ oder ein
+Menü „Club Shop Trauerportal“. Ob ein Link auf eine einzelne Meldung führt, erkennt Ruhepol an
+der Adresse: an einer Artikelnummer (`krone.at/4325347`, `…-120246981`, `…-102.html`), an
+einer Kennung aus Buchstaben und Ziffern oder an einem langen Titel in der Adresse.
+
+Weiter gefiltert werden:
+- **Überschriften,** auch wenn die Seite sie technisch als Knopf baut. orf.at macht
+  Video-Titel zu Knöpfen, die den Player öffnen.
+- **Teaser in Aufklapp-Menüs,** weil sie ganze Sätze sind.
+- **Eilmeldungen im Seitenkopf,** weil sie auf eine Meldung verlinken.
+- **`<header>` innerhalb eines Artikels.** derStandard setzt Überschrift und Vorspann jedes
+  Teasers in ein `<header>`.
+- **Bilder im Seitenkopf.** Ausgenommen sind nur Symbole in Knöpfen.
+
+Gezählt werden dabei nur sichtbare Wörter (seit 1.28.1), unsichtbare Hinweise für
+Bildschirmleser und Bildbeschreibungen zählen nicht.
+
+**Navigation der Seite (seit 1.28.2):** Was in einem Navigationsbereich außerhalb des Artikels
+steht (`nav`, `role="navigation"`, Menüs), ist nur dann Inhalt, wenn ein Link auf eine einzelne
+Meldung dabei ist (Teaser im Menü), egal wie viel Text. Anlass: amazon.de hält in der Kopfleiste
+das eingeklappte Rufus-Chatfenster bereit („Rufus AI Logo“ und Chat-Texte). Es ist nicht
+ausgeblendet, nur verschoben, und machte die Leiste „Alle / Rufus / Prime entdecken“ zu einem
+Inhalt, der die Themenliste KI traf. Nachgebaut in `test/site/oberflaeche.html` (mit 1.28.1
+unscharf, jetzt scharf). Gegenprobe auf 13 Nachrichtenseiten: In keiner Version lag dort ein
+Treffer in einem Navigationsbereich, die Regel ändert dort nichts.
+
+**Gegenprobe 1.21 → 1.28.2** (alle Änderungen dieses Tages zusammen, 21 Seiten: Google-Suche,
+Google News, MSN, orf, derStandard, krone, kurier, heute, oe24, diepresse, kleinezeitung,
+spiegel, zeit, t-online, Wikipedia, wetter.com, Amazon, willhaben, geizhals, nextroom, YouTube):
+Treffer insgesamt 314 → 318, davon in Bedienoberfläche 1 → 0. Weggefallen sind dort die
+Menüpunkte „Politik“ und „Panorama“ auf t-online (ausgeklappte Rubrik-Links mit „Krieg“ und
+„Unfälle“), ein Eintrag im Inhaltsverzeichnis von Wikipedia und das willhaben-Banner. Die übrigen
+Unterschiede kamen von wechselnden Schlagzeilen zwischen den beiden Durchläufen.
+
+Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
+ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
+Ebenso Kennzeichnungen KI-erstellter Bilder wie „KI-generiertes Bild“, „mit KI erstellt“
+oder „AI-generated image“ (seit 1.23.1; sie standen etwa in der Bildbeschreibung eines
+Werbebanners auf willhaben.at und machten das ganze Karussell unscharf). „KI-generierte
+Fakes …“ bleibt ein Treffer.
+
+**Gemessen:** alte und neue Version nacheinander auf 17 Seiten (Google, Google News, MSN,
+krone, kurier, heute, oe24, diepresse, kleinezeitung, spiegel, zeit, orf, derStandard,
+Wikipedia, wetter.com, Amazon; tagesschau.de lud nicht fertig).
+- **Weggefallen ist nur Oberfläche:** Menüpunkte („News zu KI“, „Ukraine-Krieg“,
+  „Coronavirus“, „Tierecke“), Themen-Schlagwörter („Erderwärmung“, „Krieg im Nahen Osten“),
+  Kopf- und Fußleisten („Trauerportal“, „Unwetterwarnungen“) und zwei Sprunglinks auf der
+  Wikipedia-Hauptseite.
+- **Alle Meldungen bleiben unscharf.** Einträge, die sich zwischen den Läufen änderten,
+  verlinken auf Artikel und können von der Regel nicht betroffen sein.
+- **Die Google-Startseite hat keinen Treffer mehr.** Suchergebnisse ließen sich nicht testen,
+  weil Google automatische Aufrufe sperrt.
+
+### Shops und Marktplätze: Bilder sofort sichtbar
+
+Auf bekannten Nicht-Nachrichtenseiten (willhaben, Amazon, eBay, geizhals, idealo, booking,
+Zalando, IKEA, Handelsketten, Mode, Apotheken, Reisen, Immobilien-, Job- und Autobörsen,
+Rezeptseiten, insgesamt rund 390 Adressen, Liste in `extension/lib/sitekind.js`) sind Bilder
+gleich sichtbar. Sie werden wie überall im Hintergrund geprüft. Steht etwas Belastendes darin,
+werden sie danach unscharf. Texte werden überall gleich geprüft, auch das vorsorgliche
+Unscharfstellen beim Laden bleibt.
+
+- **Abschalten:** Einstellungen → „Auf Shops und Marktplätzen Bilder sofort zeigen“.
+- **Seite selbst einstufen:** Im Popup steht „Nachrichtenseite“ mit Schalter. Ausgeschaltet
+  heißt: keine Nachrichtenseite, Bilder sofort sichtbar. Gespeichert wird nur, was von der
+  eingebauten Liste abweicht (`siteKinds`).
+- **Unbekannte Seiten** gelten als Nachrichtenseite, dort bleibt alles wie bisher.
+- **Wie die Liste geprüft ist (1.28):** Jede Adresse wurde abgerufen. Nicht erreichbare
+  (z. B. geschlossene Shops wie Esprit, myToys, Depot) wurden gestrichen. Die Startseiten wurden
+  nach belastenden Begriffen durchsucht; gefunden wurden nur Länderauswahlen („Israel“,
+  „Ukraine“) und Krimititel. Weggelassen wurden Seiten mit Nachrichten- oder Feed-Teil
+  (LinkedIn, XING, utopia.de, wetteronline, bergfex) und Unterseiten von Nachrichtenmarken.
+- **Automatische Einstufung (seit 1.27, ohne Rückfrage):** Zeigt eine unbekannte Seite über
+  mindestens 3 Aufrufe zusammen mindestens 30 geprüfte, harmlose Bilder und keinen einzigen
+  Treffer (Text, Bild oder KI), gilt sie still als Nicht-Nachrichtenseite. Kommt dort später doch
+  ein Treffer, gilt sie sofort und dauerhaft wieder als Nachrichtenseite. Gezählt wird lokal
+  (`siteStats` und `autoKinds` in `chrome.storage.local`, höchstens 300 Seiten), je Aufruf nach
+  12 Sekunden. Das Popup zeigt „Automatisch erkannt“; der Schalter dort geht immer vor.
+
+  Geprüft an 11 Seiten, die in keiner Liste standen, je ein Aufruf: Die Nachrichtenseiten
+  futurezone, vienna.at, salto.bz, news.joyn.at (puls24) und heise hatten 9 bis 41 Treffer und
+  würden nie eingestuft. Die Shops Thomann, Bergfreunde, Lidl, Tchibo und Cyberport hatten 0
+  Treffer und 5 bis 34 harmlose Bilder und würden nach etwa 3 Aufrufen eingestuft. Die
+  Nachrichtenseiten daraus stehen jetzt in der Liste.
+- **KI-Erkennung gemessen, nicht eingebaut:** Das Sprachmodell stufte Startseiten gut ein (37
+  von 37 Nachrichtenseiten richtig, 20 von 21 Shops erkannt), hielt aber Deal-Unterseiten von
+  Nachrichtenportalen für Shops (chip.de/deals, computerbild.de/deals, focus.de/deals,
+  heise.de/bestenlisten). Wer zuerst so eine Seite öffnet, bekäme das ganze Portal als Shop
+  eingestuft.
+- **Werbe-Frames fremder Seiten** gelten ebenfalls als Nachrichtenseite.
+
+**Warum eine Liste und keine automatische Erkennung:** Geprüft an 32 Seiten (18
+Nachrichtenseiten, 14 Shops). Die Auszeichnung im Seitenkopf (Nachrichtenartikel bzw.
+Produkt/Angebot) fehlt auf Startseiten fast immer: Von 14 Shops war nur IKEA erkennbar, dafür
+galt heise.de als Shop. Auch die Zahl der Preise auf der Seite trennt nicht, heise.de zeigte
+10, viele Shops beim ersten Laden 0.
+
+**Gemessen** auf willhaben.at (erster Besuch, sichtbare Bilder alle 100 ms erfasst):
+Fahrrad-Übersicht vorher rund 3,3 s lang unscharfe Bilder (zusammen 9,9 „Bild-Sekunden“),
+jetzt 0; Startseite 0,4 → 0.
 
 ### Gute Nachrichten trotzdem zeigen
 
@@ -555,6 +753,24 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    Gemessen auf orf.at beim Durchscrollen (erster Besuch): Bilder bleiben nach dem
    Sichtbarwerden im Median 1,1 s unscharf (vorher 7 s), höchstens 2 s (vorher 15 s);
    beim zweiten Besuch meist gar nicht (Cache).
+
+   Seit 1.21 beim Öffnen einer Seite zusätzlich:
+   - **Vorab laden:** Sobald ein Bild zur Prüfung vorgemerkt ist, lädt der Service Worker es
+     schon herunter. Die Texterkennung startet erst, wenn es sichtbar ist, und diese Meldung
+     kommt beim Laden einer Seite spät (rund 0,5 bis 0,6 s).
+   - **Nicht mehr auf den ganzen Textscan warten:** Der Teaser-Text ist dank der Sofort-Prüfung
+     schon bekannt. Gewartet wird nur noch bei vorsorglich unscharfen Teasern.
+
+   Gemessen auf orf.at beim Öffnen (erster Besuch, je drei Läufe, sichtbare Bilder): Bild
+   laden 0,7 s → 0,08 s. Unscharf im Median 1,32 s → 1,18 s, höchstens 1,78 s → 1,51 s. Den Rest
+   bestimmt die Texterkennung selbst; auf dem Testrechner sind das rund 0,6 s je Bild, auf
+   schnelleren Rechnern weniger. Eine Texterkennung „auf Verdacht“ vor dem Sichtbarwerden
+   brachte nichts Messbares und ist nicht eingebaut.
+   Ebenso nichts Messbares brachte es, die Texterkennung beim Seitenstart vorzuwärmen
+   (Worker laden, bevor das erste Bild kommt). Nach einem Kaltstart blieben die Bilder auf
+   orf.at, derStandard und kurier gleich lange unscharf (je zwei Läufe, Unterschiede im
+   Rauschen). Der Kaltstart der Worker kostet nur rund 0,2 s und läuft ohnehin parallel zum
+   Laden der Bilder.
 6. Übernommen werden nur Wörter, bei denen Tesseract ziemlich sicher ist (Sicherheit ≥ 70,
    überwiegend Buchstaben). Fotos ohne Schrift – Rasen, Laub, Stoff – liefern sonst
    Buchstabensalat, der die Schlagwort- und KI-Prüfung in die Irre führt.
@@ -572,7 +788,12 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    werden ausgelassen.
 10. **Shadow-DOM**: Offene Shadow-Roots (Web-Komponenten) werden gefunden, beobachtet und
    mit eigenen Regeln versehen, sodass Text, Bilder und Nachgeladenes darin genauso
-   gefiltert werden.
+   gefiltert werden. Viele Seiten legen Shadow-Roots erst nachträglich an (MSN: bis zu sieben
+   Ebenen tief), und dafür meldet der Browser keine Änderung. Ein kleines Skript in der Seite
+   (`shadow-hook.js`, läuft vor den Skripten der Seite) meldet deshalb jeden neuen offenen
+   Shadow-Root. Kurz nach dem Laden folgt noch ein Ersatz-Durchgang. Ob etwas schon in einem
+   unscharfen Block liegt, wird über Shadow-Grenzen hinweg geprüft, sodass jede Meldung nur
+   einmal markiert wird. Gemessen auf msn.com/de-at: vorher 0 Meldungen unscharf, jetzt 20.
 
 ## Grenzen
 
@@ -651,6 +872,7 @@ extension/
   lib/semantic.js    Bedeutungs-Filter: Entscheidung, Schwellen, Vektor-Speicherung
   semantic.js        Sprachmodell im Offscreen Document (transformers.js)
   lib/nano.js        Chromes eingebautes Modell (Gemini Nano): Assistent, zweite Meinung
+  shadow-hook.js     meldet nachträglich angelegte Shadow-Roots (läuft in der Seite)
   lib/settings.js    Einstellungen und Seitenregeln
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole

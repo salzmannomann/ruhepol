@@ -194,6 +194,37 @@ function pump() {
   }
 }
 
+/*
+ * Vorab laden: Sobald ein Bild auf der Seite zur Prüfung vorgemerkt ist, wird es hier schon
+ * heruntergeladen. Die Texterkennung startet erst, wenn es sichtbar ist – das meldet der Browser
+ * beim Laden einer Seite aber erst spät (gemessen ~0,6 s). So laufen Warten und Laden parallel.
+ */
+const PREFETCH_MAX = 30;
+const PREFETCH_TTL_MS = 60 * 1000;
+const PREFETCH_PARALLEL = 6;
+const prefetched = new Map(); // url -> Promise<dataUrl|null>
+let prefetchActive = 0;
+
+function prefetchImage(url) {
+  if (!/^https?:/i.test(url) || prefetched.has(url) || inflight.has(url)) return;
+  if (prefetchActive >= PREFETCH_PARALLEL) return;
+  while (prefetched.size >= PREFETCH_MAX) prefetched.delete(prefetched.keys().next().value);
+  prefetchActive++;
+  const p = cacheGet(url)
+    .then((cached) => (cached ? null : fetchAsDataUrl(url)))
+    .catch(() => null)
+    .finally(() => { prefetchActive--; });
+  prefetched.set(url, p);
+  setTimeout(() => { if (prefetched.get(url) === p) prefetched.delete(url); }, PREFETCH_TTL_MS);
+}
+
+async function takePrefetched(url) {
+  const p = prefetched.get(url);
+  if (!p) return null;
+  prefetched.delete(url);
+  return p;
+}
+
 async function runJob(url, dataUrl) {
   // Offscreen Document zuerst starten: der Kaltstart soll nicht in die 10 s zählen.
   await ensureOffscreen();
@@ -206,7 +237,7 @@ async function runJob(url, dataUrl) {
     }, OCR_TIMEOUT_MS);
   });
   const work = (async () => {
-    const src = dataUrl || (await fetchAsDataUrl(url, controller.signal));
+    const src = dataUrl || (await takePrefetched(url)) || (await fetchAsDataUrl(url, controller.signal));
     const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'recognize', dataUrl: src });
     if (!r) return { ok: false, error: 'keine Antwort vom Offscreen Document' };
     if (!r.ok) return { ok: false, error: r.error || 'OCR fehlgeschlagen' };
@@ -504,16 +535,38 @@ async function learnInfo() {
  */
 
 const SEM_BATCH = 16;
+const SEM_CHUNK_CHARS = 2400; // Paketgröße × längster Text
 const SEM_CACHE_MAX = 3000;
 const semCache = new Map(); // "model|text" -> Float32Array
 let semRef = null;
 let semRefGen = 0; // erhöht bei jeder Bewertungsänderung: veraltete Bezugspunkte nicht speichern
-let semChain = Promise.resolve();
+const semJobs = []; // immer nur eine Modell-Anfrage gleichzeitig; vorrangige zuerst
+let semRunning = false;
 
-function serialSem(fn) {
-  const p = semChain.then(fn);
-  semChain = p.catch(() => {});
-  return p;
+/**
+ * Anfragen nacheinander abarbeiten. prio: Teaser im sichtbaren Bereich – sie überholen
+ * Gegenprüfungen und Teaser weiter unten (gemessen: sonst warteten sie auf orf.at mehrere
+ * Sekunden hinter solchen Anfragen).
+ */
+function serialSem(fn, prio) {
+  return new Promise((resolve, reject) => {
+    const job = { fn, resolve, reject, prio: !!prio };
+    if (prio) {
+      const at = semJobs.findIndex((j) => !j.prio);
+      semJobs.splice(at < 0 ? semJobs.length : at, 0, job);
+    } else semJobs.push(job);
+    pumpSem();
+  });
+}
+
+async function pumpSem() {
+  if (semRunning) return;
+  semRunning = true;
+  while (semJobs.length) {
+    const job = semJobs.shift();
+    try { job.resolve(await job.fn()); } catch (e) { job.reject(e); }
+  }
+  semRunning = false;
 }
 
 async function semModelId() {
@@ -616,8 +669,17 @@ async function embedTextsNow(model, texts) {
     });
   }
   const fresh = [];
-  for (let k = 0; k < todo.length; k += SEM_BATCH) {
-    const idx = todo.slice(k, k + SEM_BATCH);
+  // Nach Länge sortiert in Pakete teilen: Das Modell füllt jedes Paket auf den längsten Text auf;
+  // ein Artikelabsatz (600 Zeichen) machte sonst 15 kurze Schlagzeilen im selben Paket gleich
+  // teuer. Gemessen an 844 echten Teasern: 30 % weniger Rechenzeit, gleiche Entscheidungen.
+  todo.sort((a, b) => texts[a].length - texts[b].length);
+  const chunks = [];
+  for (const i of todo) {
+    const c = chunks[chunks.length - 1];
+    if (c && c.length < SEM_BATCH && (c.length + 1) * texts[i].length <= SEM_CHUNK_CHARS) c.push(i);
+    else chunks.push([i]);
+  }
+  for (const idx of chunks) {
     await ensureOffscreen();
     const r = await chrome.runtime.sendMessage({
       target: 'offscreen', type: 'embed', model, prefix: cfg.prefix, texts: idx.map((i) => texts[i]),
@@ -765,7 +827,7 @@ function semWarm() {
   }).catch(() => {});
 }
 
-function semScore(texts) {
+function semScore(texts, prio) {
   return serialSem(async () => {
     const settings = await SFSettings.load();
     if (!settings.semantic) return { ok: false, error: 'aus' };
@@ -774,7 +836,7 @@ function semScore(texts) {
     const ref = await semReference(settings, model);
     const vecs = await embedTexts(model, texts.map((t) => SFSemantic.cleanText(String(t).slice(0, 600)) || String(t).slice(0, 600)));
     return { ok: true, results: vecs.map((v) => SFSemantic.decide(v, ref, model, settings.semanticLevel)) };
-  }).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
+  }, prio).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
 }
 
 /** Gute Nachrichten trotz gesperrtem Thema: Ton der Texte bestimmen. */
@@ -952,6 +1014,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Verwaltung (löschen, importieren, exportieren) nur von den eigenen Seiten, nicht aus Tabs.
   if (ADMIN_MESSAGES.has(msg.type) && !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return false;
   switch (msg.type) {
+    case 'ocrPrefetch':
+      if (typeof msg.url === 'string') prefetchImage(msg.url);
+      return false;
     case 'ocr':
       if (typeof msg.url !== 'string') return false;
       requestOcr(msg.url, typeof msg.dataUrl === 'string' ? msg.dataUrl : null).then(sendResponse);
@@ -993,7 +1058,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       semWarm();
       return false;
     case 'semScore':
-      semScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
+      semScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : [], !!msg.prio).then(sendResponse);
       return true;
     case 'toneScore':
       toneScore(Array.isArray(msg.texts) ? msg.texts.slice(0, 32) : []).then(sendResponse);
