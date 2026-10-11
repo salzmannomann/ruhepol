@@ -242,7 +242,11 @@
   const ALLOW = ['Die Toten Hosen', 'Toten Hosen', 'Rosenkrieg*', 'Katastrophenübung*', 'Katastrophenschutzübung*',
     'Vermisste und zugelaufene',
     // Feste Bezeichnungen von Suchmaschinen-Oberflächen, keine Meldungen über KI
-    'KI-Modus', 'KI-Übersicht'];
+    'KI-Modus', 'KI-Übersicht',
+    // Kennzeichnung KI-erstellter Bilder (z. B. Werbebanner auf willhaben.at), keine Meldung über KI
+    // – nur die Bildkennzeichnung selbst; „KI-generierte Fakes …“ bleibt ein Treffer.
+    'KI-generiertes Bild', 'KI-generiertes Foto', 'KI-generierte Grafik', 'KI-generierte Illustration',
+    'mit KI generiert', 'mit KI erstellt', 'AI-generated image'];
 
   function examplesFor(ids) {
     const set = new Set(ids || []);
