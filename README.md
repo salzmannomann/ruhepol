@@ -491,6 +491,12 @@ beruhen aber darauf. Außerdem bräuchte Nano für jede Meldung eine eigene Antw
 Überschriften auf orf.at wäre das viel langsamer als das mitgelieferte Modell, das alle in
 Paketen vergleicht.
 
+**Anhalten oder entfernen:** Ruhepol kann Chromes Modell nur benutzen, nicht löschen oder den
+Download abbrechen. In den Einstellungen (Themen → Assistent → „Chrome-Modell anhalten oder
+entfernen“) öffnet ein Knopf die Chrome-Einstellung `chrome://flags/#optimization-guide-on-device-model`;
+dort auf „Disabled“ stellen und Chrome neu starten, dann lädt Chrome das Modell nicht mehr und gibt
+den Speicher frei. Ruhepol läuft auch ohne Gemini Nano.
+
 ### Bewusst geöffnete Artikel vollständig lesen
 
 Öffnest du einen Artikel über einen Teaser, der **nicht** unscharf war (oder den du selbst
