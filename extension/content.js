@@ -215,8 +215,24 @@
     }
     if (!a || !/^https?:/i.test(a.href)) return;
     if (closestDeep(a, '[data-sf-hit], .sf-placeholder')) return; // unscharf/ausgeblendet: nicht bewusst gewählt
+    // Links auf Startseite oder Rubrik (Logo, „News“, „/wirtschaft/“) öffnen keinen Artikel; die
+    // orf.at-Startseite galt sonst als „bewusst geöffneter Artikel“ und war danach aufgedeckt.
+    if (isOverviewLink(a)) return;
     try { chrome.runtime.sendMessage({ type: 'trustLink', url: a.href }).catch(() => {}); } catch (_) { /* neu geladen */ }
   }
+
+  /** Startseite oder einfache Rubrik („/“, „/news“, „/wirtschaft/“), keine einzelne Meldung. */
+  function isOverviewLink(a) {
+    try {
+      const path = new URL(a.href, location.href).pathname;
+      return path === '/' || /^\/[a-zäöüß-]{1,24}\/?$/i.test(path);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  const LINKED_HEADINGS = 'a h1, a h2, a h3, a h4, h1 a, h2 a, h3 a, h4 a';
+  const OVERVIEW_MIN_TEASERS = 5;
 
   /** Artikelbereich: Container der Hauptüberschrift (article/main) bzw. Vorfahr mit Fließtext. */
   function trustArea() {
@@ -229,6 +245,8 @@
         if (cur.getElementsByTagName('p').length >= 3) { root = cur; break; }
       }
     }
+    // Übersichtsseite (viele verlinkte Überschriften, z. B. orf.at mit <h1> im Aufmacher): kein Artikel.
+    if (root && root.querySelectorAll(LINKED_HEADINGS).length >= OVERVIEW_MIN_TEASERS) root = null;
     articleRoot = root;
     return root;
   }
@@ -241,7 +259,7 @@
     if (block.closest('aside, nav, footer, [role="complementary"]')) return false;
     // Teaser-Karten im Artikel („Mehr zum Thema“): verlinkte Überschrift
     if (block !== root && block.matches('article, li, section, div') &&
-        block.querySelector('a h2, a h3, a h4, h2 a, h3 a, h4 a')) return false;
+        block.querySelector(LINKED_HEADINGS)) return false;
     return true;
   }
 
