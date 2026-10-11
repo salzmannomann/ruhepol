@@ -574,6 +574,10 @@ Weiter gefiltert werden:
 
 Außerdem wird eine Meldung im Seitenkopf nicht mehr auf den ganzen Kopf samt Menü
 ausgedehnt. „KI-Modus“ und „KI-Übersicht“ stehen in „Nie ausblenden“.
+Ebenso Kennzeichnungen KI-erstellter Bilder wie „KI-generiertes Bild“, „mit KI erstellt“
+oder „AI-generated image“ (seit 1.23.1; sie standen etwa in der Bildbeschreibung eines
+Werbebanners auf willhaben.at und machten das ganze Karussell unscharf). „KI-generierte
+Fakes …“ bleibt ein Treffer.
 
 **Gemessen:** alte und neue Version nacheinander auf 17 Seiten (Google, Google News, MSN,
 krone, kurier, heute, oe24, diepresse, kleinezeitung, spiegel, zeit, orf, derStandard,

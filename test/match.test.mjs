@@ -298,6 +298,16 @@ test('Vorschlagslisten: eingebaute Ausnahmen (Toten Hosen, Rosenkrieg, Katastrop
   assert.ok(m.find('Die Toten Hosen sagen Konzert ab, zwei Tote bei Unfall'), 'Ausnahme schützt nicht den Rest');
 });
 
+test('Vorschlagslisten: Kennzeichnung KI-erstellter Bilder ist keine Meldung über KI', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW });
+  for (const t of ['Ki-generiertes Bild - Preis pro m2. Alle Preise sofort im Blick.', 'Grafik: mit KI erstellt', 'AI-generated image']) {
+    assert.equal(m.find(t), null, t);
+  }
+  assert.ok(m.find('KI-generierte Fakes bedrohen Wahlen'), 'Meldungen über KI-Fälschungen bleiben Treffer');
+  assert.ok(m.find('KI ersetzt Bürojobs'));
+});
+
 test('Bedeutungs-Filter: Teaser-Text bereinigen', () => {
   assert.equal(SEM.cleanText('Russland/Ukraine 276 Postings Brücke getroffen Livebericht Live'), 'Russland/Ukraine Brücke getroffen');
   assert.equal(SEM.cleanText('chronik 3.10. 11.29 Uhr Festnahme in Wien'), 'chronik Festnahme in Wien');
