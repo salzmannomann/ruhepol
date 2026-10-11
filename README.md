@@ -188,6 +188,20 @@ Die einzelnen Optionen:
 - **Cache leeren**: löscht die gespeicherten OCR-Ergebnisse.
 - **Exportieren/Importieren**: speichert alle Einstellungen als JSON-Datei bzw. lädt sie.
 
+### Angriffe auf Kriegsziele (seit 1.29)
+
+„Angriff“ allein steht in keiner Liste („Angriff auf die Tabellenspitze“). Die Liste „Krieg und
+Militär“ enthält aber „Angriff/Angriffe/Attacke auf“ mit Zielen, die nur im Krieg angegriffen
+werden: Flughafen, Hafen, Krankenhaus, Spital, Schule, Kraftwerk, Raffinerie, Botschaft,
+Wohnhaus, Konvoi, Tanker, Stützpunkt, Kaserne, Flüchtlingslager, Stromnetz sowie Städte wie
+Kyjiw, Charkiw, Riad, Teheran, Tel Aviv, Beirut. Anlass: „Nächster Angriff auf Flughafen Riad“
+(orf.at) wurde nur von der KI erkannt.
+
+Der Abgleich erlaubt dafür zwischen zwei Wörtern eines Begriffs einen Artikel („Angriff auf den
+Flughafen“, „Angriffe auf das Krankenhaus“). So reichen rund 220 Einträge statt mehrerer tausend
+Kombinationen; das Vorbereiten der Listen beim Seitenstart bleibt bei 4–9 ms. Gemessen an den
+844 eingestuften echten Teasern: keine neuen Fehltreffer, keine Änderung bei den Treffern.
+
 ### Rechtsklickmenü
 
 Rechtsklick auf einen Artikel, ein Bild oder markierten Text → Untermenü **Ruhepol**:
