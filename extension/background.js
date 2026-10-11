@@ -829,6 +829,8 @@ function semWarm() {
 
 function semScore(texts, prio) {
   return serialSem(async () => {
+    // Nur automatische Tests: langsame KI nachstellen (große Seiten, Kaltstart).
+    if (globalThis.__semDelay) await new Promise((r) => setTimeout(r, globalThis.__semDelay));
     const settings = await SFSettings.load();
     if (!settings.semantic) return { ok: false, error: 'aus' };
     const model = await semModelId();
