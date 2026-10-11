@@ -457,9 +457,9 @@ test('KI-Text: Bildquelle ab © und doppelte Teaser-Fassung werden entfernt', ()
   assert.equal(S.cleanText('Herbstfest im Stadtpark mit Musik und Spielen'), 'Herbstfest im Stadtpark mit Musik und Spielen');
 });
 
-test('Eigene Schlagwörter treffen einfache Endungen („Trump“ → „Trumps“), nicht andere Wörter', () => {
-  const m = compile(S.ownKeywordForms(['Trump', 'Hitzewelle*', 'Formel 1']));
-  assert.ok(m.find('Trumps Umfeld baut weiter an Verbindungen zur Republika Srpska'));
+test('Eigene Schlagwörter treffen einfache Endungen („Tesla“ → „Teslas“), nicht andere Wörter', () => {
+  const m = compile(S.ownKeywordForms(['Tesla', 'Hitzewelle*', 'Formel 1']));
+  assert.ok(m.find('Teslas Werk in Grünheide wächst weiter'));
   assert.ok(m.find('Formel 1 in Spa'));
-  assert.equal(m.find('Trumpf ausgespielt'), null);
+  assert.equal(m.find('Teslaspule im Physiksaal'), null);
 });
