@@ -761,7 +761,8 @@ schreibt Ruhepol im Hintergrund mit; Fragen gibt es keine.
 - **Zähler je Seite und Tag** (ohne Texte): Seitenaufrufe, Treffer nach Liste, aufgedeckt,
   automatisch, spät unscharf, selbst ausgeblendet.
 - **Grenzen:** nur in diesem Chrome (`chrome.storage.local`), 30 Tage, höchstens 1000 Einträge,
-  höchstens 40 automatische Einträge je Seitenaufruf. Nie automatisch verschickt.
+  höchstens 40 automatische Einträge je Seitenaufruf. Nie automatisch verschickt. Alte Einträge
+  werden auch dann gelöscht, wenn das Protokoll inzwischen aus ist (beim Chrome-Start).
 - **Weitergeben:** „Protokoll exportieren“ erzeugt `ruhepol-protokoll-JJJJ-MM-TT.json` mit
   Einträgen, Zählern und den aktuellen Einstellungen. „Protokoll löschen“ leert es.
 
