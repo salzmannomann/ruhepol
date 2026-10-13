@@ -122,35 +122,25 @@ function cleanWords(tsv) {
 }
 
 /**
- * Canvas als unkomprimiertes 24-Bit-BMP. Tesseract bekäme sonst das Canvas selbst und würde es
- * per canvas.toBlob() umwandeln – das dauert im Offscreen Document jedes Mal genau 1 s (Chrome
- * erledigt es erst bei Leerlauf, den diese unsichtbare Seite nie meldet). Die eigentliche
- * Texterkennung braucht nur 30–100 ms. BMP ist trivial und liest Tesseract (Leptonica) direkt.
+ * Canvas als unkomprimiertes PPM-Bild (Kopfzeile + rohe RGB-Werte), das Tesseract (Leptonica)
+ * direkt liest. Tesseract bekäme sonst das Canvas selbst und würde es per canvas.toBlob()
+ * umwandeln – das dauert im Offscreen Document jedes Mal genau 1 s (Chrome erledigt es erst bei
+ * Leerlauf, den diese unsichtbare Seite nie meldet). Bis 1.30.2 war es ein BMP: Das schickt
+ * tesseract.js aber durch einen sehr langsamen Umweg in JavaScript (jedes Byte einzeln in ein
+ * Objekt kopiert, dann neu kodiert), der rund die Hälfte der Zeit je Bild kostete.
  */
-function canvasToBmp(canvas) {
+function canvasToPpm(canvas) {
   const w = canvas.width, h = canvas.height;
   const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
-  const row = (w * 3 + 3) & ~3; // Zeilen auf 4 Byte auffüllen
-  const size = 54 + row * h;
-  const buf = new ArrayBuffer(size);
-  const v = new DataView(buf);
-  const out = new Uint8Array(buf);
-  v.setUint16(0, 0x4d42, true); // "BM"
-  v.setUint32(2, size, true);
-  v.setUint32(10, 54, true); // Beginn der Bilddaten
-  v.setUint32(14, 40, true); // BITMAPINFOHEADER
-  v.setInt32(18, w, true);
-  v.setInt32(22, h, true); // positiv = Zeilen von unten nach oben
-  v.setUint16(26, 1, true);
-  v.setUint16(28, 24, true);
-  v.setUint32(34, row * h, true);
-  for (let y = 0; y < h; y++) {
-    let o = 54 + (h - 1 - y) * row;
-    for (let x = 0, i = y * w * 4; x < w; x++, i += 4) {
-      out[o++] = px[i + 2]; // B
-      out[o++] = px[i + 1]; // G
-      out[o++] = px[i]; // R
-    }
+  // Kommentarzeile als Polster: tesseract.js sucht in den ersten 500 Bytes nach einer
+  // EXIF-Drehangabe und könnte sie sonst zufällig in den Bildpunkten finden.
+  const head = new TextEncoder().encode(`P6\n#${' '.repeat(500)}\n${w} ${h}\n255\n`);
+  const out = new Uint8Array(head.length + w * h * 3);
+  out.set(head);
+  for (let i = 0, o = head.length, n = w * h * 4; i < n; i += 4) {
+    out[o++] = px[i];
+    out[o++] = px[i + 1];
+    out[o++] = px[i + 2];
   }
   return out;
 }
@@ -158,8 +148,8 @@ function canvasToBmp(canvas) {
 async function recognize(dataUrl) {
   clearTimeout(idleTimer);
   const scheduler = await getScheduler();
-  const bmp = canvasToBmp(await prepare(dataUrl));
-  const { data } = await scheduler.addJob('recognize', bmp, {}, { text: false, tsv: true });
+  const ppm = canvasToPpm(await prepare(dataUrl));
+  const { data } = await scheduler.addJob('recognize', ppm, {}, { text: false, tsv: true });
   return cleanWords(data.tsv);
 }
 

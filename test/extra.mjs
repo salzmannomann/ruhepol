@@ -335,6 +335,36 @@ async function main() {
       assert.equal(bad.length, 0, JSON.stringify(bad));
     });
 
+    await step('Großes Bild (1200 × 800) wird schnell gelesen: kein langsamer BMP-Umweg in tesseract.js', async () => {
+      const res = await sw.evaluate(async () => {
+        await ensureOffscreen();
+        const make = async (i) => {
+          const c = new OffscreenCanvas(1200, 800);
+          const g = c.getContext('2d');
+          const gr = g.createLinearGradient(0, 0, 1200, 800);
+          gr.addColorStop(0, '#dfe9f3'); gr.addColorStop(1, '#ffffff');
+          g.fillStyle = gr; g.fillRect(0, 0, 1200, 800);
+          g.fillStyle = '#123'; g.font = 'bold 64px sans-serif';
+          g.fillText('Sonniges Wetter', 80, 360); g.fillText('am Wochenende', 80, 450);
+          g.fillRect(1100, 700, 10 + i, 10); // jedes Bild etwas anders
+          return blobToDataUrl(await c.convertToBlob({ type: 'image/png' }));
+        };
+        await runJob(null, await make(99)); // Worker aufwärmen
+        const out = [];
+        for (let i = 0; i < 5; i++) {
+          const d = await make(i);
+          const t = performance.now();
+          const r = await runJob(null, d);
+          out.push({ ms: performance.now() - t, text: r.text });
+        }
+        return out;
+      });
+      for (const r of res) assert.equal(r.text, 'Sonniges Wetter\nam Wochenende');
+      // Testrechner: mit BMP rund 1250 ms je Bild, mit PPM rund 300 ms
+      const median = res.map((r) => r.ms).sort((a, b) => a - b)[2];
+      assert.ok(median < 700, `Median ${Math.round(median)} ms`);
+    });
+
     await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {
       await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck', 'krankheit', 'wirtschaft'], display: 'blur', learn: false, ocr: false });
       const p = await ctx.newPage();
