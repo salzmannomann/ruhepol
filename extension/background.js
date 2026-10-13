@@ -953,6 +953,8 @@ chrome.runtime.onStartup.addListener(() => {
   // Nachrichten-Startseite oder wiederhergestellte Tabs – sofort beurteilt wird. Ohne Surfen wird
   // es nach 15 Minuten wieder entladen.
   semWarm();
+  // Aufdeck-Protokoll: Einträge über 30 Tage auch dann löschen, wenn es inzwischen aus ist.
+  revlogPruneStale().catch(() => {});
 });
 
 // Bedeutungs-Filter eben eingeschaltet: Modell schon laden, bevor die nächste Seite kommt.
@@ -1032,6 +1034,11 @@ function revlogCfg(s) {
     lernen: s.learn, lernenAusblenden: s.learnHide, anzeige: s.display, halten: s.revealHold,
     artikel: s.trustOpened, ruhigeSeiten: s.calmImages, bildtext: s.ocr,
   };
+}
+
+async function revlogPruneStale() {
+  if (!(await chrome.storage.local.get(REVLOG_KEY))[REVLOG_KEY]) return;
+  await revlogUpdate((log) => SFRevlog.prune(log, Date.now()));
 }
 
 async function revlogAdd(msg, sender) {

@@ -114,6 +114,15 @@ async function main() {
       assert.ok(json.eintraege.length >= 3, String(json.eintraege.length));
       assert.equal(json.einstellungen.revealLog, true);
       assert.ok(Object.keys(json.zaehler).length >= 1);
+      // Beim Chrome-Start: Einträge über 30 Tage fallen weg, auch wenn das Protokoll aus ist.
+      await sw.evaluate(async () => {
+        const l = (await chrome.storage.local.get('revlog')).revlog;
+        l.entries.unshift({ kind: 'aufgedeckt', id: 'uralt', t: Date.now() - 40 * 864e5 });
+        await chrome.storage.local.set({ revlog: l });
+        await chrome.storage.sync.set({ revealLog: false });
+        await revlogPruneStale();
+      });
+      assert.ok(!(await readLog(sw)).entries.some((e) => e.id === 'uralt'));
       opt.once('dialog', (d) => d.accept());
       await opt.click('#logClear');
       await opt.waitForFunction(() => document.querySelector('#logInfo').textContent === 'leer');
