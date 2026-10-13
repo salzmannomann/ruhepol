@@ -772,6 +772,15 @@ bei 1.21. Das ist vor allem die bewusste Wartezeit auf die KI (1.29.3, siehe „
 Die einzelnen Werte schwanken stark, weil sich die Seiten zwischen den Durchgängen ändern und es je Seite
 nur 3–16 sichtbare Bilder und 0–5 sichtbare KI-Treffer gibt.
 
+**Gemessen und nicht eingebaut: Vorprüfung „kann hier Schrift stehen?“** Idee: Fotos ohne Schrift ohne
+Texterkennung freigeben (die braucht je Bild 0,3–2 s). Die Vorprüfung zählt kurze, kontrastreiche Striche
+nebeneinander (`tools/textcheck.js`, 1,5 ms je Bild). Gemessen an 289 echten Bildern von 9
+Nachrichtenseiten (30 mit echtem Text, 216 ohne; `tools/bilder-sammeln.mjs`, `tools/bilder-pruefen.mjs`):
+Bei der Einstellung, die 68 Bilder überspringen würde, liegt das schwächste Bild mit echtem Text genau auf
+der Grenze; mit etwas Sicherheitsabstand fallen nur 12–18 Bilder (4–6 %) weg. Gitter, Zäune, Laub und
+Stoffmuster sehen für die Vorprüfung wie Schrift aus, kleine Einblendungen in Ecken sind oft schwach.
+Zu unsicher für zu wenig Gewinn.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.

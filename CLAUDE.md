@@ -67,6 +67,8 @@ Prüfsumme stehen in `tools/HIER-MODELL-ABLEGEN.txt` (liegt jeder ZIP bei).
   Blockierzeit, Treffer). Läuft headless mit `--disable-quic`, `--ignore-certificate-errors`, Mac-Kennung;
   Cookie-Abfragen werden beim Aufwärmen bestätigt.
 - `profil.mjs` – CPU-Profil: Rechenzeit der Erweiterung im Hauptthread, teuerste Funktionen.
+- `bilder-sammeln.mjs` → `bilder-pruefen.mjs` → `bilder-auswerten.js` – echte Nachrichtenbilder samt
+  Texterkennungs-Ergebnis sammeln (nur lokal in `.vergleich/bilder/`) und eine Bild-Vorprüfung daran messen.
 
 Messungen schwanken (Seiten ändern sich, wenige Treffer je Seite): Stände abwechselnd laden, mehrere
 Durchgänge, Mediane vergleichen, Rauschen im README benennen.
@@ -78,3 +80,18 @@ im Chat anhängen. Es enthält Einträge (aufgedeckt, automatisch, spät unschar
 bewertet) mit Grund, Liste, Text, Entscheidungsverlauf, Seitenausschnitt, Version, Einstellungen, dazu
 Zähler je Seite und Tag. Daraus Fehlfälle ableiten, als neutrale Testfälle nachbauen, messen.
 Inhalte daraus nie ins Repo.
+
+## Offene Ideen (Stand 1.30.2)
+
+1. **Bilder schneller freigeben, Tesseract-Vorstufe:** Tesseract nur die Seitenaufteilung machen lassen
+   („wo sind Textzeilen?“, ohne Buchstaben zu erkennen) und Fotos ohne Textzeilen freigeben. Am Bildbestand
+   von `tools/bilder-sammeln.mjs` messen: übersprungene Bilder, gesparte Zeit, **null übersehene Bilder mit
+   echtem Text**. Die einfache Strich-Vorprüfung ist daran gescheitert (README).
+2. **KI auf der Grafikkarte (WebGPU)** statt auf dem Prozessor: transformers.js kann das; offen, ob WebGPU
+   im Offscreen Document geht. Messen auf dem Mac des Nutzers (eine Messseite in der Erweiterung), der
+   Testrechner hat keine Grafikkarte. Würde dem Prozessor beim Laden gar keine Kerne mehr wegnehmen.
+3. **Schlagwortprüfung schneller:** Abgleich in einem Durchgang statt Wort für Wort, unveränderte
+   Textstellen beim erneuten Scannen überspringen. Laut Profiler 300–400 ms je großer Seite; erwarteter
+   Gewinn 100–200 ms Rechenzeit, nicht direkt sichtbar.
+4. **KI-Threads auf Rechnern mit 8+ Kernen:** Die Regel in `semantic-worker.js` ist nur auf 4 Kernen
+   gemessen. Auf dem Mac des Nutzers nachprüfen, wenn sich die Gelegenheit ergibt.
