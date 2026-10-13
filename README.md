@@ -738,6 +738,44 @@ gegen Malaria“, „Arbeitslosigkeit sinkt“ oder „KI hilft Ärzten“.
 Gemessen mit 32 Schlagzeilen: mittel 8 von 12 guten gezeigt, 0 von 20 schlechten;
 vorsichtig 6/12, stark 9/12, jeweils ohne Fehlanzeige.
 
+### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
+
+Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.
+Eingeschaltet wird es unter **Einstellungen → Erweitert → Aufdeck-Protokoll führen**. Danach
+schreibt Ruhepol im Hintergrund mit; Fragen gibt es keine.
+
+- **Was festgehalten wird:**
+  - **aufgedeckt:** du hast etwas angezeigt, wie (gedrückt, geklickt, „Will ich sehen“,
+    Rechtsklick, Bild während der Prüfung) und ob danach 👍/👎 kam.
+  - **automatisch:** Ruhepol hat selbst wieder aufgedeckt (KI-Gegenprüfung, Gemini Nano,
+    gute Nachricht, bewusst geöffneter Artikel, Lernfilter), mit dem Wert, der entschieden hat.
+  - **spät unscharf:** ein Bild war schon scharf zu sehen und wurde erst danach unscharf, mit
+    der Dauer.
+  - **selbst ausgeblendet:** per Rechtsklick, also was Ruhepol übersehen hat.
+  - **bewertet:** „Passt so“ / 👎 auf schon Unscharfes.
+- **Pro Eintrag:** Zeit, Seite (Adresse ohne Parameter), Treffer und Liste, Grund, Text des
+  Blocks (300 Zeichen), Rolle (Teaser, Artikel-Absatz, Navigation …), Entscheidungsverlauf mit
+  Zeitpunkten (z. B. unscharf nach 0,4 s, Gegenprüfung nach 1,8 s), ein gekürzter Ausschnitt
+  des Seitenaufbaus (Elternkette und HTML ohne Skripte, Stile und Link-Parameter, höchstens
+  2500 Zeichen), Ruhepol-Version und die wichtigsten Einstellungen.
+- **Zähler je Seite und Tag** (ohne Texte): Seitenaufrufe, Treffer nach Liste, aufgedeckt,
+  automatisch, spät unscharf, selbst ausgeblendet.
+- **Grenzen:** nur in diesem Chrome (`chrome.storage.local`), 30 Tage, höchstens 1000 Einträge,
+  höchstens 40 automatische Einträge je Seitenaufruf. Nie automatisch verschickt. Alte Einträge
+  werden auch dann gelöscht, wenn das Protokoll inzwischen aus ist (beim Chrome-Start).
+- **Weitergeben:** „Protokoll exportieren“ erzeugt `ruhepol-protokoll-JJJJ-MM-TT.json` mit
+  Einträgen, Zählern und den aktuellen Einstellungen. „Protokoll löschen“ leert es.
+
+**Kosten, gemessen** (orf, derStandard, kurier, krone, nachrichten.at, Bedeutungs-Filter mit
+Gegenprüfung und „gute Nachrichten“ an, Seite geladen und gescrollt):
+- Zuerst wurde alles beim Unscharfstellen sofort erfasst. Das kostete auf derStandard bis zu
+  16 ms am Stück und 140 ms je Seitenaufruf, vor allem durch Abfragen von Lage und Sichtbarkeit
+  und durch den Seitenausschnitt.
+- Jetzt wird beim Filtern nur das Nötigste festgehalten (höchstens 0,5 ms je Schritt, zusammen
+  1–5 ms je Seite). Text, Ausschnitt, Liste und Sichtbarkeit werden in Leerlaufzeiten des
+  Browsers ergänzt (7–61 ms je Seite, verteilt). Ausgeschaltet kostet es nichts.
+- Größe: 0–14 Einträge je Startseite, rund 2 KB je Eintrag, volles Protokoll etwa 2–3 MB.
+
 ### Synchronisieren zwischen Rechnern
 
 - **Einstellungen** liegen in `chrome.storage.sync`.
@@ -877,7 +915,8 @@ npm install
 npm run setup        # vendor/ und Sprachdaten
 npm test             # Unit-Tests (Abgleich, Listen, Lernmodell, Bedeutungs-Logik) + Playwright-Tests
                      # (Testseite, Lernfilter, Hintergrundbilder/Shadow-DOM/Gedrückthalten/Bereiche,
-                     #  Bedeutungs-Filter mit Testmodell, Wünsche und Chrome-Modell mit Ersatzmodell)
+                     #  Bedeutungs-Filter mit Testmodell, Wünsche und Chrome-Modell mit Ersatzmodell,
+                     #  Aufdeck-Protokoll)
 npm run test:orf     # Praxistest gegen https://orf.at (braucht Internet; HEADED=1 für sichtbares Fenster)
 ```
 
@@ -920,6 +959,7 @@ extension/
   lib/nano.js        Chromes eingebautes Modell (Gemini Nano): Assistent, zweite Meinung
   shadow-hook.js     meldet nachträglich angelegte Shadow-Roots (läuft in der Seite)
   lib/settings.js    Einstellungen und Seitenregeln
+  lib/revlog.js      Aufdeck-Protokoll: Speichern, Grenzen, Zähler
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole
 test/                Unit-Tests, Playwright-Test, Testseite, Testbilder

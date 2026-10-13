@@ -286,7 +286,7 @@
       withTimeout(chrome.runtime.sendMessage({ type: 'isTrusted', url: location.href }), 3000).then((r) => {
         if (!(r && r.trusted) || !active) return;
         trustedPage = true;
-        for (const b of [...hitBlocks]) if (AUTO_WHY.has(b.dataset.sfWhy) && inTrustedArea(b)) unhide(b);
+        for (const b of [...hitBlocks]) if (AUTO_WHY.has(b.dataset.sfWhy) && inTrustedArea(b)) { logAuto(b, 'geoeffneter-artikel'); unhide(b); }
         reportCount();
       }).catch(() => { /* dann normal filtern */ });
     }
@@ -308,6 +308,10 @@
       if (learningHides() !== wasHiding) apply();
     });
     document.addEventListener('contextmenu', (e) => { lastCtxTarget = e.target; }, true);
+    // Protokoll nicht verlieren, wenn der Tab geschlossen oder gewechselt wird.
+    const logPending_ = () => logTimer || logPending.length || logReasons.length;
+    document.addEventListener('visibilitychange', () => { if (document.hidden && logPending_()) flushLog(true); });
+    window.addEventListener('pagehide', () => { if (logPending_()) flushLog(true); });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'sync') return;
       if (!S.KEYS.some((k) => k in changes)) return;
@@ -894,7 +898,7 @@
 
   /** Zustand eines geprüften Elements: <img> in data-sf, alles andere in data-sf-bg. */
   function getState(el) { return el.tagName === 'IMG' ? el.dataset.sf : el.dataset.sfBg; }
-  function setState(el, v) { if (el.tagName === 'IMG') el.dataset.sf = v; else el.dataset.sfBg = v; }
+  function setState(el, v) { if (v === 'ok' && !el.__sfOkAt) el.__sfOkAt = performance.now(); if (el.tagName === 'IMG') el.dataset.sf = v; else el.dataset.sfBg = v; }
 
   function bgUrl(el) {
     if (el.tagName === 'VIDEO') {
@@ -1370,6 +1374,7 @@
       res.results.forEach((r, i) => {
         const b = blocks[i];
         if (!b.isConnected || !b.dataset.sfHit) return;
+        trail(b, { schritt: 'gegenpruefung', wert: Math.round((r.good - r.bad) * 1000) / 1000, harmlos: !!r.veto, unsicher: !!r.unsure, wunsch: !!r.wishVeto });
         if (neverToneMatcher().find(blockText(b))) return;
         if (b.__sfOwn && !r.wishVeto) return; // eigenes Schlagwort: weder Gegenprüfung noch Gemini Nano
         if (!r.veto && !(b.__sfOwn && r.wishVeto)) {
@@ -1377,9 +1382,10 @@
           if (r.unsure && settings.nanoCheck && !nanoUnavailable) { nanoQueue.add(b); flushNano(); }
           return;
         }
+        b.dataset.sfVeto = String(Math.round((r.good - r.bad) * 1000) / 1000);
+        logAuto(b, 'gegenpruefung');
         unhide(b);
         clearedBlocks.add(b);
-        b.dataset.sfVeto = String(Math.round((r.good - r.bad) * 1000) / 1000);
       });
       reportCount();
     } else if (res && isOffError(res.error)) {
@@ -1417,10 +1423,12 @@
     if (res && res.ok) {
       res.harmless.forEach((harmless, i) => {
         const b = blocks[i];
+        if (b.isConnected) trail(b, { schritt: 'nano', harmlos: !!harmless });
         if (!harmless || !b.isConnected || !b.dataset.sfHit) return;
+        b.dataset.sfNano = 'harmlos';
+        logAuto(b, 'nano');
         unhide(b);
         clearedBlocks.add(b);
-        b.dataset.sfNano = 'harmlos';
       });
       reportCount();
     } else {
@@ -1471,15 +1479,17 @@
     if (res && res.ok) {
       res.results.forEach((r, i) => {
         const b = blocks[i];
+        if (b.isConnected) trail(b, { schritt: 'ton', wert: r.diff, positiv: !!r.positive });
         if (!r.positive || !b.isConnected || !b.dataset.sfHit) return;
         // Tod/Suizid und Missbrauch: nie aufdecken, auch wenn die Meldung positiv ist.
         if (neverToneMatcher().find(blockText(b))) return;
         // Wer so etwas laut Lernfilter klar nicht sehen will, bekommt es auch positiv nicht.
         const s = learningActive() ? L.score(model, blockText(b)) : null;
         if (s && s.known >= 2 && s.p >= 0.9) return;
+        b.dataset.sfPositive = String(r.diff);
+        logAuto(b, 'gute-nachricht');
         unhide(b);
         clearedBlocks.add(b);
-        b.dataset.sfPositive = String(r.diff);
       });
       reportCount();
     } else if (res && isOffError(res.error)) {
@@ -1647,6 +1657,7 @@
     if (action === 'block') {
       if (hidden) {
         train(hidden, 'b');
+        logEvent('bewertet', hidden, { bewertung: 'ausblenden' });
         suggestBar(hidden);
         return;
       }
@@ -1657,6 +1668,8 @@
         return;
       }
       train(block, 'b');
+      logCount('selbst');
+      logEvent('selbst-ausgeblendet', block);
       if (active) {
         delete block.dataset.sfRevealed;
         clearedBlocks.delete(block);
@@ -1666,10 +1679,11 @@
     } else if (action === 'ok') {
       if (hidden) {
         train(hidden, 'o');
-        reveal(hidden, ph, { feedback: false });
+        reveal(hidden, ph, { feedback: false, how: 'rechtsklick', rating: 'zeigen' });
       } else {
         const block = findBlock(el);
         train(block, 'o');
+        if (block) logEvent('bewertet', block, { bewertung: 'zeigen' });
         clearedBlocks.add(block);
       }
       toast('Gemerkt: will ich sehen');
@@ -2041,11 +2055,20 @@
       if (s && s.known >= LEARN_KEEP_KNOWN && s.p < LEARN_KEEP) {
         clearedBlocks.add(block);
         block.dataset.sfLearnOk = String(Math.round(s.p * 100));
+        if (logOn()) {
+          logCount('automatisch', 'lernfilter');
+          logEvent('automatisch', block, { wie: 'lernfilter', treffer: kw, grund: opts.why || '' });
+        }
         return false;
       }
     }
     block.dataset.sfHit = kw;
     if (opts.why) block.dataset.sfWhy = opts.why;
+    if (logOn()) {
+      trail(block, { schritt: 'unscharf', treffer: kw, grund: opts.why || '' });
+      logCountReason('treffer', kw, opts.why);
+      logLate(block);
+    }
     // Schlagwort-Treffer mit dem Sprachmodell gegenprüfen (bleibt bis dahin unscharf).
     if (settings.semantic && settings.semanticVeto && !semUnavailable && !opts.noTone && isKeywordReason(kw)) {
       // Eigene Schlagwörter: nur ein „Will ich trotzdem sehen“-Wunsch darf sie aufdecken.
@@ -2088,12 +2111,13 @@
       actions.className = 'sf-ph-actions';
       const keep = button('Passt so', () => {
         train(block, 'b');
+        logEvent('bewertet', block, { bewertung: 'ausblenden' });
         actions.textContent = '✓ gemerkt';
       });
       keep.title = 'Richtig ausgeblendet – merken';
       const want = revealButton('Will ich sehen', () => {
         train(block, 'o');
-        reveal(block, ph, { feedback: false });
+        reveal(block, ph, { feedback: false, how: 'will-sehen', rating: 'zeigen' });
         toast('Gemerkt: will ich sehen');
       });
       want.title = 'Falsch ausgeblendet – anzeigen und merken';
@@ -2174,6 +2198,10 @@
     ev.stopPropagation();
     beginHold(ev, () => {
       swallowNextClick();
+      if (logOn()) {
+        logCount('aufgedeckt', 'bild-in-pruefung');
+        logEvent('aufgedeckt', img, { wie: 'bild-in-pruefung', bildStatus: img.dataset.sf });
+      }
       img.dataset.sfRevealed = '1';
     }, img);
   }
@@ -2301,7 +2329,7 @@
     swallowNextClick();
     const kw = block.dataset.sfHit;
     const zone = block.__sfZone;
-    reveal(block, null, { feedback: false });
+    reveal(block, null, { feedback: false, how: settings.revealHold ? 'gedrueckt' : 'geklickt' });
     if (zone) askZoneAfterReveal(block, zone);
     else askAfterReveal(block, kw);
   }
@@ -2358,6 +2386,7 @@
     label.textContent = 'Künftig anzeigen?';
     const up = button('👍', () => {
       train(block, 'o');
+      logRating(block, 'zeigen');
       clearedBlocks.add(block);
       bar.textContent = 'Gemerkt: wird künftig gezeigt.';
       setTimeout(() => closeBar(block), 1300);
@@ -2366,6 +2395,7 @@
     up.setAttribute('aria-label', up.title);
     const down = button('👎', () => {
       train(block, 'b');
+      logRating(block, 'ausblenden');
       closeBar(block);
       delete block.dataset.sfRevealed;
       for (const img of block.querySelectorAll('img')) delete img.dataset.sfRevealed;
@@ -2386,10 +2416,11 @@
     bar.classList.add('sf-thumbs');
     const label = document.createElement('span');
     label.textContent = 'Bereich künftig anzeigen?';
-    const up = button('👍', () => { closeBar(block); removeZone(zone); });
+    const up = button('👍', () => { logRating(block, 'zeigen'); closeBar(block); removeZone(zone); });
     up.title = 'Ja – Bereich nicht mehr sperren';
     up.setAttribute('aria-label', up.title);
     const down = button('👎', () => {
+      logRating(block, 'ausblenden');
       closeBar(block);
       delete block.dataset.sfRevealed;
       block.__sfZone = zone;
@@ -2406,6 +2437,10 @@
   function reveal(block, ph, opts) {
     const kw = block.dataset.sfHit;
     block.__sfLast = { kw, why: block.dataset.sfWhy };
+    if (logOn()) {
+      logCountReason('aufgedeckt', kw, block.dataset.sfWhy);
+      block.__sfLogId = logEvent('aufgedeckt', block, { wie: (opts && opts.how) || 'anzeigen', bewertung: (opts && opts.rating) || undefined });
+    }
     unhide(block);
     if (ph) ph.remove();
     block.dataset.sfRevealed = '1';
@@ -2413,6 +2448,283 @@
     if (block.tagName === 'IMG') block.dataset.sfRevealed = '1';
     if (kw && !(opts && opts.feedback === false)) showFeedback(block, kw);
     scheduleReport();
+  }
+
+  /* ---------------- Aufdeck-Protokoll (nur wenn eingeschaltet) ---------------- */
+
+  // Was aufgedeckt, automatisch wieder gezeigt, zu spät unscharf oder selbst ausgeblendet wurde –
+  // mit Grund, Entscheidungsverlauf und einem gekürzten Ausschnitt des Seitenaufbaus. Bleibt lokal
+  // (lib/revlog.js im Hintergrund); weitergegeben wird es nur über „Protokoll exportieren“.
+  // Beim Unscharfstellen wird nur das Nötigste festgehalten; Seitenausschnitt, Text, Liste und
+  // Sichtbarkeit werden erst in Leerlaufzeiten ergänzt, damit das Filtern nicht langsamer wird.
+  const LOG_MAX_AUTO = 40; // automatische Einträge je Seite (Endlos-Feeds)
+  const LOG_HTML_CHARS = 2500;
+  const logQueue = []; // fertige Einträge
+  const logPending = []; // {entry, block}: noch zu ergänzen
+  const logReasons = []; // [Zähler, Treffer, Grund]: Liste noch zu bestimmen
+  const logLateQueue = []; // {block, at, kw, why}: war ein Bild darin schon scharf zu sehen?
+  const reasonCache = new Map();
+  let logStats = {};
+  let logTimer = null;
+  let logIdle = null;
+  let logAutoCount = 0;
+  let logPageCounted = false;
+
+  function logOn() {
+    return !!(settings && settings.revealLog && active);
+  }
+
+  /** Entscheidungsschritt am Block merken (Zeit in ms seit Seitenaufruf). */
+  function trail(block, step) {
+    if (!logOn() || !block) return;
+    const t = block.__sfTrail || (block.__sfTrail = []);
+    if (t.length < 16) t.push(Object.assign({ ms: Math.round(performance.now()) }, step));
+  }
+
+  function logCount(key, name) {
+    if (!logOn()) return;
+    if (name) {
+      const sub = logStats[key] || (logStats[key] = {});
+      sub[name] = (sub[name] || 0) + 1;
+    } else logStats[key] = (logStats[key] || 0) + 1;
+    scheduleLogFlush();
+  }
+
+  /** Zähler nach Liste des Treffers; die Liste wird erst im Leerlauf bestimmt. */
+  function logCountReason(key, kw, why) {
+    if (!logOn()) return;
+    logReasons.push([key, kw, why]);
+    scheduleLogWork();
+  }
+
+  /** Woher ein Treffer kam: eigene Liste, Vorschlagsliste (ID), KI, Lernfilter … */
+  function reasonKey(kw, why) {
+    if (why === 'ki') return 'ki';
+    if (why === 'gelernt' || String(kw).startsWith('gelernt')) return 'gelernt';
+    if (why === 'du') return 'du';
+    if (why === 'bereich') return 'bereich';
+    if (why === 'fehler') return 'bild-fehler';
+    if (!kw) return '';
+    if (reasonCache.has(kw)) return reasonCache.get(kw);
+    let key = 'liste';
+    if (ownMatcher && !ownMatcher.empty && ownMatcher.find(kw)) key = 'eigene';
+    else {
+      const P = globalThis.SFPresets;
+      if (!presetMatchers) presetMatchers = P.PRESETS.map((p) => [p, compile(p.terms)]);
+      const hitP = presetMatchers.find(([p, m]) => settings.presets.includes(p.id) && m.find(kw));
+      if (hitP) key = hitP[0].id;
+    }
+    reasonCache.set(kw, key);
+    return key;
+  }
+  function mediaOf(block) {
+    if (block.tagName === 'IMG' || block.dataset.sfBg) return 'bild';
+    if (block.tagName === 'VIDEO' || block.querySelector('video')) return 'video';
+    return imagesDeep(block).length ? 'text+bild' : 'text';
+  }
+
+  function roleOf(block) {
+    if (block.tagName === 'IMG') return 'bild';
+    if (isArticleParagraph(block)) return 'artikel-absatz';
+    if (closestDeep(block, UI_MENUS + ', ' + PAGE_BARS)) return 'navigation/kopf/fuss';
+    return block.querySelector('a[href]') || closestDeep(block, 'a[href]') ? 'teaser' : 'block';
+  }
+
+  function describeEl(e) {
+    let d = e.tagName.toLowerCase();
+    if (e.id) d += '#' + e.id.slice(0, 40);
+    const cls = [...e.classList].filter((c) => !c.startsWith('sf-')).slice(0, 4).map((c) => c.slice(0, 40));
+    if (cls.length) d += '.' + cls.join('.');
+    const role = e.getAttribute('role');
+    if (role) d += `[role=${role.slice(0, 20)}]`;
+    if (e.hidden || e.getAttribute('aria-hidden') === 'true') d += '[versteckt]';
+    return d;
+  }
+
+  const KEEP_ATTRS = new Set(['id', 'class', 'role', 'aria-label', 'aria-hidden', 'hidden', 'href', 'alt', 'title', 'datetime']);
+
+  const SNIP_SKIP = new Set(['script', 'style', 'noscript', 'template', 'iframe', 'link', 'meta']);
+  const escHtml = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /** HTML eines Elements, ohne es zu kopieren; hört nach `budget` Zeichen auf (große Blöcke). */
+  function shortHtml(root, budget) {
+    let out = '';
+    const walk = (n) => {
+      if (out.length > budget) return;
+      if (n.nodeType === 3) {
+        const t = n.nodeValue.replace(/\s+/g, ' ');
+        if (t.trim()) out += escHtml(t.length > 100 ? t.slice(0, 100) + '…' : t);
+        return;
+      }
+      if (n.nodeType !== 1) return;
+      const tag = n.tagName.toLowerCase();
+      if (SNIP_SKIP.has(tag) || OWN_CLASSES.some((c) => n.classList.contains(c)) || n.classList.contains('sf-holdring')) return;
+      let attrs = '';
+      for (const a of n.attributes) {
+        const name = a.name;
+        if (!KEEP_ATTRS.has(name) && !name.startsWith('data-sf')) continue;
+        let v = a.value;
+        if (name === 'class') {
+          v = v.split(/\s+/).filter((x) => x && !x.startsWith('sf-')).slice(0, 4).join(' ');
+          if (!v) continue;
+        } else if (name === 'href') {
+          try { const u = new URL(v, location.href); v = u.host === location.host ? u.pathname : u.host + u.pathname; } catch (_) { v = ''; }
+          v = v.slice(0, 100);
+        } else if (v.length > 80) v = v.slice(0, 80) + '…';
+        attrs += ` ${name}="${escHtml(v)}"`;
+      }
+      out += `<${tag}${attrs}>`;
+      if (tag !== 'svg') for (const c of n.childNodes) { walk(c); if (out.length > budget) break; }
+      out += `</${tag}>`;
+    };
+    walk(root);
+    return out.length > budget ? out.slice(0, budget) + '…' : out;
+  }
+
+  /**
+   * Gekürzter Seitenaufbau um den Block: Elternkette und HTML ohne Skripte, Stile und Grafiken,
+   * nur aussagekräftige Attribute, Links ohne Parameter, lange Texte gekürzt.
+   */
+  function domSnippet(block) {
+    const path = [];
+    for (let e = block, i = 0; e && e.nodeType === 1 && i < 10; i++) {
+      path.unshift(describeEl(e));
+      e = e.parentElement || (e.getRootNode && e.getRootNode().host) || null;
+    }
+    let html = '';
+    try {
+      const base = block.tagName === 'IMG' && block.parentElement && block.parentElement !== document.body ? block.parentElement : block;
+      html = shortHtml(base, LOG_HTML_CHARS);
+    } catch (_) { /* dann nur die Elternkette */ }
+    const r = block.getBoundingClientRect();
+    return { path: path.join(' > '), html, size: `${Math.round(r.width)}x${Math.round(r.height)}` };
+  }
+
+  /** Eintrag anlegen (vor dem Aufdecken aufrufen, solange Grund und Markierungen noch da sind). */
+  function logEvent(kind, block, extra) {
+    if (!logOn() || !block) return null;
+    if (kind === 'automatisch' || kind === 'spaet') {
+      if (logAutoCount >= LOG_MAX_AUTO) return null;
+      logAutoCount++;
+    }
+    const last = block.__sfLast || {};
+    const d = block.dataset;
+    const scores = {};
+    if (d.sfVeto) scores.gegenpruefung = d.sfVeto;
+    if (d.sfPositive) scores.guteNachricht = d.sfPositive;
+    if (d.sfNano) scores.nano = d.sfNano;
+    if (d.sfLearnOk) scores.lernfilterProzent = d.sfLearnOk;
+    const entry = Object.assign({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      t: Date.now(),
+      kind,
+      url: location.origin + location.pathname,
+      frame: window === window.top ? 'haupt' : 'iframe',
+      treffer: d.sfHit || last.kw || '',
+      grund: d.sfWhy || last.why || '',
+      werte: scores,
+      verlauf: (block.__sfTrail || []).slice(),
+      seite: { ms: Math.round(performance.now()), geoeffneterArtikel: trustedPage, ruhigeSeite: calmSite },
+    }, extra || {});
+    logPending.push({ entry, block });
+    scheduleLogWork();
+    return entry.id;
+  }
+
+  /** Teure Angaben (Text, Seitenausschnitt, Liste, Rolle) nachtragen. */
+  function completeEntry({ entry, block }) {
+    try {
+      if (entry.liste === undefined) entry.liste = reasonKey(entry.treffer, entry.grund);
+      entry.medium = mediaOf(block);
+      entry.rolle = roleOf(block);
+      entry.text = blockText(block).slice(0, 300);
+      entry.seite.imArtikelBereich = inTrustedArea(block);
+      entry.dom = domSnippet(block);
+    } catch (_) { /* Block inzwischen entfernt o. Ä.: Eintrag ohne diese Angaben */ }
+    logQueue.push(entry);
+  }
+
+  /** War ein Bild im Block schon scharf zu sehen, bevor er unscharf wurde (z. B. KI kam zu spät)? */
+  function checkLate({ block, at, kw, why }) {
+    if (!block.isConnected) return;
+    const imgs = block.tagName === 'IMG' ? [] : imagesDeep(block);
+    const onScreen = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight; };
+    const shown = imgs.filter((img) => img.__sfOkAt && img.__sfOkAt < at && onScreen(img));
+    if (!shown.length) return;
+    const okAt = Math.min(...shown.map((img) => img.__sfOkAt));
+    logCount('spaet');
+    logEvent('spaet', block, { treffer: kw, grund: why, scharfSeitMs: Math.round(at - okAt) });
+  }
+
+  function logLate(block) {
+    if (!logOn() || block.tagName === 'IMG') return;
+    logLateQueue.push({ block, at: performance.now(), kw: block.dataset.sfHit, why: block.dataset.sfWhy || '' });
+    scheduleLogWork();
+  }
+
+  function scheduleLogWork() {
+    if (logIdle) return;
+    const ric = window.requestIdleCallback || ((fn) => setTimeout(() => fn({ timeRemaining: () => 8, didTimeout: true }), 50));
+    logIdle = ric(logWork, { timeout: 3000 });
+  }
+
+  function logWork(deadline) {
+    logIdle = null;
+    // Nach Zeitüberschreitung (Seite nie im Leerlauf) nur wenige Schritte auf einmal.
+    let forced = deadline.didTimeout ? 4 : 0;
+    const more = () => deadline.timeRemaining() > 2 || forced-- > 0;
+    while (logReasons.length && more()) {
+      const [key, kw, why] = logReasons.shift();
+      logCount(key, reasonKey(kw, why) || 'unbekannt');
+    }
+    while (logLateQueue.length && more()) checkLate(logLateQueue.shift());
+    while (logPending.length && more()) completeEntry(logPending.shift());
+    if (logReasons.length || logLateQueue.length || logPending.length) scheduleLogWork();
+    else if (logQueue.length) scheduleLogFlush();
+  }
+
+  /** 👍/👎 nach dem Aufdecken an den Eintrag hängen. */
+  function logRating(block, rating) {
+    const id = block && block.__sfLogId;
+    if (!id || !settings || !settings.revealLog) return;
+    const queued = logQueue.find((e) => e.id === id) || (logPending.find((p) => p.entry.id === id) || {}).entry;
+    if (queued) { queued.bewertung = rating; return; }
+    try { chrome.runtime.sendMessage({ type: 'logPatch', id, rating }).catch(() => {}); } catch (_) { /* neu geladen */ }
+  }
+
+  function scheduleLogFlush() {
+    if (!logTimer) logTimer = setTimeout(flushLog, 2000);
+  }
+
+  /** Fertige Einträge und Zähler an den Hintergrund; beim Verlassen der Seite auch den Rest. */
+  function flushLog(final) {
+    clearTimeout(logTimer);
+    logTimer = null;
+    if (!settings || !settings.revealLog) {
+      logQueue.length = logPending.length = logReasons.length = logLateQueue.length = 0;
+      logStats = {};
+      return;
+    }
+    if (final === true) {
+      for (const [key, kw, why] of logReasons.splice(0)) logCount(key, reasonKey(kw, why) || 'unbekannt');
+      for (const p of logPending.splice(0)) completeEntry(p);
+      logLateQueue.length = 0;
+      clearTimeout(logTimer);
+      logTimer = null;
+    }
+    if (!logPageCounted && Object.keys(logStats).length) { logPageCounted = true; logStats.seiten = 1; }
+    if (!logQueue.length && !Object.keys(logStats).length) return;
+    const msg = { type: 'logEvents', entries: logQueue.splice(0), stats: logStats };
+    logStats = {};
+    try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch (_) { /* Erweiterung neu geladen */ }
+  }
+
+  /** Automatisch wieder gezeigt (Gegenprüfung, Gemini Nano, gute Nachricht, geöffneter Artikel). */
+  function logAuto(block, how) {
+    if (!logOn()) return;
+    logCount('automatisch', how);
+    block.__sfLast = { kw: block.dataset.sfHit, why: block.dataset.sfWhy };
+    logEvent('automatisch', block, { wie: how });
   }
 
   /* ---------------- Zähler ---------------- */

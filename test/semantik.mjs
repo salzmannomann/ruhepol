@@ -140,6 +140,28 @@ async function main() {
       assert.equal(await page.evaluate(() => document.querySelector('#s-kultur').dataset.sfVeto), undefined);
     });
 
+    await step('Aufdeck-Protokoll: Gegenprüfung deckt auf → Eintrag „automatisch“ mit Wert und Verlauf', async () => {
+      await setSettings(sw, { revealLog: true });
+      await page.reload();
+      await page.waitForFunction(() => document.querySelector('#s-veto').dataset.sfVeto !== undefined, null, { timeout: 15000 });
+      let e = null;
+      for (let i = 0; i < 40 && !e; i++) {
+        await page.waitForTimeout(200);
+        const log = await sw.evaluate(async () => (await chrome.storage.local.get('revlog')).revlog);
+        e = log && log.entries.find((x) => x.kind === 'automatisch' && x.wie === 'gegenpruefung' && /Musik ist CO2/.test(x.text));
+      }
+      assert.ok(e, 'kein Eintrag');
+      assert.equal(e.treffer, 'CO2');
+      assert.equal(e.liste, 'klima');
+      assert.ok(e.werte.gegenpruefung);
+      assert.deepEqual(e.verlauf.map((x) => x.schritt), ['unscharf', 'gegenpruefung']);
+      assert.equal(e.verlauf[1].harmlos, true);
+      // Eigenes Schlagwort („Museum“) wurde nicht aufgedeckt → kein automatischer Eintrag dazu.
+      const log = await sw.evaluate(async () => (await chrome.storage.local.get('revlog')).revlog);
+      assert.ok(!log.entries.some((x) => x.kind === 'automatisch' && /Museum/.test(x.text)));
+      await setSettings(sw, { revealLog: false });
+    });
+
     await step('Ohne Gegenprüfung bleibt auch der harmlose Treffer unscharf', async () => {
       await setSettings(sw, { semanticVeto: false });
       await page.reload();
