@@ -58,6 +58,9 @@
     zones: [],
     // Verhalten bei OCR-Fehler/Timeout: 'show' (scharf stellen) | 'blur' (unscharf lassen) | 'hide'
     onError: 'show',
+    // Aufdeck-Protokoll: was aufgedeckt, automatisch gezeigt oder selbst ausgeblendet wurde,
+    // lokal mitschreiben (30 Tage, höchstens 1000 Einträge); nur zum Exportieren und Weitergeben
+    revealLog: false,
   });
 
   const KEYS = Object.keys(DEFAULTS);
@@ -110,7 +113,7 @@
     }
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.semanticLevel)) s.semanticLevel = raw.semanticLevel;
     if (['vorsichtig', 'mittel', 'stark'].includes(raw.positiveLevel)) s.positiveLevel = raw.positiveLevel;
-    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow', 'nanoCheck', 'trustOpened']) {
+    for (const k of ['learn', 'learnHide', 'revealHold', 'semantic', 'semanticVeto', 'positiveShow', 'nanoCheck', 'trustOpened', 'revealLog']) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     }
     const thr = Number(raw.learnThreshold);

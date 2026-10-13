@@ -116,6 +116,7 @@
     $('onError').value = s.onError;
     $('revealHold').checked = s.revealHold;
     $('trustOpened').checked = s.trustOpened;
+    $('revealLog').checked = s.revealLog;
     $('semantic').checked = s.semantic;
     $('semanticLevel').value = s.semanticLevel;
     $('semanticVeto').checked = s.semanticVeto;
@@ -152,6 +153,7 @@
       onError: $('onError').value,
       revealHold: $('revealHold').checked,
       trustOpened: $('trustOpened').checked,
+      revealLog: $('revealLog').checked,
       semantic: $('semantic').checked,
       semanticLevel: $('semanticLevel').value,
       semanticVeto: $('semanticVeto').checked,
@@ -358,6 +360,41 @@
     save('Alle Listen aus');
   });
 
+  async function refreshLogInfo() {
+    const r = await chrome.runtime.sendMessage({ type: 'logInfo' }).catch(() => null);
+    const n = (r && r.n) || 0;
+    $('logInfo').textContent = n ? `${n} Einträge seit ${new Date(r.since).toLocaleDateString('de-AT')}` : 'leer';
+  }
+
+  $('logExport').addEventListener('click', async () => {
+    const log = await chrome.runtime.sendMessage({ type: 'logExport' });
+    const data = JSON.stringify({
+      format: 'ruhepol-protokoll',
+      version: 1,
+      erstellt: new Date().toISOString(),
+      ruhepol: chrome.runtime.getManifest().version,
+      browser: navigator.userAgent,
+      einstellungen: await S.load(),
+      eintraege: (log && log.entries) || [],
+      zaehler: (log && log.stats) || {},
+    }, null, 1);
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ruhepol-protokoll-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  $('logClear').addEventListener('click', async () => {
+    if (!confirm('Aufdeck-Protokoll löschen?')) return;
+    await chrome.runtime.sendMessage({ type: 'logClear' });
+    refreshLogInfo();
+    status('Protokoll gelöscht.', 'ok');
+  });
+
   $('resetLearn').addEventListener('click', async () => {
     if (!confirm('Alle Bewertungen und das Gelernte löschen?')) return;
     await chrome.runtime.sendMessage({ type: 'resetLearning' });
@@ -530,4 +567,5 @@
   refreshSem();
   fill(await S.load());
   refreshCacheInfo();
+  refreshLogInfo();
 })();
