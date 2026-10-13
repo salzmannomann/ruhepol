@@ -1,0 +1,15 @@
+In diesen Ordner gehört die Datei  model_quantized.onnx  (118 MB).
+
+Herunterladen (kostenlos, ohne Anmeldung):
+https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/onnx/model_quantized.onnx
+
+Die heruntergeladene Datei genau hierher legen, Name unverändert lassen:
+  .../vendor/models/Xenova/multilingual-e5-small/onnx/model_quantized.onnx
+
+Tipp für Updates: Den Inhalt neuer Versionen über den bestehenden Ordner kopieren
+(Dateien ersetzen). Die Modelldatei ist nicht in der ZIP und bleibt dann einfach liegen.
+
+Danach auf chrome://extensions bei Ruhepol auf "Neu laden" klicken.
+
+Prüfsumme (SHA-256), falls du nachprüfen willst:
+f80102d3f2a1229f387d3c81909990d8945513e347b0eab049f7de3c6f98c193

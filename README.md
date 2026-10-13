@@ -309,8 +309,9 @@ Die Empfindlichkeit ist einstellbar (vorsichtig / mittel / stark).
   mit onnxruntime-web, WebAssembly), damit es die Bildvorbereitung für die Texterkennung
   nicht aufhält. Es lädt ausschließlich aus dem Paket, Downloads aus dem Internet sind
   abgeschaltet.
-- **Mehrere Prozessorkerne (seit 1.23):** Das Modell rechnet mit bis zu 4 Threads (Anzahl
-  Kerne minus eins, mindestens 2). Dafür sind die Seiten der Erweiterung cross-origin-isoliert
+- **Mehrere Prozessorkerne (seit 1.23, angepasst in 1.30.2):** Das Modell rechnet mit so vielen
+  Threads, wie neben der Seite (2 Kerne) und der Texterkennung frei sind: bei 4–6 Kernen 1,
+  bei 8 Kernen 2, ab 10 Kernen 4 (siehe „Gesamtvergleich der Geschwindigkeit“). Dafür sind die Seiten der Erweiterung cross-origin-isoliert
   (`cross_origin_embedder_policy` / `cross_origin_opener_policy` in `manifest.json`). Sie laden
   ohnehin nur Dateien aus dem Paket. Auf Nachrichtenseiten selbst ändert das nichts.
 
@@ -738,6 +739,48 @@ gegen Malaria“, „Arbeitslosigkeit sinkt“ oder „KI hilft Ärzten“.
 Gemessen mit 32 Schlagzeilen: mittel 8 von 12 guten gezeigt, 0 von 20 schlechten;
 vorsichtig 6/12, stark 9/12, jeweils ohne Fehlanzeige.
 
+### Gesamtvergleich der Geschwindigkeit (1.30.2)
+
+Bis 1.30 wurde jede Änderung nur gegen die Version davor gemessen. Ein Gesamtvergleich gegen 1.21
+(`tools/vergleich.mjs`: 6 Nachrichtenseiten, Stände abwechselnd geladen, jeweils wie ein erster Besuch,
+Bedeutungs-Filter mit Gegenprüfung und „gute Nachrichten“ an, Testrechner mit 4 Kernen) zeigte eine
+schleichende Verlangsamung:
+
+| | 1.21 | 1.28.2 | 1.30.1 |
+|---|---|---|---|
+| KI erkennt sichtbaren Teaser (Median) | 1,1 s | 0,56 s | 0,55 s |
+| harmloses sichtbares Bild unscharf (Median) | 1,27 s | 1,53 s | 1,78 s |
+| Blockierzeit der Seite je Aufruf (lange Tasks, Mittel) | 497 ms | 883 ms | 769 ms |
+
+**Ursache:** Mit dem CPU-Profiler (`tools/profil.mjs`) Version für Version eingegrenzt: Die Rechenzeit
+der Erweiterung im Hauptthread der Seite sprang mit 1.23 (KI auf mehreren Kernen) von 1,9 s auf 2,7 s
+je Aufruf (derStandard), obwohl sich am Code im Hauptthread fast nichts geändert hatte. Die 3 KI-Threads
+nahmen Seite und Texterkennung die Kerne weg, und das gerade beim Laden, wenn die KI rechnet.
+
+**Behoben in 1.30.2:**
+- KI-Threads nur so viele, wie neben Seite und Texterkennung frei sind (4 Kerne: 1 statt 3).
+  Gemessen (6 Seiten, je 2 Durchgänge): Blockierzeit 957 → 723 ms (1.21: 709 ms), die KI erkennt
+  sichtbare Teaser beim Laden gleich schnell (1,03 → 1,06 s; 2 Threads: 853 ms / 0,69 s).
+- Sichtbarkeit von Teasern meldet ein `IntersectionObserver`, statt dass Ruhepol bei jedem KI-Paket und
+  alle 300 ms beim Laden die Lage abfragt (jedes Mal ein neues Layout). Rechenzeit der Erweiterung je
+  Aufruf: derStandard, kurier, nachrichten.at zusammen rund 140 ms weniger (Sichtbarkeit 53 → 0 ms,
+  Bildgröße 110 → 68 ms). Die KI bleibt gleich schnell (Median 0,61 → 0,62 s, 5 Seiten × 4 Durchgänge).
+
+**Danach** (6 Seiten, je 3 Durchgänge): Blockierzeit 1.21: 616 ms, 1.30.2: 693 ms (Unterschied im
+Rauschen der Einzelseiten); KI 3,8 s → 0,8 s. Bilder sind unverändert etwa 0,1–0,3 s länger unscharf als
+bei 1.21. Das ist vor allem die bewusste Wartezeit auf die KI (1.29.3, siehe „Kein kurzes Aufblitzen“).
+Die einzelnen Werte schwanken stark, weil sich die Seiten zwischen den Durchgängen ändern und es je Seite
+nur 3–16 sichtbare Bilder und 0–5 sichtbare KI-Treffer gibt.
+
+**Gemessen und nicht eingebaut: Vorprüfung „kann hier Schrift stehen?“** Idee: Fotos ohne Schrift ohne
+Texterkennung freigeben (die braucht je Bild 0,3–2 s). Die Vorprüfung zählt kurze, kontrastreiche Striche
+nebeneinander (`tools/textcheck.js`, 1,5 ms je Bild). Gemessen an 289 echten Bildern von 9
+Nachrichtenseiten (30 mit echtem Text, 216 ohne; `tools/bilder-sammeln.mjs`, `tools/bilder-pruefen.mjs`):
+Bei der Einstellung, die 68 Bilder überspringen würde, liegt das schwächste Bild mit echtem Text genau auf
+der Grenze; mit etwas Sicherheitsabstand fallen nur 12–18 Bilder (4–6 %) weg. Gitter, Zäune, Laub und
+Stoffmuster sehen für die Vorprüfung wie Schrift aus, kleine Einblendungen in Ecken sind oft schwach.
+Zu unsicher für zu wenig Gewinn.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.
@@ -918,7 +961,13 @@ npm test             # Unit-Tests (Abgleich, Listen, Lernmodell, Bedeutungs-Logi
                      #  Bedeutungs-Filter mit Testmodell, Wünsche und Chrome-Modell mit Ersatzmodell,
                      #  Aufdeck-Protokoll)
 npm run test:orf     # Praxistest gegen https://orf.at (braucht Internet; HEADED=1 für sichtbares Fenster)
+tools/zip.sh         # ZIP zum Verteilen → dist/
+tools/versionen.sh 1.21.0 aktuell                       # Stände zum Vergleichen → .vergleich/
+VERS=1.21.0,aktuell node tools/vergleich.mjs <Seiten>   # Gesamtvergleich auf echten Seiten
+VERS=1.21.0,aktuell node tools/profil.mjs <Seiten>      # Rechenzeit im Hauptthread (Profiler)
 ```
+
+Arbeitsregeln für Claude-Sitzungen stehen in `CLAUDE.md`.
 
 Der Playwright-Test startet zwei lokale Server: die Testseite auf `127.0.0.1` und die
 Bilder auf `localhost` als fremde Domain. Geprüft werden:
@@ -962,6 +1011,7 @@ extension/
   lib/revlog.js      Aufdeck-Protokoll: Speichern, Grenzen, Zähler
   vendor/            wird von „npm run setup“ erzeugt (nicht im Git)
 scripts/             Build, Sprachdaten, Symbole
+tools/               ZIP bauen, ältere Stände holen, Gesamtvergleich, Profiler
 test/                Unit-Tests, Playwright-Test, Testseite, Testbilder
 ```
 
