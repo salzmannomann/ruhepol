@@ -6,7 +6,7 @@
  */
 'use strict';
 
-importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js', 'lib/semantic.js', 'lib/examples.js');
+importScripts('lib/match.js', 'lib/presets.js', 'lib/settings.js', 'lib/learn.js', 'lib/semantic.js', 'lib/examples.js', 'lib/revlog.js');
 
 const OCR_TIMEOUT_MS = 10000;
 // Gleichzeitige Aufträge: Herunterladen läuft parallel, das Offscreen Document verteilt die
@@ -1007,9 +1007,49 @@ async function isTrusted(url, tab) {
   return !!via && via.from !== key;
 }
 
+/* ---------------- Aufdeck-Protokoll (nur wenn eingeschaltet, nur lokal) ---------------- */
+
+const REVLOG_KEY = 'revlog';
+let revlogChain = Promise.resolve();
+
+/** Lesen, ändern, schreiben – nacheinander, damit sich gleichzeitige Tabs nicht überschreiben. */
+function revlogUpdate(fn) {
+  const run = revlogChain.then(async () => {
+    const log = SFRevlog.clean((await chrome.storage.local.get(REVLOG_KEY))[REVLOG_KEY]);
+    const r = fn(log);
+    await chrome.storage.local.set({ [REVLOG_KEY]: log });
+    return r;
+  });
+  revlogChain = run.catch(() => {});
+  return run;
+}
+
+/** Die für die Fehlersuche wichtigsten Einstellungen zum Zeitpunkt des Eintrags. */
+function revlogCfg(s) {
+  return {
+    listen: s.presets.length, eigene: s.keywords.length, ki: s.semantic, stufe: s.semanticLevel,
+    gegenpruefung: s.semanticVeto, nano: s.nanoCheck, guteNachrichten: s.positiveShow,
+    lernen: s.learn, lernenAusblenden: s.learnHide, anzeige: s.display, halten: s.revealHold,
+    artikel: s.trustOpened, ruhigeSeiten: s.calmImages, bildtext: s.ocr,
+  };
+}
+
+async function revlogAdd(msg, sender) {
+  const s = SFSettings.sanitize(await chrome.storage.sync.get(SFSettings.KEYS));
+  if (!s.revealLog) return;
+  const host = SFSettings.normalizeHost(safeHost((sender.tab && sender.tab.url) || sender.url || ''));
+  const cfg = revlogCfg(s);
+  const version = chrome.runtime.getManifest().version;
+  await revlogUpdate((log) => {
+    const now = Date.now();
+    if (Array.isArray(msg.entries)) SFRevlog.addEntries(log, msg.entries.slice(0, 40), now, { cfg, version });
+    if (msg.stats) SFRevlog.addStats(log, host, msg.stats, now);
+  });
+}
+
 /* ---------------- Nachrichten ---------------- */
 
-const ADMIN_MESSAGES = new Set(['cacheClear', 'deleteRating', 'resetLearning', 'exportRatings', 'importRatings']);
+const ADMIN_MESSAGES = new Set(['cacheClear', 'deleteRating', 'resetLearning', 'exportRatings', 'importRatings', 'logExport', 'logClear', 'logInfo']);
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || msg.target === 'offscreen') return false;
@@ -1073,6 +1113,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'semStatus':
       semStatus().then(sendResponse);
+      return true;
+    case 'logEvents':
+      revlogAdd(msg, sender).catch(() => {});
+      return false;
+    case 'logPatch':
+      if (typeof msg.id === 'string' && ['zeigen', 'ausblenden'].includes(msg.rating)) {
+        chrome.storage.sync.get('revealLog').then(({ revealLog }) => {
+          if (revealLog === true) revlogUpdate((log) => SFRevlog.patch(log, msg.id, { bewertung: msg.rating }));
+        }).catch(() => {});
+      }
+      return false;
+    case 'logExport':
+      revlogUpdate((log) => SFRevlog.prune(log, Date.now())).then(sendResponse, () => sendResponse(SFRevlog.empty()));
+      return true;
+    case 'logInfo':
+      revlogUpdate((log) => ({ n: log.entries.length, since: log.entries.length ? log.entries[0].t : 0 }))
+        .then(sendResponse, () => sendResponse({ n: 0, since: 0 }));
+      return true;
+    case 'logClear':
+      revlogUpdate((log) => { log.entries = []; log.stats = {}; return true; }).then(() => sendResponse({ ok: true }), () => sendResponse({ ok: false }));
       return true;
     case 'cacheSize':
       cacheSize().then((n) => sendResponse({ n }));

@@ -310,6 +310,15 @@
         </div>
       </section>
       <section>
+        <h2>Aufdeck-Protokoll</h2>
+        <label class="check"><input type="checkbox" id="revealLog"><span>Aufdeck-Protokoll führen<br><span class="hint">Schreibt im Hintergrund mit, was du aufdeckst, was Ruhepol von selbst wieder zeigt, welche Bilder erst nachträglich unscharf wurden und was du selbst ausblendest – jeweils mit Seite, Grund, gekürztem Text und einem Ausschnitt des Seitenaufbaus. Du musst dafür nichts tun. Das Protokoll bleibt nur in diesem Chrome, wird nie automatisch verschickt und nach 30 Tagen gelöscht (höchstens 1000 Einträge). Weitergeben kannst du es mit „Protokoll exportieren“.</span></span></label>
+        <div class="row" style="margin-top:8px">
+          <button id="logExport">Protokoll exportieren</button>
+          <button id="logClear">Protokoll löschen</button>
+          <span class="hint" id="logInfo"></span>
+        </div>
+      </section>
+      <section>
         <h2>Gelerntes zurücksetzen</h2>
         <p class="hint">Löscht alle Bewertungen und das daraus Gelernte – auch auf deinen anderen Rechnern.</p>
         <button id="resetLearn">Gelerntes zurücksetzen …</button>
