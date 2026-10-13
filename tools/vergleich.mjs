@@ -2,6 +2,7 @@
 //   tools/versionen.sh 1.21.0 aktuell
 //   VERS=1.21.0,aktuell ROUNDS=3 node tools/vergleich.mjs https://orf.at https://www.derstandard.at …
 //   node tools/auswertung.mjs .vergleich/vergleich.json
+// KI=0 schaltet den Bedeutungs-Filter aus (Bildzeiten ohne Wartezeit auf die KI), OUT=datei.json ändert die Ausgabe.
 // Die Stände werden abwechselnd geladen, jeweils wie ein erster Besuch (Seitentexte und Bilder vergessen,
 // Modell bleibt geladen). Je Seitenaufruf (15 s): wie lange sichtbare harmlose Bilder nach dem Laden unscharf
 // bleiben, wie schnell die KI sichtbare Teaser erkennt, Blockierzeit (lange Tasks über 50 ms), Treffer.
@@ -14,6 +15,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = join(ROOT, '.vergleich') + '/';
 const VERS = (process.env.VERS || 'aktuell').split(',');
 const ROUNDS = +(process.env.ROUNDS || 3);
+const KI = process.env.KI !== '0'; // KI=0: Bedeutungs-Filter aus, misst die Texterkennung allein
 const URLS = process.argv.slice(2);
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const INIT = () => {
@@ -59,7 +61,7 @@ for (const v of VERS) {
     args: ['--disable-quic', `--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--ignore-certificate-errors'] });
   let sw = ctx.serviceWorkers().find((w) => w.url().startsWith('chrome-extension://')); while (!sw) { const w = await ctx.waitForEvent('serviceworker'); if (w.url().startsWith('chrome-extension://')) sw = w; }
   for (let i = 0; i < 100; i++) { const k = await sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null))).catch(() => []); if (k.includes('onError')) break; await new Promise((r) => setTimeout(r, 50)); }
-  await sw.evaluate(async () => { await chrome.storage.local.remove('semModel'); await chrome.storage.sync.set({ semantic: true, semanticVeto: true, positiveShow: true, nanoCheck: false, display: 'blur' }); });
+  await sw.evaluate(async (ki) => { await chrome.storage.local.remove('semModel'); await chrome.storage.sync.set({ semantic: ki, semanticVeto: ki, positiveShow: ki, nanoCheck: false, display: 'blur' }); }, KI);
   await new Promise((r) => setTimeout(r, 500));
   for (const p of ctx.pages()) if (p.url().includes('kennenlernen')) await p.close().catch(() => {});
   await ctx.addInitScript(INIT);

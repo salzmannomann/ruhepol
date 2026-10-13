@@ -781,6 +781,50 @@ der Grenze; mit etwas Sicherheitsabstand fallen nur 12–18 Bilder (4–6 %) weg
 Stoffmuster sehen für die Vorprüfung wie Schrift aus, kleine Einblendungen in Ecken sind oft schwach.
 Zu unsicher für zu wenig Gewinn.
 
+### Bilder doppelt so schnell gelesen (1.30.3)
+
+Aufgabe war eine Tesseract-Vorstufe: erst nur nach Textzeilen suchen und Fotos ohne Zeilen
+gleich freigeben. Gemessen wurde an 293 echten Nachrichtenbildern von 10 Seiten (33 mit echtem Text;
+`tools/bilder-sammeln.mjs`, `tools/bilder-vorstufe.mjs`, `tools/vorstufe-auswerten.js`, ein
+Tesseract-Worker, Bilder nacheinander, Testrechner). Dabei zeigte sich, wohin die Zeit wirklich geht:
+
+| je Bild (Median) | bis 1.30.2 | 1.30.3 |
+|---|---|---|
+| volle Texterkennung | 388 ms | 192 ms |
+| davon nur das Bild an Tesseract übergeben | 193 ms | 12 ms |
+| nur Seitenaufteilung („wo sind Textzeilen?“) | 216 ms | 34 ms |
+| alle 293 Bilder zusammen | 148,5 s | 73,7 s |
+
+**Ursache:** Ruhepol gab das Bild als BMP an tesseract.js. Für BMP nimmt tesseract.js einen sehr
+langsamen Umweg in JavaScript (jedes der rund 3 Millionen Bytes einzeln in ein Objekt kopiert, dann
+neu kodiert). Das war die Hälfte der ganzen Zeit. **Seit 1.30.3 geht das Bild als PPM** an Tesseract,
+ein ebenso einfaches Rohformat, das Tesseract direkt liest. Die Bildpunkte sind dieselben: Bei allen
+293 Bildern ist das Ergebnis Zeichen für Zeichen gleich, die Erkennung wird also nicht schlechter.
+Im echten Ablauf der Erweiterung (Service Worker → Offscreen Document) ist der Unterschied noch
+größer: ein Bild mit 1200 × 800 Bildpunkten 1,25 s → 0,29 s (neuer Test in `test/extra.mjs`).
+
+Gesamtvergleich auf 6 Nachrichtenseiten (`tools/vergleich.mjs`, 1.30.2 gegen 1.30.3 abwechselnd,
+je 3 Durchgänge, KI an): sichtbare harmlose Bilder bleiben im Median **2,52 s → 1,48 s** unscharf
+(orf.at 2,54 → 1,06 s, heute.at 2,77 → 1,43 s; kurier.at 2,52 → 4,27 s, dort wartet das Bild auf die KI,
+die in diesen Durchgängen langsamer war). Blockierzeit der Seite 1044 → 926 ms (im Rauschen).
+Ohne KI (`KI=0`, nur Texterkennung, sonst gleich) zeigt sich der Unterschied auf jeder der 6 Seiten:
+Bilder bleiben im Median **1,49 s → 0,71 s** unscharf (orf.at 1,20 → 0,57 s, kurier.at 1,09 → 0,53 s,
+krone.at 5,34 → 2,92 s, heute.at 2,00 → 1,00 s, nachrichten.at 1,63 → 0,82 s, derStandard 0,79 → 0,62 s).
+Blockierzeit 834 → 769 ms (im Rauschen; die Texterkennung läuft nicht im Hauptthread der Seite).
+
+**Gemessen und nicht eingebaut:**
+- **Tesseract-Vorstufe (nur Seitenaufteilung):** Die Seitenaufteilung ist ein großer Teil der
+  Texterkennung selbst (34 von 192 ms), und Fotos haben fast immer „Textzeilen“ (Kanten, Muster).
+  Die beste Regel ohne ein einziges übersehenes Bild mit Text (eine Zeile mit mindestens 2 Zeichen auf
+  halber Bildgröße) überspringt 55 von 293 Bildern und spart unterm Strich 1,5 s von 73,7 s (2 %).
+  Wer eine Regel nimmt, die 91 Bilder überspringt, verpasst schon ein Bild mit Ortsnamen. Zu wenig
+  Gewinn für das Risiko.
+- **Nur Deutsch statt Deutsch + Englisch:** 37 % schneller (73,7 → 46,5 s), aber das deutsche Modell
+  liest Großbuchstaben deutlich schlechter. In 5 der 33 Bilder mit Text gingen echte Wörter verloren,
+  z. B. „POLIZEI“ in Großbuchstaben (Sicherheit 31 statt 77, fällt unter die Schwelle) oder „Heute“
+  (als „Heurte“ gelesen). Englisch bleibt deshalb dabei: Es wird nicht für englische Texte gebraucht,
+  sondern weil es deutsche Wörter in Großbuchstaben besser liest.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.
@@ -870,10 +914,11 @@ Häppchen per `requestIdleCallback` erledigt, damit die Seite nicht ruckelt.
    dabei keine CORS-Probleme mit fremden Bild-Domains. Das Bild geht an ein Offscreen
    Document, weil Service Worker keine Web Worker starten können. Dort wird es skaliert
    (lange Seite höchstens 1200 px, nur Bilder unter 500 px werden bis 2-fach vergrößert),
-   als unkomprimiertes BMP an tesseract.js übergeben und gelesen (Deutsch + Englisch).
-   Das BMP ist wichtig für das Tempo: Übergibt man tesseract.js ein Canvas, wandelt es dieses
-   per `canvas.toBlob()` um – das dauert im Offscreen Document jedes Mal genau 1 Sekunde,
-   während die eigentliche Texterkennung nur 30–300 ms braucht.
+   als unkomprimiertes PPM an tesseract.js übergeben und gelesen (Deutsch + Englisch).
+   Das Format ist wichtig für das Tempo: Übergibt man tesseract.js ein Canvas, wandelt es dieses
+   per `canvas.toBlob()` um – das dauert im Offscreen Document jedes Mal genau 1 Sekunde.
+   Ein BMP (bis 1.30.2) schickt tesseract.js durch einen langsamen Umweg in JavaScript, der die
+   Hälfte der Zeit kostete (siehe „Bilder doppelt so schnell gelesen“).
 5. Die Worker (je zweiter Prozessorkern einer, 2 bis 4) werden einmal erzeugt und
    wiederverwendet. Herunterladen läuft parallel zur Texterkennung. Geprüft wird
    vorausschauend, sobald ein Bild bis auf 1200 px an den sichtbaren Bereich herankommt.
@@ -965,6 +1010,8 @@ tools/zip.sh         # ZIP zum Verteilen → dist/
 tools/versionen.sh 1.21.0 aktuell                       # Stände zum Vergleichen → .vergleich/
 VERS=1.21.0,aktuell node tools/vergleich.mjs <Seiten>   # Gesamtvergleich auf echten Seiten
 VERS=1.21.0,aktuell node tools/profil.mjs <Seiten>      # Rechenzeit im Hauptthread (Profiler)
+node tools/bilder-sammeln.mjs <Seiten>                   # echte Bilder samt OCR-Text → .vergleich/bilder/
+node tools/bilder-vorstufe.mjs deu+eng                  # Tesseract-Zeiten je Bild; Auswertung: tools/vorstufe-auswerten.js
 ```
 
 Arbeitsregeln für Claude-Sitzungen stehen in `CLAUDE.md`.

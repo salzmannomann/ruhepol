@@ -69,6 +69,9 @@ Prüfsumme stehen in `tools/HIER-MODELL-ABLEGEN.txt` (liegt jeder ZIP bei).
 - `profil.mjs` – CPU-Profil: Rechenzeit der Erweiterung im Hauptthread, teuerste Funktionen.
 - `bilder-sammeln.mjs` → `bilder-pruefen.mjs` → `bilder-auswerten.js` – echte Nachrichtenbilder samt
   Texterkennungs-Ergebnis sammeln (nur lokal in `.vergleich/bilder/`) und eine Bild-Vorprüfung daran messen.
+- `bilder-vorstufe.mjs [deu+eng|deu]` → `vorstufe-auswerten.js` – am selben Bildbestand Tesseract messen:
+  Zeit je Bild (voll, nur Seitenaufteilung, nur Übergabe), gelesene Wörter, Regeln für eine Vorstufe.
+- `vergleich.mjs` mit `KI=0`: Bildzeiten ohne Wartezeit auf die KI.
 
 Messungen schwanken (Seiten ändern sich, wenige Treffer je Seite): Stände abwechselnd laden, mehrere
 Durchgänge, Mediane vergleichen, Rauschen im README benennen.
@@ -81,12 +84,14 @@ bewertet) mit Grund, Liste, Text, Entscheidungsverlauf, Seitenausschnitt, Versio
 Zähler je Seite und Tag. Daraus Fehlfälle ableiten, als neutrale Testfälle nachbauen, messen.
 Inhalte daraus nie ins Repo.
 
-## Offene Ideen (Stand 1.30.2)
+## Offene Ideen (Stand 1.30.3)
 
-1. **Bilder schneller freigeben, Tesseract-Vorstufe:** Tesseract nur die Seitenaufteilung machen lassen
-   („wo sind Textzeilen?“, ohne Buchstaben zu erkennen) und Fotos ohne Textzeilen freigeben. Am Bildbestand
-   von `tools/bilder-sammeln.mjs` messen: übersprungene Bilder, gesparte Zeit, **null übersehene Bilder mit
-   echtem Text**. Die einfache Strich-Vorprüfung ist daran gescheitert (README).
+Erledigt in 1.30.3: Bilder per PPM statt BMP an Tesseract (doppelt so schnell). Gemessen und verworfen:
+Tesseract-Vorstufe (nur Seitenaufteilung) und „nur Deutsch“ (README, „Bilder doppelt so schnell gelesen“).
+
+1. **Englisch-Modell nur für Großbuchstaben?** „Nur Deutsch“ wäre 37 % schneller, liest aber Wörter in
+   Großbuchstaben schlechter. Offen, ob sich das gezielt ausgleichen lässt (z. B. nur unsichere Zeilen
+   mit Englisch nachlesen). Am Bildbestand mit `tools/bilder-vorstufe.mjs` messen, null verlorene Wörter.
 2. **KI auf der Grafikkarte (WebGPU)** statt auf dem Prozessor: transformers.js kann das; offen, ob WebGPU
    im Offscreen Document geht. Messen auf dem Mac des Nutzers (eine Messseite in der Erweiterung), der
    Testrechner hat keine Grafikkarte. Würde dem Prozessor beim Laden gar keine Kerne mehr wegnehmen.
