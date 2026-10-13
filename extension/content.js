@@ -426,6 +426,12 @@
     clearStalePre();
     if (observer) observer.disconnect();
     if (io) io.disconnect();
+    if (viewIo) viewIo.disconnect();
+    viewIo = null;
+    fastOpen = false;
+    nearView = new WeakSet();
+    viewKnown = new WeakSet();
+    viewWatched = new WeakSet();
     observer = io = null;
     clearTimeout(mutationTimer);
     mutationTimer = null;
@@ -790,7 +796,7 @@
       // in einem historischen Rückblick): nur unscharf, wenn das Sprachmodell zustimmt.
       if (!weakChecked.has(block)) {
         weakChecked.add(block);
-        if (semanticOn()) { semQueue.add(block); flushSem(); }
+        if (semanticOn()) { semQueue.add(block); watchView(block); flushSem(); }
       }
       return;
     }
@@ -1298,6 +1304,7 @@
       } else if (semanticOn() && wordCount(text) >= SEM_MIN_WORDS) {
         // Sehr kurze Texte (Bildnachweise, Rubriknamen) liegen beim Modell zufällig nah an allem.
         semQueue.add(block);
+        watchView(block);
       }
     }
   }
@@ -1320,16 +1327,61 @@
 
   function fastLane() {
     fastTimer = null;
+    fastOpen = false;
     if (!active || !semanticOn() || semUnavailable || !learnHandleable() || !matcher) return;
+    fastOpen = performance.now() < FAST_MAX_MS && document.readyState !== 'complete';
+    // Neue Kandidaten nur anmelden; welche sichtbar sind, meldet der Browser (onViewChange) –
+    // ohne Lageabfragen, die beim Laden jedes Mal das Layout neu berechnen ließen.
     const start = performance.now();
     let n = 0;
     for (const el of document.querySelectorAll(LEARN_CANDIDATES)) {
-      if (++n % 16 === 0 && performance.now() - start > FAST_BUDGET_MS) break;
-      if (!inView(el)) continue;
-      learnOne(el, true);
+      if (++n % 32 === 0 && performance.now() - start > FAST_BUDGET_MS) break;
+      if (!scoredBlocks.has(el)) watchView(el);
     }
-    flushSem();
-    if (performance.now() < FAST_MAX_MS && document.readyState !== 'complete') scheduleFastLane();
+    if (fastOpen) scheduleFastLane();
+  }
+
+  /*
+   * Sichtbarkeit (Bildschirm und eine halbe Höhe darunter) meldet ein IntersectionObserver.
+   * Früher fragte Ruhepol bei jedem KI-Paket und alle 300 ms die Lage aller Kandidaten ab
+   * (getBoundingClientRect); während eine Seite lädt, erzwang das jedes Mal ein neues Layout.
+   */
+  let viewIo = null;
+  let fastOpen = false;
+  let nearView = new WeakSet();
+  let viewKnown = new WeakSet(); // Browser hat die Sichtbarkeit schon gemeldet
+  let viewWatched = new WeakSet();
+  let semViewWait = 0;
+
+  function watchView(el) {
+    if (viewWatched.has(el)) return;
+    if (!viewIo) viewIo = new IntersectionObserver(onViewChange, { rootMargin: '0px 0px 50% 0px' });
+    viewWatched.add(el);
+    viewIo.observe(el);
+  }
+
+  function unwatchView(el) {
+    if (!viewIo || !viewWatched.has(el)) return;
+    viewWatched.delete(el);
+    nearView.delete(el);
+    viewIo.unobserve(el);
+  }
+
+  function onViewChange(entries) {
+    if (!active) return;
+    let flush = false;
+    for (const e of entries) {
+      const el = e.target;
+      const r = e.boundingClientRect;
+      viewKnown.add(el);
+      if (e.isIntersecting && r.width > 0 && r.height > 0) nearView.add(el);
+      else nearView.delete(el);
+      if (!nearView.has(el)) continue;
+      if (fastOpen && !scoredBlocks.has(el)) { learnOne(el, true); flush = true; }
+      if (semQueue.has(el)) flush = true;
+      else if (!fastOpen) unwatchView(el); // erledigt: nicht weiter beobachten
+    }
+    if (flush) flushSem();
   }
 
   /* ---------------- KI-Gegenprüfung von Schlagwort-Treffern ---------------- */
@@ -1506,10 +1558,9 @@
   const SEM_PRIO_BATCH = 12;
   const SEM_MIN_WORDS = 4;
 
-  /** Im sichtbaren Bereich oder knapp darunter (eine halbe Bildschirmhöhe). */
+  /** Im sichtbaren Bereich oder knapp darunter (eine halbe Bildschirmhöhe), laut onViewChange. */
   function inView(el) {
-    const r = el.getBoundingClientRect();
-    return r.bottom > 0 && r.top < innerHeight * 1.5 && r.width > 0 && r.height > 0;
+    return nearView.has(el);
   }
 
   function wordCount(text) {
@@ -1531,6 +1582,14 @@
     }
     if (!live.length) return;
     const visible = live.filter(inView);
+    // Neue Teaser, deren Sichtbarkeit der Browser noch nicht gemeldet hat (meist im nächsten Bild):
+    // kurz warten, damit sichtbare nicht in einem großen Paket ohne Vorrang landen.
+    if (!visible.length && live.some((b) => !viewKnown.has(b))) {
+      const now = performance.now();
+      if (!semViewWait) semViewWait = now;
+      if (now - semViewWait < 150) { setTimeout(flushSem, 40); return; }
+    }
+    semViewWait = 0;
     const prio = visible.length > 0;
     const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
     for (const b of blocks) { semQueue.delete(b); semInflight.add(b); }
@@ -1541,7 +1600,7 @@
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
     semBusy = false;
-    for (const b of blocks) semInflight.delete(b);
+    for (const b of blocks) { semInflight.delete(b); unwatchView(b); }
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
     if (gen !== generation || !active) { for (const b of blocks) releaseHeld(b); if (active) flushSem(); return; }
     if (res && res.ok) {

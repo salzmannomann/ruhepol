@@ -14,9 +14,12 @@ env.useBrowserCache = false;
 env.backends.onnx.wasm.wasmPaths = base + 'vendor/transformers/';
 // Mehrere Threads: Die Erweiterungsseiten sind cross-origin-isoliert (manifest.json, COOP/COEP).
 // Gemessen an 844 echten Teasern (4 Kerne): 1 Thread 80 s, 2 Threads 47 s, 4 Threads 30 s, gleiche
-// Ergebnisse. Ein Kern bleibt für Seite und Texterkennung frei, höchstens 4.
+// Ergebnisse. Aber die KI rechnet vor allem, während eine Seite lädt – dann nahmen die Threads der
+// Seite und der Texterkennung die Kerne weg (4 Kerne, 3 Threads: Blockierzeit der Seiten +35 %).
+// Deshalb nur so viele Threads, wie neben Seite (2 Kerne) und Texterkennung (offscreen.js) frei sind.
 const cores = navigator.hardwareConcurrency || 4;
-env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, Math.max(2, cores - 1)) : 1;
+const ocrWorkers = Math.max(2, Math.min(4, Math.floor(cores / 2))); // wie WORKER_COUNT in offscreen.js
+env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, Math.max(1, cores - ocrWorkers - 2)) : 1;
 
 let extractor = null; // { model, promise }
 

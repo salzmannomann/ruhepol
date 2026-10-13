@@ -5,3 +5,7 @@ node_modules/
 test-results/
 # Eingestufte echte Teaser (fremde Texte): nur lokal
 test/fixtures/real-headlines.json
+
+# Gebaute ZIPs und Vergleichsstände (tools/)
+dist/
+.vergleich/
