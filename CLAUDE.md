@@ -85,17 +85,18 @@ bewertet) mit Grund, Liste, Text, Entscheidungsverlauf, Seitenausschnitt, Versio
 Zähler je Seite und Tag. Daraus Fehlfälle ableiten, als neutrale Testfälle nachbauen, messen.
 Inhalte daraus nie ins Repo.
 
-## Offene Ideen (Stand 1.30.4)
+## Offene Ideen (Stand 1.30.8)
 
-Erledigt in 1.30.3: Bilder per PPM statt BMP an Tesseract (doppelt so schnell). Gemessen und verworfen:
-Tesseract-Vorstufe (nur Seitenaufteilung), „nur Deutsch“ und „Deutsch lesen, Unsicheres mit Englisch
-nachlesen“ (README, „Bilder doppelt so schnell gelesen“). Die Texterkennung selbst ist damit ausgereizt.
+Erledigt bis 1.30.8 (README): PPM statt BMP (Texterkennung doppelt so schnell), Schlagwortprüfung
+302 → 170 ms, gleichmäßige Unschärfe, KI-Vorrang für wartende Bilder, winzige Rahmen erst bei sichtbarer
+Größe, Bildergebnis ohne Warten aufs Speichern, Bildgröße aus dem IntersectionObserver. Gemessen und
+verworfen: Tesseract-Vorstufe, „nur Deutsch“, Englisch nachlesen, kleinere Bilder, 3 OCR-Helfer auf 4
+Kernen, Rahmenbilder nachrangig. Ein Bild braucht jetzt ~0,55 s bis scharf, fast nur Texterkennung.
 
 1. **KI auf der Grafikkarte (WebGPU)** statt auf dem Prozessor: transformers.js kann das; offen, ob WebGPU
    im Offscreen Document geht. Messen auf dem Mac des Nutzers (eine Messseite in der Erweiterung), der
    Testrechner hat keine Grafikkarte. Würde dem Prozessor beim Laden gar keine Kerne mehr wegnehmen.
-2. **Weitere Rechenzeit im Hauptthread:** Nach 1.30.4 (Schlagwortprüfung 302 → 170 ms) liegen laut
-   Profiler rund 280 ms je großer Seite in Bildgröße/Lage abfragen (`imageSize`, `blockOk`), Block suchen
-   (`findBlock`, `closestDeep`) und `acceptNode`. Mit `tools/profil.mjs` (Feld incl) eingrenzen.
+2. **Restliche Rechenzeit im Hauptthread** (~975 ms je Seitenaufruf, 15 s): `blockOk`/`findBlock`
+   (Lage beim Blocksuchen, ~90 ms), `acceptNode` (~70 ms), `closestDeep` (~55 ms). Mit `tools/profil.mjs`.
 3. **KI-Threads auf Rechnern mit 8+ Kernen:** Die Regel in `semantic-worker.js` ist nur auf 4 Kernen
    gemessen. Auf dem Mac des Nutzers nachprüfen, wenn sich die Gelegenheit ergibt.

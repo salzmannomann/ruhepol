@@ -432,6 +432,22 @@ async function main() {
       assert.ok(r.ms < 2500, `Antwort nach ${Math.round(r.ms)} ms`);
     });
 
+    await step('Viele nachgeladene Bilder: Ruhepol zwingt die Seite nicht zum Neuvermessen je Bild', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/bilder-viele.html');
+      await p.waitForTimeout(1500); // Bilder liegen im Cache des Browsers
+      const cdp = await ctx.newCDPSession(p);
+      await cdp.send('Performance.enable');
+      const layouts = async () => (await cdp.send('Performance.getMetrics')).metrics.find((m) => m.name === 'LayoutCount').value;
+      const before = await layouts();
+      await p.evaluate(() => window.start()); // 150 Bilder, je ein eigener Task
+      await p.waitForTimeout(1000);
+      const n = (await layouts()) - before;
+      // Gemessen: 1.30.7 (Größe jedes Bildes sofort abgefragt) 115–121, 1.30.8 50–60
+      assert.ok(n < 85, `${n} Layouts`);
+      await p.close();
+    });
+
     await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {
       await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck', 'krankheit', 'wirtschaft'], display: 'blur', learn: false, ocr: false });
       const p = await ctx.newPage();

@@ -272,11 +272,14 @@
     if (!(document.documentElement instanceof HTMLElement)) return;
     // Winzige eingebettete Rahmen (Werbe- und Zählrahmen) erst einrichten, wenn sie sichtbar groß
     // werden: Dort ist nichts zu sehen, das Einrichten kostete auf derStandard (rund 45 Rahmen)
-    // aber 0,6–0,8 s Rechenzeit je Seitenaufruf. Das Ereignis „resize“ kommt vor dem Zeichnen.
-    if (window !== window.top && tinyFrame()) {
+    // aber 0,6–0,8 s Rechenzeit je Seitenaufruf. Die Größe meldet ein ResizeObserver nach dem
+    // ohnehin fälligen Vermessen und vor dem Zeichnen. Sie gleich beim Start abzufragen (1.30.6),
+    // zwang die halb geladene Seite zum Neuvermessen (52 ms je Seitenaufruf).
+    if (window !== window.top) {
+      document.documentElement.classList.add('sf-boot'); // Bilder bis dahin vorsorglich unscharf
       await new Promise((resolve) => {
-        const onResize = () => { if (!tinyFrame()) { removeEventListener('resize', onResize); resolve(); } };
-        addEventListener('resize', onResize);
+        const ro = new ResizeObserver(() => { if (!tinyFrame()) { ro.disconnect(); resolve(); } });
+        ro.observe(document.documentElement);
       });
     }
     // Bis die Einstellungen geladen sind, Bilder schon unscharf (sonst blitzen sie kurz auf).
@@ -860,13 +863,6 @@
     }
   }
 
-  function imageSize(img) {
-    const r = img.getBoundingClientRect();
-    const w = r.width || img.naturalWidth || Number(img.getAttribute('width')) || 0;
-    const h = r.height || img.naturalHeight || Number(img.getAttribute('height')) || 0;
-    return { w, h };
-  }
-
   /**
    * Zustände (data-sf): wait (noch nicht geladen, per CSS unscharf), small, pending (unscharf,
    * Prüfung läuft), ok, hit, err.
@@ -894,12 +890,7 @@
       return;
     }
 
-    const { w, h } = imageSize(img);
     img.dataset.sfSrc = src;
-    if (w < settings.minWidth || h < settings.minHeight) {
-      img.dataset.sf = 'small';
-      return;
-    }
     // Lazy-Loading-Platzhalter (z. B. 1×1-GIF, groß dargestellt): auf das echte Bild warten.
     if (img.naturalWidth <= 4 && img.naturalHeight <= 4) {
       img.dataset.sf = 'wait';
@@ -908,8 +899,12 @@
     }
     img.dataset.sf = 'pending';
     if (!settings.ocr) { img.dataset.sf = 'ok'; return; }
-    // Schon herunterladen lassen; die Texterkennung startet, sobald das Bild sichtbar ist.
-    if (/^https?:/i.test(src)) {
+    // Ob es nur ein Symbol ist (angezeigte Größe unter der Mindestgröße), entscheidet onIntersect:
+    // Die Lage liefert der Browser dort ohne Neuvermessung mit. Bis 1.30.7 wurde sie hier für
+    // jedes Bild abgefragt, mitten im Laden (rund 100 ms je Seitenaufruf).
+    // Schon herunterladen lassen (nur, was nicht schon von Haus aus ein Symbol ist); die
+    // Texterkennung startet, sobald das Bild sichtbar ist.
+    if (/^https?:/i.test(src) && img.naturalWidth >= settings.minWidth && img.naturalHeight >= settings.minHeight) {
       try { chrome.runtime.sendMessage({ type: 'ocrPrefetch', url: src }).catch(() => {}); } catch (_) { /* neu geladen */ }
     }
     if (io) io.observe(img);
@@ -1020,6 +1015,13 @@
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       io.unobserve(e.target);
+      const img = e.target;
+      if (img.tagName === 'IMG' && img.dataset.sf === 'pending') {
+        const r = e.boundingClientRect;
+        const w = r.width || img.naturalWidth || Number(img.getAttribute('width')) || 0;
+        const h = r.height || img.naturalHeight || Number(img.getAttribute('height')) || 0;
+        if (w < settings.minWidth || h < settings.minHeight) { img.dataset.sf = 'small'; continue; }
+      }
       if (!ocrWaiting.has(e.target)) ocrWaiting.set(e.target, performance.now());
     }
     flushOcr();

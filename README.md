@@ -985,6 +985,25 @@ Aufwachen. Im Gesamtvergleich mit dem jungen Testprofil ist es kaum zu sehen (Er
 Ergebnis 331 → 315 ms; Bilder 0,57 / 0,59 s, im Rauschen). Test in `test/extra.mjs` (langsamer Speicher
 nachgestellt: vorher 3,1 s bis zur Antwort).
 
+### Weniger Neuvermessen der Seite (1.30.8)
+
+Profil des Hauptthreads (`tools/profil.mjs`, 6 Seiten): Zwei Stellen zwangen den Browser, die halb
+geladene Seite sofort neu zu vermessen.
+- **Bildgröße:** Für jedes neue Bild fragte Ruhepol sofort die angezeigte Größe ab, um Symbole und
+  Logos auszusortieren (rund 100 ms je Seitenaufruf). Jetzt wird das entschieden, wenn der Browser
+  meldet, dass das Bild in die Nähe des sichtbaren Bereichs kommt (`IntersectionObserver`). Die Lage
+  liefert er dabei ohne Neuvermessung mit. Vorab heruntergeladen wird nur, was nicht schon von Haus aus
+  kleiner als die Mindestgröße ist.
+- **Rahmen-Größe (seit 1.30.6):** Die Abfrage der Fenstergröße beim Start eines Rahmens zwang die
+  Hauptseite zum Neuvermessen (45 ms). Jetzt meldet ein `ResizeObserver` die Größe nach dem ohnehin
+  fälligen Vermessen.
+
+Gemessen (1.30.7 und 1.30.8 abwechselnd, 6 Seiten × 3 Durchgänge): Rechenzeit der Erweiterung im
+Hauptthread je Seitenaufruf **1138 → 975 ms** (derStandard 1608 → 1227 ms, krone 1226 → 953 ms, heute
+1007 → 866 ms, kurier 1582 → 1416 ms, nachrichten.at 1029 → 1032 ms, orf.at 374 → 359 ms). Test in
+`test/extra.mjs` (`test/site/bilder-viele.html`): 150 nachgeladene Bilder, Layouts der Seite
+115–121 → 50–60.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.
