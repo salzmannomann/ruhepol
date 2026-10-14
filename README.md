@@ -825,6 +825,28 @@ Blockierzeit 834 → 769 ms (im Rauschen; die Texterkennung läuft nicht im Haup
   (als „Heurte“ gelesen). Englisch bleibt deshalb dabei: Es wird nicht für englische Texte gebraucht,
   sondern weil es deutsche Wörter in Großbuchstaben besser liest.
 
+**Gemessen und nicht eingebaut (nach 1.30.3): mit Deutsch lesen, Unsicheres mit Englisch nachlesen.**
+Idee: Das Bild zuerst nur mit dem Deutsch-Modell lesen (37 % schneller) und nur dort, wo ein Wort unsicher
+ist, mit Deutsch + Englisch nachlesen – so sollten Wörter in Großbuchstaben nicht verloren gehen.
+(Die Sprache nach der Seite zu wählen hilft nicht: Englisch wird gerade auf deutschen Seiten für deutsche
+Großbuchstaben gebraucht.) Gemessen an denselben 293 Bildern (`tools/bilder-nachlesen.mjs`,
+`tools/nachlesen-auswerten.js`; verloren = Wort mit mindestens 4 Buchstaben, das Deutsch + Englisch liest,
+Umlaute gleichgesetzt):
+
+| Variante | Zeit für 293 Bilder | verlorene Bilder mit Text |
+|---|---|---|
+| Deutsch + Englisch (1.30.3) | 60,9 s | – |
+| nur Deutsch | 38,4 s | 5 |
+| unsichere Zeilen ausschneiden und nachlesen, ab 2 Zeilen ganzes Bild | 90,5 s | 0 |
+| ebenso, ab 4 Zeilen ganzes Bild | 85 s | 2 |
+| nur Wörter ab 3 Buchstaben als unsicher zählen | 55–62 s | 5–7 |
+
+Fotos ohne Schrift liefern fast immer einige unsichere Scheinwörter (Kanten, Laub, Stoff). Diese lassen
+sich nicht von echten, schlecht gelesenen Wörtern wie „POLIZEI“ (Sicherheit 31) trennen. Also wird fast
+jedes Foto nachgelesen, und das kostet mehr, als das Deutsch-Modell spart. Ausgeschnittene Zeilen liest
+Tesseract außerdem manchmal anders als im ganzen Bild. Ohne Verlust ist jede Variante langsamer als
+1.30.3, schneller geht es nur mit verlorenen Wörtern.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.

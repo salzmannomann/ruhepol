@@ -71,6 +71,7 @@ Prüfsumme stehen in `tools/HIER-MODELL-ABLEGEN.txt` (liegt jeder ZIP bei).
   Texterkennungs-Ergebnis sammeln (nur lokal in `.vergleich/bilder/`) und eine Bild-Vorprüfung daran messen.
 - `bilder-vorstufe.mjs [deu+eng|deu]` → `vorstufe-auswerten.js` – am selben Bildbestand Tesseract messen:
   Zeit je Bild (voll, nur Seitenaufteilung, nur Übergabe), gelesene Wörter, Regeln für eine Vorstufe.
+- `bilder-nachlesen.mjs` → `nachlesen-auswerten.js` – Deutsch lesen, unsichere Zeilen mit Englisch nachlesen.
 - `vergleich.mjs` mit `KI=0`: Bildzeiten ohne Wartezeit auf die KI.
 
 Messungen schwanken (Seiten ändern sich, wenige Treffer je Seite): Stände abwechselnd laden, mehrere
@@ -87,16 +88,14 @@ Inhalte daraus nie ins Repo.
 ## Offene Ideen (Stand 1.30.3)
 
 Erledigt in 1.30.3: Bilder per PPM statt BMP an Tesseract (doppelt so schnell). Gemessen und verworfen:
-Tesseract-Vorstufe (nur Seitenaufteilung) und „nur Deutsch“ (README, „Bilder doppelt so schnell gelesen“).
+Tesseract-Vorstufe (nur Seitenaufteilung), „nur Deutsch“ und „Deutsch lesen, Unsicheres mit Englisch
+nachlesen“ (README, „Bilder doppelt so schnell gelesen“). Die Texterkennung selbst ist damit ausgereizt.
 
-1. **Englisch-Modell nur für Großbuchstaben?** „Nur Deutsch“ wäre 37 % schneller, liest aber Wörter in
-   Großbuchstaben schlechter. Offen, ob sich das gezielt ausgleichen lässt (z. B. nur unsichere Zeilen
-   mit Englisch nachlesen). Am Bildbestand mit `tools/bilder-vorstufe.mjs` messen, null verlorene Wörter.
-2. **KI auf der Grafikkarte (WebGPU)** statt auf dem Prozessor: transformers.js kann das; offen, ob WebGPU
+1. **KI auf der Grafikkarte (WebGPU)** statt auf dem Prozessor: transformers.js kann das; offen, ob WebGPU
    im Offscreen Document geht. Messen auf dem Mac des Nutzers (eine Messseite in der Erweiterung), der
    Testrechner hat keine Grafikkarte. Würde dem Prozessor beim Laden gar keine Kerne mehr wegnehmen.
-3. **Schlagwortprüfung schneller:** Abgleich in einem Durchgang statt Wort für Wort, unveränderte
+2. **Schlagwortprüfung schneller:** Abgleich in einem Durchgang statt Wort für Wort, unveränderte
    Textstellen beim erneuten Scannen überspringen. Laut Profiler 300–400 ms je großer Seite; erwarteter
    Gewinn 100–200 ms Rechenzeit, nicht direkt sichtbar.
-4. **KI-Threads auf Rechnern mit 8+ Kernen:** Die Regel in `semantic-worker.js` ist nur auf 4 Kernen
+3. **KI-Threads auf Rechnern mit 8+ Kernen:** Die Regel in `semantic-worker.js` ist nur auf 4 Kernen
    gemessen. Auf dem Mac des Nutzers nachprüfen, wenn sich die Gelegenheit ergibt.
