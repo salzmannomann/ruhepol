@@ -65,6 +65,26 @@ async function main() {
       });
     });
 
+    await step('Winziger Rahmen (Werbung): Ruhepol startet erst, wenn er sichtbar groß wird', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/rahmen.html');
+      // normal großer Rahmen: wie immer gefiltert
+      await p.waitForFunction(() => {
+        const d = document.querySelector('#gross').contentDocument;
+        return d && d.querySelector('#t') && getComputedStyle(d.querySelector('#t')).display === 'none';
+      }, null, { timeout: 10000 });
+      await p.waitForTimeout(500);
+      assert.equal(await p.evaluate(() => document.querySelector('#klein').contentDocument.documentElement.classList.contains('sf-active')), false,
+        'Ruhepol läuft schon im winzigen Rahmen');
+      // wird er groß, greift der Filter
+      await p.evaluate(() => { const f = document.querySelector('#klein'); f.width = 400; f.height = 200; });
+      await p.waitForFunction(() => {
+        const d = document.querySelector('#klein').contentDocument;
+        return getComputedStyle(d.querySelector('#t')).display === 'none' && getComputedStyle(d.querySelector('#ok')).display !== 'none';
+      }, null, { timeout: 10000 });
+      await p.close();
+    });
+
     await step('Shadow-DOM: Text-Treffer ausgeblendet, Rest sichtbar', async () => {
       await page.waitForFunction(() => {
         const r = document.querySelector('x-card').shadowRoot;

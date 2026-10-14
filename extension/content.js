@@ -270,6 +270,15 @@
   async function init() {
     // Nur HTML-Dokumente (keine XML-Ansichten wie RSS/Sitemaps: dort fehlen style und dataset).
     if (!(document.documentElement instanceof HTMLElement)) return;
+    // Winzige eingebettete Rahmen (Werbe- und Zählrahmen) erst einrichten, wenn sie sichtbar groß
+    // werden: Dort ist nichts zu sehen, das Einrichten kostete auf derStandard (rund 45 Rahmen)
+    // aber 0,6–0,8 s Rechenzeit je Seitenaufruf. Das Ereignis „resize“ kommt vor dem Zeichnen.
+    if (window !== window.top && tinyFrame()) {
+      await new Promise((resolve) => {
+        const onResize = () => { if (!tinyFrame()) { removeEventListener('resize', onResize); resolve(); } };
+        addEventListener('resize', onResize);
+      });
+    }
     // Bis die Einstellungen geladen sind, Bilder schon unscharf (sonst blitzen sie kurz auf).
     // apply() hebt das gleich wieder auf; Sicherheitsnetz, falls etwas hängt.
     document.documentElement.classList.add('sf-boot');
@@ -327,6 +336,11 @@
       if (msg && msg.type === 'toast' && msg.text) toast(String(msg.text));
       return false;
     });
+  }
+
+  const TINY_FRAME_PX = 50;
+  function tinyFrame() {
+    return innerWidth < TINY_FRAME_PX || innerHeight < TINY_FRAME_PX;
   }
 
   function endBoot() {

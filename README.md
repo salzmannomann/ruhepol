@@ -936,6 +936,29 @@ Am meisten bringt es bei Bildern weiter unten auf der Seite, die beim Scrollen i
 Durchgang mit derselben Änderung ohne Sammeln und ohne die Hintergrund-Änderung brachte weniger
 (Wartezeit 0,54 → 0,49 s, Bilder 0,69 → 0,68 s). Die einzelnen Seiten schwanken stark.
 
+### Winzige Werbe-Rahmen: erst starten, wenn sie sichtbar werden (1.30.6)
+
+Ruhepol läuft in jedem eingebetteten Rahmen einer Seite mit (`all_frames`), damit auch eingebettete
+Ticker, Videos und Beiträge gefiltert werden. Gezählt auf 6 Nachrichtenseiten (je 2 Aufrufe): Auf orf.at,
+kurier, krone, heute und nachrichten.at sind es 2–4 Rahmen, auf **derStandard 30–45**, davon 20–37
+winzig (unter 50 Bildpunkten, Werbe- und Zählrahmen). Das Einrichten in den Rahmen kostete dort
+**0,7–0,9 s Rechenzeit je Seitenaufruf** (Hauptseite: 0,015 s), davon 0,6–0,8 s in den winzigen.
+Diese Zeit fällt in eigenen Prozessen an; die bisherigen Profile der Hauptseite sahen sie nicht.
+
+Seit 1.30.6 richtet sich Ruhepol in einem winzigen Rahmen erst ein, wenn er sichtbar groß wird (das
+Ereignis kommt vor dem Zeichnen, es blitzt also nichts auf). Test in `test/extra.mjs`
+(`test/site/rahmen.html`). Gemessen auf derStandard: Einrichten in Rahmen 0,7–0,9 s → 0,14–0,21 s je
+Seitenaufruf. Sichtbar schneller wird dadurch nichts (Gesamtvergleich auf 4 Seiten × 4 Durchgänge:
+Bilder 0,52 s vorher wie nachher, Blockierzeit im Rauschen), der Rechner hat aber weniger zu tun.
+
+**Gemessen und nicht eingebaut:** 3 statt 2 Texterkennungs-Helfer auf 4 Kernen (6 Seiten × 3 Durchgänge,
+abwechselnd): Bilder 0,67 → 0,71 s, KI 0,52 → 0,75 s (Median). Der dritte Helfer nimmt der KI Rechenzeit
+weg; es bleibt bei einem Helfer je zwei Kernen.
+
+**Gemessen und nicht eingebaut:** Bilder aus fremden Rahmen nachrangig lesen. Auf derStandard
+schickten Werberahmen 11 Bilder zur Texterkennung, die Seite selbst 6–7. Mit Vorrang für die
+Seitenbilder (5 Durchgänge) blieben sichtbare Bilder trotzdem gleich lange unscharf (0,29 / 0,28 s).
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.
