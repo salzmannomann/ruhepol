@@ -847,6 +847,44 @@ jedes Foto nachgelesen, und das kostet mehr, als das Deutsch-Modell spart. Ausge
 Tesseract außerdem manchmal anders als im ganzen Bild. Ohne Verlust ist jede Variante langsamer als
 1.30.3, schneller geht es nur mit verlorenen Wörtern.
 
+### Gleichmäßige Unschärfe, kein „Springen“ (1.30.4)
+
+Bis 1.30.3 gab es drei Stärken: Bilder in Prüfung 18 px, vorsorglich unscharfe Teaser 8 px, endgültig
+unscharfe Teaser 14 px. Dazu wurde doppelt weichgezeichnet: Ein Bild in Prüfung innerhalb eines
+vorsorglich unscharfen Teasers bekam 8 px und 18 px übereinander. Fiel nach der Prüfung eine der beiden
+weg, sprang das Bild sichtbar um.
+
+Seit 1.30.4 gilt überall **14 px**, auch in Web-Komponenten (Shadow-DOM). Was in einem schon unscharfen
+Block liegt, bekommt keine zweite Unschärfe. Gemessen mit den Stilregeln selbst (Test in
+`test/extra.mjs`): vorher 18 / 8 / 14 px und doppelt 8 + 18 px, jetzt 14 px und nie doppelt. Mit 14 px ist
+auch große Schrift in Bildern nicht lesbar (Testbild mit eingebrannter Schlagzeile verglichen).
+
+### Schlagwortprüfung: Texte schneller vorbereiten (1.30.4)
+
+Profil der Rechenzeit (`tools/profil.mjs`, Feld „Gesamtzeit je Funktion“; 6 Nachrichtenseiten, alle
+Vorschlagslisten an, 622 Begriffe): Ruhepol rechnet je Seitenaufruf rund 1,4 s im Hauptthread der
+Seite, davon rund 300–340 ms für die Schlagwortprüfung. Der eigentliche Vergleich mit den Listen war
+schon schnell (Nachschlagen im Verzeichnis, ca. 90 ms). Die meiste Zeit ging ins **Vorbereiten der
+Texte**: Kleinschreibung, Umlaute vereinheitlichen, Akzente entfernen, in Wörter zerlegen – rund zehn
+Umformungen hintereinander, und das für denselben Text oft mehrmals (vorsorglich beim Laden, dann
+genau, für mehrere Listen, bei nachgeladenen Seitenteilen).
+
+Seit 1.30.4:
+- **Ein Durchgang** über den Text statt zehn Umformungen. Das Ergebnis ist Zeichen für Zeichen
+  dasselbe: geprüft gegen die frühere Fassung an jedem einzelnen Unicode-Zeichen (allein, zwischen
+  Buchstaben, an Bindestrichen), 300.000 Zufallstexten aus Sonderfällen und den 973 eingestuften echten
+  Teasern (3,6 Mio. Texte, alle gleich). Seltene Texte mit nachträglich zusammengesetzten Zeichen
+  (z. B. „o“ + Trema) gehen weiter über die frühere Fassung.
+- **Kleiner Speicher** für schon vorbereitete Texte (höchstens rund 1 Mio. Zeichen, Texte bis 4000
+  Zeichen).
+
+Gemessen: 973 echte Teaser vorbereiten 10,1 ms → 3,7 ms (schon gesehene Texte 0,16 ms).
+Auf den 6 Seiten (1.30.3 und 1.30.4 abwechselnd, je 3 Durchgänge) braucht die Schlagwortprüfung je
+Seitenaufruf **302 → 170 ms** (auf jeder Seite weniger, z. B. kurier.at 439 → 193 ms, derStandard
+390 → 244 ms). Die gesamte Rechenzeit der Erweiterung sinkt im Mittel 1360 → 1272 ms. Die
+einzelnen Seitenaufrufe schwanken um ±200 ms, weil sich die Seiten ändern. Sichtbar wird das nicht
+direkt, die Seite bleibt beim Laden aber etwas flüssiger.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.

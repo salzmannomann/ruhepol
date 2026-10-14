@@ -39,6 +39,32 @@ async function main() {
     });
     await step('Video-Vorschaubild (poster) mit Schrift → Beitrag ausgeblendet', () => hidden(page, '#x-video'));
 
+    await step('Unschärfe überall gleich stark (14 px), nie doppelt: vorsorglich, Prüfung, Treffer, Shadow-DOM', async () => {
+      const r = await page.evaluate(() => {
+        const f = (el) => getComputedStyle(el).filter;
+        const box = document.createElement('section');
+        // Bild in Prüfung allein, in vorsorglich unscharfem und in unscharfem Block, verschachtelte Blöcke
+        box.innerHTML = '<img id="u-img" data-sf="pending" width="300" height="200">' +
+          '<article id="u-pre" class="sf-pre"><img id="u-pre-img" data-sf="pending" width="300" height="200"><div id="u-pre-bg" data-sf-bg="pending"></div></article>' +
+          '<article id="u-hit" class="sf-blurred"><p class="sf-pre" id="u-hit-pre">x</p><img id="u-hit-img" data-sf="pending" width="300" height="200"></article>';
+        document.body.append(box);
+        const host = document.querySelector('x-card').shadowRoot;
+        const sbox = document.createElement('div');
+        sbox.innerHTML = '<img id="su-img" data-sf="pending" width="300" height="200"><article id="su-hit" class="sf-blurred"><img id="su-hit-img" data-sf="pending" width="300" height="200"></article>';
+        host.append(sbox);
+        const out = {};
+        for (const id of ['u-img', 'u-pre', 'u-pre-img', 'u-pre-bg', 'u-hit', 'u-hit-pre', 'u-hit-img']) out[id] = f(document.getElementById(id));
+        for (const id of ['su-img', 'su-hit', 'su-hit-img']) out[id] = f(host.getElementById(id));
+        box.remove(); sbox.remove();
+        return out;
+      });
+      assert.deepEqual(r, {
+        'u-img': 'blur(14px)', 'u-pre': 'blur(14px)', 'u-hit': 'blur(14px)', // eine Stärke für alles
+        'u-pre-img': 'none', 'u-pre-bg': 'none', 'u-hit-pre': 'none', 'u-hit-img': 'none', // nicht doppelt
+        'su-img': 'blur(14px)', 'su-hit': 'blur(14px)', 'su-hit-img': 'none',
+      });
+    });
+
     await step('Shadow-DOM: Text-Treffer ausgeblendet, Rest sichtbar', async () => {
       await page.waitForFunction(() => {
         const r = document.querySelector('x-card').shadowRoot;

@@ -85,7 +85,7 @@ bewertet) mit Grund, Liste, Text, Entscheidungsverlauf, Seitenausschnitt, Versio
 Zähler je Seite und Tag. Daraus Fehlfälle ableiten, als neutrale Testfälle nachbauen, messen.
 Inhalte daraus nie ins Repo.
 
-## Offene Ideen (Stand 1.30.3)
+## Offene Ideen (Stand 1.30.4)
 
 Erledigt in 1.30.3: Bilder per PPM statt BMP an Tesseract (doppelt so schnell). Gemessen und verworfen:
 Tesseract-Vorstufe (nur Seitenaufteilung), „nur Deutsch“ und „Deutsch lesen, Unsicheres mit Englisch
@@ -94,8 +94,8 @@ nachlesen“ (README, „Bilder doppelt so schnell gelesen“). Die Texterkennun
 1. **KI auf der Grafikkarte (WebGPU)** statt auf dem Prozessor: transformers.js kann das; offen, ob WebGPU
    im Offscreen Document geht. Messen auf dem Mac des Nutzers (eine Messseite in der Erweiterung), der
    Testrechner hat keine Grafikkarte. Würde dem Prozessor beim Laden gar keine Kerne mehr wegnehmen.
-2. **Schlagwortprüfung schneller:** Abgleich in einem Durchgang statt Wort für Wort, unveränderte
-   Textstellen beim erneuten Scannen überspringen. Laut Profiler 300–400 ms je großer Seite; erwarteter
-   Gewinn 100–200 ms Rechenzeit, nicht direkt sichtbar.
+2. **Weitere Rechenzeit im Hauptthread:** Nach 1.30.4 (Schlagwortprüfung 302 → 170 ms) liegen laut
+   Profiler rund 280 ms je großer Seite in Bildgröße/Lage abfragen (`imageSize`, `blockOk`), Block suchen
+   (`findBlock`, `closestDeep`) und `acceptNode`. Mit `tools/profil.mjs` (Feld incl) eingrenzen.
 3. **KI-Threads auf Rechnern mit 8+ Kernen:** Die Regel in `semantic-worker.js` ist nur auf 4 Kernen
    gemessen. Auf dem Mac des Nutzers nachprüfen, wenn sich die Gelegenheit ergibt.

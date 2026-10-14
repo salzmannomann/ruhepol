@@ -39,9 +39,10 @@
   // damit nach dem Abschalten nichts unscharf bleibt.
   const SHADOW_CSS = `
     .sf-hidden, .sf-hidden-ph { display: none !important; }
-    .sf-blurred { filter: blur(14px) !important; cursor: pointer !important; user-select: none !important; }
-    img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],
-    [data-sf-bg="pending"], [data-sf-bg="err"] { filter: blur(18px) !important; }
+    .sf-blurred { cursor: pointer !important; user-select: none !important; }
+    .sf-blurred:not(:is(.sf-blurred, .sf-pre) *), .sf-pre:not(:is(.sf-blurred, .sf-pre) *) { filter: blur(14px) !important; }
+    :is(img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],
+    [data-sf-bg="pending"], [data-sf-bg="err"]):not(:is(.sf-blurred, .sf-pre) *) { filter: blur(14px) !important; }
     .sf-placeholder { display: block !important; margin: 6px 0 !important; padding: 8px 12px !important;
       border: 1px dashed #9a9a9a !important; border-radius: 6px !important; background: #f3f3f3 !important;
       color: #444 !important; font: 14px/1.4 system-ui, sans-serif !important; cursor: pointer !important; }
@@ -49,8 +50,8 @@
 
   // Auf Nicht-Nachrichtenseiten nur fertige Treffer und Fehler unscharf (siehe content.css).
   const SHADOW_CSS_CALM = SHADOW_CSS.replace(
-    'img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],\n    [data-sf-bg="pending"], [data-sf-bg="err"]',
-    'img[data-sf="hit"], img[data-sf="err"], [data-sf-bg="err"]');
+    ':is(img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],\n    [data-sf-bg="pending"], [data-sf-bg="err"])',
+    ':is(img[data-sf="hit"], img[data-sf="err"], [data-sf-bg="err"])');
 
   let settings = null;
   let calmSite = false; // Nicht-Nachrichtenseite: Bilder sofort zeigen (lib/sitekind.js)

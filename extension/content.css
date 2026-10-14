@@ -1,29 +1,33 @@
 /* Ruhepol – nur aktiv, wenn <html> die Klasse sf-active trägt. */
 
+/* Überall dieselbe Stärke (14 px): vorsorglich, während der Prüfung und danach. Was in einem schon
+   unscharfen Block liegt, wird nicht noch einmal weichgezeichnet (:not(… *)) – sonst wirkt es doppelt
+   und „springt“, sobald eine der beiden Unschärfen wegfällt (bis 1.30.3: 8, 14 und 18 px). */
+
 /* Bilder, deren Prüfung noch läuft (oder noch nicht begonnen hat), unscharf stellen. */
-html.sf-active:not(.sf-calm) img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revealed]) {
-  filter: blur(18px) !important;
+html.sf-active:not(.sf-calm) img:not([data-sf="small"]):not([data-sf="ok"]):not([data-sf-revealed]):not(:is(.sf-blurred, .sf-pre) *) {
+  filter: blur(14px) !important;
 }
 
 /* Nicht-Nachrichtenseite (Shop, Marktplatz …): Bilder sofort zeigen, im Hintergrund prüfen. */
-html.sf-active.sf-calm img:is([data-sf="hit"], [data-sf="err"]):not([data-sf-revealed]) {
-  filter: blur(18px) !important;
+html.sf-active.sf-calm img:is([data-sf="hit"], [data-sf="err"]):not([data-sf-revealed]):not(:is(.sf-blurred, .sf-pre) *) {
+  filter: blur(14px) !important;
 }
 
 /* Seitenstart, bevor die Einstellungen geladen sind: Bilder vorsorglich unscharf. */
 html.sf-boot img {
-  filter: blur(18px) !important;
+  filter: blur(14px) !important;
 }
 
 /* Vorsorglich unscharf: Schlagwort beim Laden erkannt, genaue Entscheidung folgt gleich. */
-html.sf-active .sf-pre {
-  filter: blur(8px) !important;
+html.sf-active .sf-pre:not(:is(.sf-blurred, .sf-pre) *) {
+  filter: blur(14px) !important;
 }
 
 /* CSS-Hintergrundbilder und Video-Vorschaubilder während der Prüfung. */
-html.sf-active:not(.sf-calm) [data-sf-bg="pending"]:not([data-sf-revealed]),
-html.sf-active [data-sf-bg="err"]:not([data-sf-revealed]) {
-  filter: blur(18px) !important;
+html.sf-active:not(.sf-calm) [data-sf-bg="pending"]:not([data-sf-revealed]):not(:is(.sf-blurred, .sf-pre) *),
+html.sf-active [data-sf-bg="err"]:not([data-sf-revealed]):not(:is(.sf-blurred, .sf-pre) *) {
+  filter: blur(14px) !important;
 }
 
 html.sf-active .sf-hidden,
@@ -31,8 +35,10 @@ html.sf-active .sf-hidden-ph {
   display: none !important;
 }
 
-html.sf-active .sf-blurred {
+html.sf-active .sf-blurred:not(:is(.sf-blurred, .sf-pre) *) {
   filter: blur(14px) !important;
+}
+html.sf-active .sf-blurred {
   cursor: pointer !important;
   user-select: none !important;
 }
