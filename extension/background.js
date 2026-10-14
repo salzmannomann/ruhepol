@@ -29,7 +29,12 @@ let cacheIndexPromise = null;
 function loadCacheIndex() {
   if (cacheIndex) return Promise.resolve(cacheIndex);
   if (!cacheIndexPromise) {
-    cacheIndexPromise = chrome.storage.local.get(null).then((all) => {
+    // Nur die OCR-Einträge lesen, nicht den ganzen Speicher (darin liegen auch bis zu 6000
+    // KI-Vektoren, mehrere MB). getKeys gibt es ab Chrome 130.
+    const read = chrome.storage.local.getKeys
+      ? chrome.storage.local.getKeys().then((keys) => chrome.storage.local.get(keys.filter((k) => k.startsWith(CACHE_PREFIX))))
+      : chrome.storage.local.get(null);
+    cacheIndexPromise = read.then((all) => {
       const m = new Map();
       for (const [k, v] of Object.entries(all)) {
         if (k.startsWith(CACHE_PREFIX) && v) m.set(k.slice(CACHE_PREFIX.length), v.ts || 0);
@@ -151,6 +156,7 @@ const recentErrors = new Map(); // url -> ts (nicht persistent, kurzer Rückhalt
 
 function requestOcr(url, dataUrl) {
   if (!dataUrl && inflight.has(url)) return inflight.get(url);
+  let saving = Promise.resolve(); // bis gespeichert ist, bedient inflight weitere Anfragen
   const p = (async () => {
     if (!dataUrl) {
       const cached = await cacheGet(url);
@@ -161,12 +167,16 @@ function requestOcr(url, dataUrl) {
     const res = await enqueue(() => runJob(url, dataUrl));
     if (res.ok) {
       recentErrors.delete(url);
-      if (!dataUrl) await cachePut(url, res.text);
+      // Ergebnis sofort zurückgeben, gespeichert wird danach. Bis 1.30.6 wartete die Antwort auf
+      // das Speichern; nach jedem Aufwachen des Hintergrunds las das zuerst den ganzen Speicher.
+      if (!dataUrl) saving = cachePut(url, res.text).catch(() => {});
     } else if (!dataUrl) {
       recentErrors.set(url, Date.now());
     }
     return res;
-  })().finally(() => inflight.delete(url));
+  })();
+  // Nicht an p hängen: finally mit Promise würde die Antwort wieder aufs Speichern warten lassen.
+  p.then(() => saving, () => saving).then(() => inflight.delete(url));
   if (!dataUrl) inflight.set(url, p);
   return p;
 }

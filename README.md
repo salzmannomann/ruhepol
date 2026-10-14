@@ -959,6 +959,32 @@ weg; es bleibt bei einem Helfer je zwei Kernen.
 schickten Werberahmen 11 Bilder zur Texterkennung, die Seite selbst 6–7. Mit Vorrang für die
 Seitenbilder (5 Durchgänge) blieben sichtbare Bilder trotzdem gleich lange unscharf (0,29 / 0,28 s).
 
+### Wohin die Zeit bis zum Scharfwerden geht (1.30.7)
+
+Aufgeschlüsselt mit Zeitmesspunkten (Messstand, `tools/vergleich.mjs` mit „SFDIAG“; 6 Seiten × 3
+Durchgänge, 99 sichtbare, neu gelesene Bilder, Median ab „Bild geladen, Prüfung vorgemerkt“):
+
+| Abschnitt | Zeit |
+|---|---|
+| bis der Browser „sichtbar“ meldet | 0,05 s |
+| Texterkennung angestoßen → Ergebnis da | 0,33 s |
+| … davon die Erkennung selbst (inkl. Warten auf einen freien Helfer) | 0,26 s |
+| Ergebnis → scharf (u. a. Warten auf die KI) | 0,06 s |
+| zusammen | 0,56 s |
+
+Die frühere Vermutung, die späte Sichtbarkeitsmeldung koste 0,5–0,6 s, stimmt nicht mehr (0,05 s);
+die Zeit liegt in der Texterkennung selbst. Ein Bild „auf Verdacht“ früher zu lesen, bringt deshalb
+nichts.
+
+**Geändert in 1.30.7:** Das Ergebnis einer Bildprüfung ging erst zurück, wenn es im Cache gespeichert
+war. Das erste Speichern nach jedem Aufwachen des Hintergrunds (Chrome legt ihn nach 30 s Ruhe schlafen)
+las dafür den ganzen Speicher, auch die bis zu 6000 KI-Vektoren. Jetzt kommt das Ergebnis sofort, gespeichert
+wird danach, und gelesen werden nur die OCR-Einträge (`getKeys`). Gemessen mit einem Speicher wie nach
+langer Nutzung (6000 Vektoren, 2000 OCR-Ergebnisse): 130–315 ms → 25–38 ms beim ersten Bild nach dem
+Aufwachen. Im Gesamtvergleich mit dem jungen Testprofil ist es kaum zu sehen (Erkennung angestoßen →
+Ergebnis 331 → 315 ms; Bilder 0,57 / 0,59 s, im Rauschen). Test in `test/extra.mjs` (langsamer Speicher
+nachgestellt: vorher 3,1 s bis zur Antwort).
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.

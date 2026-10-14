@@ -411,6 +411,27 @@ async function main() {
       assert.ok(median < 700, `Median ${Math.round(median)} ms`);
     });
 
+    await step('Bildprüfung antwortet, ohne aufs Speichern im Cache zu warten', async () => {
+      const r = await sw.evaluate(async (url) => {
+        // Langsamen Speicher nachstellen: jedes Schreiben eines OCR-Ergebnisses dauert 3 s.
+        const orig = chrome.storage.local.set.bind(chrome.storage.local);
+        chrome.storage.local.set = (items) => Object.keys(items).some((k) => k.startsWith('ocr'))
+          ? new Promise((res) => setTimeout(res, 3000)).then(() => orig(items)) : orig(items);
+        try {
+          await ensureOffscreen();
+          const t = performance.now();
+          const res = await requestOcr(url);
+          const ms = performance.now() - t;
+          // Gleiche Adresse während des Speicherns: kein zweiter OCR-Lauf
+          const again = await requestOcr(url);
+          return { ms, text: res.text, again: again.text };
+        } finally { chrome.storage.local.set = orig; }
+      }, srv.imgBase + '/ocr-kontrolle.png?speichern=' + Date.now());
+      assert.equal(r.text, 'Sonniges Wetter\nam Wochenende');
+      assert.equal(r.again, r.text);
+      assert.ok(r.ms < 2500, `Antwort nach ${Math.round(r.ms)} ms`);
+    });
+
     await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {
       await setSettings(sw, { keywords: [], presets: ['krieg', 'terror', 'ki', 'klima', 'unglueck', 'krankheit', 'wirtschaft'], display: 'blur', learn: false, ocr: false });
       const p = await ctx.newPage();
