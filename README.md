@@ -1004,6 +1004,24 @@ Hauptthread je Seitenaufruf **1138 → 975 ms** (derStandard 1608 → 1227 ms, k
 `test/extra.mjs` (`test/site/bilder-viele.html`): 150 nachgeladene Bilder, Layouts der Seite
 115–121 → 50–60.
 
+### Gesamtvergleich 1.30.2 → 1.30.8
+
+Nach den Änderungen 1.30.3–1.30.8 (`tools/vergleich.mjs`, 6 Seiten × 3 Durchgänge, Stände abwechselnd,
+wie ein erster Besuch, KI mit Gegenprüfung und „gute Nachrichten“ an, Testrechner mit 4 Kernen):
+
+| Seite | Bilder unscharf 1.30.2 | 1.30.8 |
+|---|---|---|
+| orf.at | 0,96 s | 0,56 s |
+| derstandard.at | 0,60 s | 0,29 s |
+| kurier.at | 3,46 s | 0,51 s |
+| krone.at | 2,40 s | 0,49 s |
+| heute.at | 1,55 s | 0,76 s |
+| nachrichten.at | 1,00 s | 0,58 s |
+| **alle (Median)** | **1,00 s** | **0,51 s** |
+
+KI erkennt sichtbare Teaser 0,70 → 0,68 s (unverändert; je Seite 0–5 Treffer, nachrichten.at 0,71 →
+1,03 s, kurier 4,61 → 1,40 s). Blockierzeit der Seite 474 → 403 ms. Keine schleichende Verlangsamung.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.
