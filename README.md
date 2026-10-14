@@ -847,6 +847,24 @@ jedes Foto nachgelesen, und das kostet mehr, als das Deutsch-Modell spart. Ausge
 Tesseract außerdem manchmal anders als im ganzen Bild. Ohne Verlust ist jede Variante langsamer als
 1.30.3, schneller geht es nur mit verlorenen Wörtern.
 
+**Gemessen und nicht eingebaut (nach 1.30.4): Bilder kleiner lesen.** Ruhepol verkleinert Bilder für die
+Texterkennung auf höchstens 1200 px (lange Seite) und vergrößert Bilder unter 500 px bis 2-fach. Die
+meisten Nachrichtenbilder haben ohnehin 600–640 px (Median 616 px; nur 16 von 293 sind größer als
+1000 px). Gemessen an den 293 Bildern (`tools/bilder-groesse.mjs`, `tools/groesse-auswerten.js`;
+verloren = Wort ab 4 Buchstaben, das die jetzige Einstellung liest):
+
+| höchstens / vergrößern unter | Zeit | Bilder mit verlorenen Wörtern |
+|---|---|---|
+| 1200 / 500 px (so bleibt es) | 58,7 s | – |
+| 1000 / 500 px | 57,2 s | 3 |
+| 800 / 500 px | 53,2 s | 4 |
+| 640 / 500 px | 48,8 s | 5 |
+| 1200 / 400 px | 49,6 s | 2 |
+| 1200 px, nie vergrößern | 30,9 s | 18 (z. B. „Polizei“) |
+
+Jede Einstellung verliert Wörter, die mit wenig Gewinn verbundenen (1000 px: 2,5 %) ebenso wie die
+schnellen. Die Bildgröße bleibt deshalb, wie sie ist.
+
 ### Gleichmäßige Unschärfe, kein „Springen“ (1.30.4)
 
 Bis 1.30.3 gab es drei Stärken: Bilder in Prüfung 18 px, vorsorglich unscharfe Teaser 8 px, endgültig
