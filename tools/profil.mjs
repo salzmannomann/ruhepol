@@ -1,5 +1,6 @@
 // Rechenzeit der Erweiterung im Hauptthread der Seite (CDP-Profiler), je Stand und Seite, mit den
-// teuersten Funktionen (inkl. ausgelöstem Layout). Braucht Internet.
+// teuersten Funktionen (inkl. ausgelöstem Layout) und Gesamtzeit je Funktion samt allem, was sie aufruft
+// (Feld incl, z. B. „Datei match.js“ = Schlagwortabgleich). Braucht Internet.
 //   tools/versionen.sh 1.29.3 aktuell
 //   VERS=1.29.3,aktuell ROUNDS=3 node tools/profil.mjs https://www.derstandard.at https://kurier.at
 import { chromium } from 'playwright';
@@ -63,7 +64,22 @@ for (let round = 0; round < ROUNDS; round++) for (const url of URLS) {
     const own = {};
     for (const [id, ms] of dt) { let cur = id; while (cur !== undefined) { const n = nodes.get(cur); const u = n.callFrame.url || ''; if (u.startsWith('chrome-extension://')) { const k = (n.callFrame.functionName || '(anon)') + ' ' + u.split('/').pop(); own[k] = (own[k] || 0) + ms; break; } cur = parent.get(cur); } }
     const top = Object.entries(own).sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k, ms]) => `${k}=${Math.round(ms)}`);
-    out.push({ round, url, v, ext, extIncl, top });
+    // Gesamtzeit je Erweiterungsfunktion (alles, was darunter läuft, auch andere Erweiterungsfunktionen),
+    // je Probe jede Funktion nur einmal gezählt; „Datei match.js“ = Zeit, in der der Schlagwortabgleich läuft
+    const incl = {};
+    for (const [id, ms] of dt) {
+      const seen = new Set(); let cur = id;
+      while (cur !== undefined) {
+        const n = nodes.get(cur); const u = n.callFrame.url || '';
+        if (u.startsWith('chrome-extension://')) {
+          const f = u.split('/').pop();
+          for (const k of [(n.callFrame.functionName || '(anon)') + ' ' + f, 'Datei ' + f]) if (!seen.has(k)) { seen.add(k); incl[k] = (incl[k] || 0) + ms; }
+        }
+        cur = parent.get(cur);
+      }
+    }
+    const inclTop = Object.entries(incl).sort((a, b) => b[1] - a[1]).slice(0, 60).map(([k, ms]) => `${k}=${Math.round(ms)}`);
+    out.push({ round, url, v, ext, extIncl, top, incl: inclTop });
     console.error(round, url, v, 'eigen', Math.round(ext), 'inkl', Math.round(extIncl));
     await p.close();
     writeFileSync(D + (process.env.OUT || 'profil.json'), JSON.stringify(out));
