@@ -22,7 +22,15 @@
   const WILDCARD_MIN_LEN = 3; // kürzere Platzhalter-Kerne ("*e") würden fast alles treffen
   const ARTICLES = new Set(['der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen', 'einem', 'einer', 'eines']);
 
-  function normalize(str) {
+  /* ---- Text vorbereiten ----
+   * Ergebnis wie normalizeSlow/tokenizeJoinsSlow (unten, die frühere Fassung), aber in einem
+   * einzigen Durchgang über den Text statt zehn Umformungen hintereinander; das war der größte
+   * Teil der Rechenzeit des Abgleichs. Gleiche Texte (Seiten prüfen denselben Text mehrfach, z. B.
+   * erst vorsorglich, dann genau, dann für mehrere Listen) kommen aus einem kleinen Speicher.
+   */
+
+  /** Frühere Fassung: Rückfall für Texte mit kombinierenden Zeichen, und Vergleich in den Tests. */
+  function normalizeSlow(str) {
     if (!str) return '';
     return String(str)
       .normalize('NFC') // zerlegte Umlaute ("o" + Trema) erst zusammensetzen
@@ -37,26 +45,114 @@
       .trim();
   }
 
-  function tokenize(str) {
-    const n = normalize(str);
+  function tokenizeSlow(str) {
+    const n = normalizeSlow(str);
     return n ? n.split(' ') : [];
   }
 
-  /**
-   * Wie tokenize, merkt sich aber, welche Wörter im Original nur durch einen Bindestrich
-   * getrennt waren ("Fuß-ball", "Fuß- ball" aus OCR). Nur diese dürfen zu einem Wort
-   * zusammengesetzt werden – sonst ergäbe "über Fall" ein "Überfall".
-   */
-  function tokenizeJoins(str) {
+  function tokenizeJoinsSlow(str) {
     const toks = [];
-    const joins = new Set(); // Index i: toks[i] und toks[i + 1] dürfen zusammengesetzt werden
-    const chunks = String(str || '').split(/[-\u00ad\u2010\u2011]/);
+    const joins = new Set();
+    const chunks = String(str || '').split(/[-­‐‑]/);
     chunks.forEach((chunk, ci) => {
-      const t = tokenize(chunk);
+      const t = tokenizeSlow(chunk);
       if (ci > 0 && t.length && toks.length && /[\p{L}\p{N}]$/u.test(chunks[ci - 1])) joins.add(toks.length - 1);
       for (const x of t) toks.push(x);
     });
     return { toks, joins };
+  }
+
+  const MARK = 1; // kombinierendes Zeichen: ganzer Text über die frühere Fassung
+  const LN = 2; // Buchstabe oder Ziffer (für Bindestrich-Verbindungen)
+  const HYPHEN = 4;
+  const charInfo = new Map(); // Zeichen ab 128 → { flags, map: Ersatz aus a–z, 0–9, Leerzeichen }
+  function infoOf(cp) {
+    let inf = charInfo.get(cp);
+    if (inf) return inf;
+    const ch = String.fromCodePoint(cp);
+    let flags = 0;
+    if (/\p{M}/u.test(ch)) flags |= MARK;
+    if (/[\p{L}\p{N}]/u.test(ch)) flags |= LN;
+    if (cp === 0xad || cp === 0x2010 || cp === 0x2011) flags |= HYPHEN;
+    const map = ch.normalize('NFC').toLowerCase()
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, ' ');
+    inf = { flags, map };
+    charInfo.set(cp, inf);
+    return inf;
+  }
+
+  /** Wörter und Bindestrich-Verbindungen in einem Durchgang; null = Rückfall nötig. */
+  function scanText(s) {
+    const toks = [];
+    const joins = new Set();
+    let cur = '';
+    let pending = -1; // Bindestrich nach Buchstabe: Wort davor darf mit dem nächsten verbunden werden
+    let pendingLen = 0;
+    let prevLN = false; // war das Zeichen vor einem Bindestrich Buchstabe oder Ziffer?
+    const flush = () => { if (cur) { toks.push(cur); cur = ''; } };
+    const hyphen = () => {
+      flush();
+      if (pending !== -1 && toks.length > pendingLen) joins.add(pending);
+      pending = prevLN && toks.length ? toks.length - 1 : -1;
+      pendingLen = toks.length;
+      prevLN = false;
+    };
+    for (let i = 0; i < s.length; i++) {
+      let c = s.charCodeAt(i);
+      if (c < 128) {
+        if (c >= 65 && c <= 90) c += 32;
+        if ((c >= 97 && c <= 122) || (c >= 48 && c <= 57)) { cur += String.fromCharCode(c); prevLN = true; }
+        else if (c === 45) hyphen();
+        else { flush(); prevLN = false; }
+        continue;
+      }
+      const cp = s.codePointAt(i);
+      if (cp > 0xffff) i++;
+      const inf = infoOf(cp);
+      if (inf.flags & MARK) return null;
+      if (inf.flags & HYPHEN) { hyphen(); continue; }
+      const m = inf.map;
+      for (let j = 0; j < m.length; j++) {
+        if (m.charCodeAt(j) === 32) flush(); else cur += m[j];
+      }
+      prevLN = (inf.flags & LN) !== 0;
+    }
+    flush();
+    if (pending !== -1 && toks.length > pendingLen) joins.add(pending);
+    return { toks, joins };
+  }
+
+  // Zuletzt vorbereitete Texte. Ergebnisse werden nur gelesen, nie verändert.
+  // Höchstens rund 1 Mio. Zeichen (wenige MB); ist er voll, beginnt er von vorn.
+  const TEXT_CACHE_CHARS = 1000000;
+  const TEXT_CACHE_MAX_LEN = 4000; // lange Artikeltexte wiederholen sich selten
+  let textCache = new Map();
+  let textCacheChars = 0;
+  function tokenizeJoins(str) {
+    const s = String(str || '');
+    const cacheable = s.length <= TEXT_CACHE_MAX_LEN;
+    if (cacheable) {
+      const hit = textCache.get(s);
+      if (hit) return hit;
+    }
+    const r = scanText(s) || tokenizeJoinsSlow(s);
+    if (cacheable) {
+      if (textCacheChars + s.length > TEXT_CACHE_CHARS) { textCache = new Map(); textCacheChars = 0; }
+      textCache.set(s, r);
+      textCacheChars += s.length;
+    }
+    return r;
+  }
+
+  function tokenize(str) {
+    if (!str) return [];
+    const r = scanText(String(str));
+    return r ? r.toks : tokenizeSlow(str);
+  }
+
+  function normalize(str) {
+    return tokenize(str).join(' ');
   }
 
   /**
@@ -317,7 +413,8 @@
     return { find, findAll, empty: entries.length === 0 };
   }
 
-  const api = { normalize, tokenize, parseTerm, withinDistance, compile, FUZZY_MIN_LEN };
+  const api = { normalize, tokenize, tokenizeJoins, parseTerm, withinDistance, compile, FUZZY_MIN_LEN,
+    _slow: { normalize: normalizeSlow, tokenize: tokenizeSlow, tokenizeJoins: tokenizeJoinsSlow } };
   root.SFMatch = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

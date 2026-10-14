@@ -39,6 +39,52 @@ async function main() {
     });
     await step('Video-Vorschaubild (poster) mit Schrift → Beitrag ausgeblendet', () => hidden(page, '#x-video'));
 
+    await step('Unschärfe überall gleich stark (14 px), nie doppelt: vorsorglich, Prüfung, Treffer, Shadow-DOM', async () => {
+      const r = await page.evaluate(() => {
+        const f = (el) => getComputedStyle(el).filter;
+        const box = document.createElement('section');
+        // Bild in Prüfung allein, in vorsorglich unscharfem und in unscharfem Block, verschachtelte Blöcke
+        box.innerHTML = '<img id="u-img" data-sf="pending" width="300" height="200">' +
+          '<article id="u-pre" class="sf-pre"><img id="u-pre-img" data-sf="pending" width="300" height="200"><div id="u-pre-bg" data-sf-bg="pending"></div></article>' +
+          '<article id="u-hit" class="sf-blurred"><p class="sf-pre" id="u-hit-pre">x</p><img id="u-hit-img" data-sf="pending" width="300" height="200"></article>';
+        document.body.append(box);
+        const host = document.querySelector('x-card').shadowRoot;
+        const sbox = document.createElement('div');
+        sbox.innerHTML = '<img id="su-img" data-sf="pending" width="300" height="200"><article id="su-hit" class="sf-blurred"><img id="su-hit-img" data-sf="pending" width="300" height="200"></article>';
+        host.append(sbox);
+        const out = {};
+        for (const id of ['u-img', 'u-pre', 'u-pre-img', 'u-pre-bg', 'u-hit', 'u-hit-pre', 'u-hit-img']) out[id] = f(document.getElementById(id));
+        for (const id of ['su-img', 'su-hit', 'su-hit-img']) out[id] = f(host.getElementById(id));
+        box.remove(); sbox.remove();
+        return out;
+      });
+      assert.deepEqual(r, {
+        'u-img': 'blur(14px)', 'u-pre': 'blur(14px)', 'u-hit': 'blur(14px)', // eine Stärke für alles
+        'u-pre-img': 'none', 'u-pre-bg': 'none', 'u-hit-pre': 'none', 'u-hit-img': 'none', // nicht doppelt
+        'su-img': 'blur(14px)', 'su-hit': 'blur(14px)', 'su-hit-img': 'none',
+      });
+    });
+
+    await step('Winziger Rahmen (Werbung): Ruhepol startet erst, wenn er sichtbar groß wird', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/rahmen.html');
+      // normal großer Rahmen: wie immer gefiltert
+      await p.waitForFunction(() => {
+        const d = document.querySelector('#gross').contentDocument;
+        return d && d.querySelector('#t') && getComputedStyle(d.querySelector('#t')).display === 'none';
+      }, null, { timeout: 10000 });
+      await p.waitForTimeout(500);
+      assert.equal(await p.evaluate(() => document.querySelector('#klein').contentDocument.documentElement.classList.contains('sf-active')), false,
+        'Ruhepol läuft schon im winzigen Rahmen');
+      // wird er groß, greift der Filter
+      await p.evaluate(() => { const f = document.querySelector('#klein'); f.width = 400; f.height = 200; });
+      await p.waitForFunction(() => {
+        const d = document.querySelector('#klein').contentDocument;
+        return getComputedStyle(d.querySelector('#t')).display === 'none' && getComputedStyle(d.querySelector('#ok')).display !== 'none';
+      }, null, { timeout: 10000 });
+      await p.close();
+    });
+
     await step('Shadow-DOM: Text-Treffer ausgeblendet, Rest sichtbar', async () => {
       await page.waitForFunction(() => {
         const r = document.querySelector('x-card').shadowRoot;
@@ -86,8 +132,12 @@ async function main() {
       assert.ok(Math.abs(pos.x - x) > 50, 'Kreis sitzt unter dem Mauszeiger statt in der Mitte');
       await page.waitForTimeout(850);
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'nach 1 s schon offen');
-      const offset = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sf-holdring .sf-ring-fg')).strokeDashoffset.replace('px', '')));
-      assert.ok(offset > 15 && offset < 35, `Ladekreis nicht halb gefüllt (${offset})`);
+      // Kreis füllt sich (leer = 50,3, voll = 0). Kein fester Zeitpunkt: Auf einem ausgelasteten
+      // Rechner startet die Animation manchmal etwas später (früher gelegentlich 50,3 nach 1 s).
+      await page.waitForFunction(() => {
+        const o = Number(getComputedStyle(document.querySelector('.sf-holdring .sf-ring-fg')).strokeDashoffset.replace('px', ''));
+        return o > 5 && o < 45;
+      }, null, { timeout: 1500 }).catch(() => { throw new Error('Ladekreis füllt sich nicht'); });
       await page.waitForTimeout(1200);
       await page.mouse.up();
       await page.waitForFunction(() => !document.querySelector('#x-hold').classList.contains('sf-blurred'), null, { timeout: 2000 });
@@ -363,6 +413,43 @@ async function main() {
       // Testrechner: mit BMP rund 1250 ms je Bild, mit PPM rund 300 ms
       const median = res.map((r) => r.ms).sort((a, b) => a - b)[2];
       assert.ok(median < 700, `Median ${Math.round(median)} ms`);
+    });
+
+    await step('Bildprüfung antwortet, ohne aufs Speichern im Cache zu warten', async () => {
+      const r = await sw.evaluate(async (url) => {
+        // Langsamen Speicher nachstellen: jedes Schreiben eines OCR-Ergebnisses dauert 3 s.
+        const orig = chrome.storage.local.set.bind(chrome.storage.local);
+        chrome.storage.local.set = (items) => Object.keys(items).some((k) => k.startsWith('ocr'))
+          ? new Promise((res) => setTimeout(res, 3000)).then(() => orig(items)) : orig(items);
+        try {
+          await ensureOffscreen();
+          const t = performance.now();
+          const res = await requestOcr(url);
+          const ms = performance.now() - t;
+          // Gleiche Adresse während des Speicherns: kein zweiter OCR-Lauf
+          const again = await requestOcr(url);
+          return { ms, text: res.text, again: again.text };
+        } finally { chrome.storage.local.set = orig; }
+      }, srv.imgBase + '/ocr-kontrolle.png?speichern=' + Date.now());
+      assert.equal(r.text, 'Sonniges Wetter\nam Wochenende');
+      assert.equal(r.again, r.text);
+      assert.ok(r.ms < 2500, `Antwort nach ${Math.round(r.ms)} ms`);
+    });
+
+    await step('Viele nachgeladene Bilder: Ruhepol zwingt die Seite nicht zum Neuvermessen je Bild', async () => {
+      const p = await ctx.newPage();
+      await p.goto(srv.base + '/bilder-viele.html');
+      await p.waitForTimeout(1500); // Bilder liegen im Cache des Browsers
+      const cdp = await ctx.newCDPSession(p);
+      await cdp.send('Performance.enable');
+      const layouts = async () => (await cdp.send('Performance.getMetrics')).metrics.find((m) => m.name === 'LayoutCount').value;
+      const before = await layouts();
+      await p.evaluate(() => window.start()); // 150 Bilder, je ein eigener Task
+      await p.waitForTimeout(1000);
+      const n = (await layouts()) - before;
+      // Gemessen: 1.30.7 (Größe jedes Bildes sofort abgefragt) 115–121, 1.30.8 50–60
+      assert.ok(n < 85, `${n} Layouts`);
+      await p.close();
     });
 
     await step('Bedienoberfläche: Knöpfe, Menüpunkte und Fußzeile bleiben sichtbar, Inhalte nicht', async () => {

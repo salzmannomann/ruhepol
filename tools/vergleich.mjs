@@ -86,11 +86,14 @@ for (let round = 0; round < ROUNDS; round++) {
         try { cacheIndex = null; cacheIndexPromise = null; } catch (_) {}
       }, baseKeys).catch((e) => console.error('reset', v, e.message));
       const p = await ctx.newPage();
+      // Zeitmesspunkte aus einem eingebauten Messstand (Konsolenzeilen „SFDIAG {…}“), sonst leer
+      const diag = [];
+      p.on('console', (m) => { const t = m.text(); if (t.startsWith('SFDIAG ')) try { diag.push(JSON.parse(t.slice(7))); } catch (_) {} });
       try {
         await p.goto(url, { waitUntil: 'load', timeout: 45000 }).catch(() => {});
         await p.waitForTimeout(15000);
         const r = await p.evaluate(COLLECT);
-        out.push({ round, url, v, ...r });
+        out.push({ round, url, v, ...r, ...(diag.length ? { diag } : {}) });
         const med = (a) => a.length ? Math.round(a.slice().sort((x, y) => x - y)[a.length >> 1]) : null;
         console.error(round, url, v, 'bilder', r.imgs.length, med(r.imgs), 'ki', r.ki.length, med(r.ki), 'tbt', Math.round(r.tbt), 'treffer', r.hits);
       } catch (e) { console.error('Fehler', url, v, e.message); }

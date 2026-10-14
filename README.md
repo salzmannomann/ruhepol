@@ -825,6 +825,203 @@ Blockierzeit 834 → 769 ms (im Rauschen; die Texterkennung läuft nicht im Haup
   (als „Heurte“ gelesen). Englisch bleibt deshalb dabei: Es wird nicht für englische Texte gebraucht,
   sondern weil es deutsche Wörter in Großbuchstaben besser liest.
 
+**Gemessen und nicht eingebaut (nach 1.30.3): mit Deutsch lesen, Unsicheres mit Englisch nachlesen.**
+Idee: Das Bild zuerst nur mit dem Deutsch-Modell lesen (37 % schneller) und nur dort, wo ein Wort unsicher
+ist, mit Deutsch + Englisch nachlesen – so sollten Wörter in Großbuchstaben nicht verloren gehen.
+(Die Sprache nach der Seite zu wählen hilft nicht: Englisch wird gerade auf deutschen Seiten für deutsche
+Großbuchstaben gebraucht.) Gemessen an denselben 293 Bildern (`tools/bilder-nachlesen.mjs`,
+`tools/nachlesen-auswerten.js`; verloren = Wort mit mindestens 4 Buchstaben, das Deutsch + Englisch liest,
+Umlaute gleichgesetzt):
+
+| Variante | Zeit für 293 Bilder | verlorene Bilder mit Text |
+|---|---|---|
+| Deutsch + Englisch (1.30.3) | 60,9 s | – |
+| nur Deutsch | 38,4 s | 5 |
+| unsichere Zeilen ausschneiden und nachlesen, ab 2 Zeilen ganzes Bild | 90,5 s | 0 |
+| ebenso, ab 4 Zeilen ganzes Bild | 85 s | 2 |
+| nur Wörter ab 3 Buchstaben als unsicher zählen | 55–62 s | 5–7 |
+
+Fotos ohne Schrift liefern fast immer einige unsichere Scheinwörter (Kanten, Laub, Stoff). Diese lassen
+sich nicht von echten, schlecht gelesenen Wörtern wie „POLIZEI“ (Sicherheit 31) trennen. Also wird fast
+jedes Foto nachgelesen, und das kostet mehr, als das Deutsch-Modell spart. Ausgeschnittene Zeilen liest
+Tesseract außerdem manchmal anders als im ganzen Bild. Ohne Verlust ist jede Variante langsamer als
+1.30.3, schneller geht es nur mit verlorenen Wörtern.
+
+**Gemessen und nicht eingebaut (nach 1.30.4): Bilder kleiner lesen.** Ruhepol verkleinert Bilder für die
+Texterkennung auf höchstens 1200 px (lange Seite) und vergrößert Bilder unter 500 px bis 2-fach. Die
+meisten Nachrichtenbilder haben ohnehin 600–640 px (Median 616 px; nur 16 von 293 sind größer als
+1000 px). Gemessen an den 293 Bildern (`tools/bilder-groesse.mjs`, `tools/groesse-auswerten.js`;
+verloren = Wort ab 4 Buchstaben, das die jetzige Einstellung liest):
+
+| höchstens / vergrößern unter | Zeit | Bilder mit verlorenen Wörtern |
+|---|---|---|
+| 1200 / 500 px (so bleibt es) | 58,7 s | – |
+| 1000 / 500 px | 57,2 s | 3 |
+| 800 / 500 px | 53,2 s | 4 |
+| 640 / 500 px | 48,8 s | 5 |
+| 1200 / 400 px | 49,6 s | 2 |
+| 1200 px, nie vergrößern | 30,9 s | 18 (z. B. „Polizei“) |
+
+Jede Einstellung verliert Wörter, die mit wenig Gewinn verbundenen (1000 px: 2,5 %) ebenso wie die
+schnellen. Die Bildgröße bleibt deshalb, wie sie ist.
+
+### Gleichmäßige Unschärfe, kein „Springen“ (1.30.4)
+
+Bis 1.30.3 gab es drei Stärken: Bilder in Prüfung 18 px, vorsorglich unscharfe Teaser 8 px, endgültig
+unscharfe Teaser 14 px. Dazu wurde doppelt weichgezeichnet: Ein Bild in Prüfung innerhalb eines
+vorsorglich unscharfen Teasers bekam 8 px und 18 px übereinander. Fiel nach der Prüfung eine der beiden
+weg, sprang das Bild sichtbar um.
+
+Seit 1.30.4 gilt überall **14 px**, auch in Web-Komponenten (Shadow-DOM). Was in einem schon unscharfen
+Block liegt, bekommt keine zweite Unschärfe. Gemessen mit den Stilregeln selbst (Test in
+`test/extra.mjs`): vorher 18 / 8 / 14 px und doppelt 8 + 18 px, jetzt 14 px und nie doppelt. Mit 14 px ist
+auch große Schrift in Bildern nicht lesbar (Testbild mit eingebrannter Schlagzeile verglichen).
+
+### Schlagwortprüfung: Texte schneller vorbereiten (1.30.4)
+
+Profil der Rechenzeit (`tools/profil.mjs`, Feld „Gesamtzeit je Funktion“; 6 Nachrichtenseiten, alle
+Vorschlagslisten an, 622 Begriffe): Ruhepol rechnet je Seitenaufruf rund 1,4 s im Hauptthread der
+Seite, davon rund 300–340 ms für die Schlagwortprüfung. Der eigentliche Vergleich mit den Listen war
+schon schnell (Nachschlagen im Verzeichnis, ca. 90 ms). Die meiste Zeit ging ins **Vorbereiten der
+Texte**: Kleinschreibung, Umlaute vereinheitlichen, Akzente entfernen, in Wörter zerlegen – rund zehn
+Umformungen hintereinander, und das für denselben Text oft mehrmals (vorsorglich beim Laden, dann
+genau, für mehrere Listen, bei nachgeladenen Seitenteilen).
+
+Seit 1.30.4:
+- **Ein Durchgang** über den Text statt zehn Umformungen. Das Ergebnis ist Zeichen für Zeichen
+  dasselbe: geprüft gegen die frühere Fassung an jedem einzelnen Unicode-Zeichen (allein, zwischen
+  Buchstaben, an Bindestrichen), 300.000 Zufallstexten aus Sonderfällen und den 973 eingestuften echten
+  Teasern (3,6 Mio. Texte, alle gleich). Seltene Texte mit nachträglich zusammengesetzten Zeichen
+  (z. B. „o“ + Trema) gehen weiter über die frühere Fassung.
+- **Kleiner Speicher** für schon vorbereitete Texte (höchstens rund 1 Mio. Zeichen, Texte bis 4000
+  Zeichen).
+
+Gemessen: 973 echte Teaser vorbereiten 10,1 ms → 3,7 ms (schon gesehene Texte 0,16 ms).
+Auf den 6 Seiten (1.30.3 und 1.30.4 abwechselnd, je 3 Durchgänge) braucht die Schlagwortprüfung je
+Seitenaufruf **302 → 170 ms** (auf jeder Seite weniger, z. B. kurier.at 439 → 193 ms, derStandard
+390 → 244 ms). Die gesamte Rechenzeit der Erweiterung sinkt im Mittel 1360 → 1272 ms. Die
+einzelnen Seitenaufrufe schwanken um ±200 ms, weil sich die Seiten ändern. Sichtbar wird das nicht
+direkt, die Seite bleibt beim Laden aber etwas flüssiger.
+
+### Bilder warten kürzer auf die KI (1.30.5)
+
+Seit 1.29.3 wird ein Bild ohne Treffer erst freigegeben, wenn auch die KI über seinen Teaser entschieden
+hat (siehe „Kein kurzes Aufblitzen“). Gemessen mit Zeitmesspunkten in einem Messstand
+(`tools/vergleich.mjs` sammelt Konsolenzeilen „SFDIAG“; 6 Nachrichtenseiten, je 2–3 Durchgänge): Die Zeit
+ging fast nie in die KI-Rechnung für den Teaser selbst (Median 0,1 s), sondern ins **Warten in der
+Schlange**. Jede Seite schickte immer nur eine KI-Anfrage gleichzeitig. Lief gerade ein großes Paket
+(bis 24 Teaser weiter unten), wartete der Teaser des fertig gelesenen Bildes, bis es zurück war, auf
+kurier.at bis 2,5 s.
+
+Seit 1.30.5:
+- Ein Teaser, auf den ein fertig geprüftes Bild wartet, geht **sofort mit Vorrang** los, auch wenn
+  gerade eine andere Anfrage läuft (höchstens eine ohne und eine mit Vorrang gleichzeitig). Bilder,
+  die kurz nacheinander fertig werden, gehen gesammelt in einer Anfrage (30 ms sammeln). Einzeln
+  geschickt waren es auf krone.at so viele kleine Anfragen, dass es langsamer wurde.
+- Im Hintergrund kommt eine vorrangige Anfrage **zwischen zwei Teilpaketen** einer großen Anfrage dran,
+  nicht erst an deren Ende (Test in `test/semantik.mjs`).
+
+Gemessen (1.30.4 und 1.30.5 abwechselnd, 6 Seiten × 3 Durchgänge):
+
+| | 1.30.4 | 1.30.5 |
+|---|---|---|
+| alle Bilder, die auf die KI warten: Wartezeit (Median) | 1,04 s | 0,50 s |
+| … davon bis zur Grenze von 8 s gewartet | 39 | 1 |
+| … davon Zeit in der Schlange (Median) | 0,47 s | 0,15 s |
+| sichtbare Bilder: Wartezeit auf die KI (Median) | 0,15 s | 0,11 s |
+| sichtbare harmlose Bilder unscharf (Median) | 0,76 s | 0,72 s |
+
+Am meisten bringt es bei Bildern weiter unten auf der Seite, die beim Scrollen ins Bild kommen. Beim
+Öffnen sichtbare Bilder warteten in diesen Messungen ohnehin nur kurz auf die KI (0,1–0,15 s). Ein
+Durchgang mit derselben Änderung ohne Sammeln und ohne die Hintergrund-Änderung brachte weniger
+(Wartezeit 0,54 → 0,49 s, Bilder 0,69 → 0,68 s). Die einzelnen Seiten schwanken stark.
+
+### Winzige Werbe-Rahmen: erst starten, wenn sie sichtbar werden (1.30.6)
+
+Ruhepol läuft in jedem eingebetteten Rahmen einer Seite mit (`all_frames`), damit auch eingebettete
+Ticker, Videos und Beiträge gefiltert werden. Gezählt auf 6 Nachrichtenseiten (je 2 Aufrufe): Auf orf.at,
+kurier, krone, heute und nachrichten.at sind es 2–4 Rahmen, auf **derStandard 30–45**, davon 20–37
+winzig (unter 50 Bildpunkten, Werbe- und Zählrahmen). Das Einrichten in den Rahmen kostete dort
+**0,7–0,9 s Rechenzeit je Seitenaufruf** (Hauptseite: 0,015 s), davon 0,6–0,8 s in den winzigen.
+Diese Zeit fällt in eigenen Prozessen an; die bisherigen Profile der Hauptseite sahen sie nicht.
+
+Seit 1.30.6 richtet sich Ruhepol in einem winzigen Rahmen erst ein, wenn er sichtbar groß wird (das
+Ereignis kommt vor dem Zeichnen, es blitzt also nichts auf). Test in `test/extra.mjs`
+(`test/site/rahmen.html`). Gemessen auf derStandard: Einrichten in Rahmen 0,7–0,9 s → 0,14–0,21 s je
+Seitenaufruf. Sichtbar schneller wird dadurch nichts (Gesamtvergleich auf 4 Seiten × 4 Durchgänge:
+Bilder 0,52 s vorher wie nachher, Blockierzeit im Rauschen), der Rechner hat aber weniger zu tun.
+
+**Gemessen und nicht eingebaut:** 3 statt 2 Texterkennungs-Helfer auf 4 Kernen (6 Seiten × 3 Durchgänge,
+abwechselnd): Bilder 0,67 → 0,71 s, KI 0,52 → 0,75 s (Median). Der dritte Helfer nimmt der KI Rechenzeit
+weg; es bleibt bei einem Helfer je zwei Kernen.
+
+**Gemessen und nicht eingebaut:** Bilder aus fremden Rahmen nachrangig lesen. Auf derStandard
+schickten Werberahmen 11 Bilder zur Texterkennung, die Seite selbst 6–7. Mit Vorrang für die
+Seitenbilder (5 Durchgänge) blieben sichtbare Bilder trotzdem gleich lange unscharf (0,29 / 0,28 s).
+
+### Wohin die Zeit bis zum Scharfwerden geht (1.30.7)
+
+Aufgeschlüsselt mit Zeitmesspunkten (Messstand, `tools/vergleich.mjs` mit „SFDIAG“; 6 Seiten × 3
+Durchgänge, 99 sichtbare, neu gelesene Bilder, Median ab „Bild geladen, Prüfung vorgemerkt“):
+
+| Abschnitt | Zeit |
+|---|---|
+| bis der Browser „sichtbar“ meldet | 0,05 s |
+| Texterkennung angestoßen → Ergebnis da | 0,33 s |
+| … davon die Erkennung selbst (inkl. Warten auf einen freien Helfer) | 0,26 s |
+| Ergebnis → scharf (u. a. Warten auf die KI) | 0,06 s |
+| zusammen | 0,56 s |
+
+Die frühere Vermutung, die späte Sichtbarkeitsmeldung koste 0,5–0,6 s, stimmt nicht mehr (0,05 s);
+die Zeit liegt in der Texterkennung selbst. Ein Bild „auf Verdacht“ früher zu lesen, bringt deshalb
+nichts.
+
+**Geändert in 1.30.7:** Das Ergebnis einer Bildprüfung ging erst zurück, wenn es im Cache gespeichert
+war. Das erste Speichern nach jedem Aufwachen des Hintergrunds (Chrome legt ihn nach 30 s Ruhe schlafen)
+las dafür den ganzen Speicher, auch die bis zu 6000 KI-Vektoren. Jetzt kommt das Ergebnis sofort, gespeichert
+wird danach, und gelesen werden nur die OCR-Einträge (`getKeys`). Gemessen mit einem Speicher wie nach
+langer Nutzung (6000 Vektoren, 2000 OCR-Ergebnisse): 130–315 ms → 25–38 ms beim ersten Bild nach dem
+Aufwachen. Im Gesamtvergleich mit dem jungen Testprofil ist es kaum zu sehen (Erkennung angestoßen →
+Ergebnis 331 → 315 ms; Bilder 0,57 / 0,59 s, im Rauschen). Test in `test/extra.mjs` (langsamer Speicher
+nachgestellt: vorher 3,1 s bis zur Antwort).
+
+### Weniger Neuvermessen der Seite (1.30.8)
+
+Profil des Hauptthreads (`tools/profil.mjs`, 6 Seiten): Zwei Stellen zwangen den Browser, die halb
+geladene Seite sofort neu zu vermessen.
+- **Bildgröße:** Für jedes neue Bild fragte Ruhepol sofort die angezeigte Größe ab, um Symbole und
+  Logos auszusortieren (rund 100 ms je Seitenaufruf). Jetzt wird das entschieden, wenn der Browser
+  meldet, dass das Bild in die Nähe des sichtbaren Bereichs kommt (`IntersectionObserver`). Die Lage
+  liefert er dabei ohne Neuvermessung mit. Vorab heruntergeladen wird nur, was nicht schon von Haus aus
+  kleiner als die Mindestgröße ist.
+- **Rahmen-Größe (seit 1.30.6):** Die Abfrage der Fenstergröße beim Start eines Rahmens zwang die
+  Hauptseite zum Neuvermessen (45 ms). Jetzt meldet ein `ResizeObserver` die Größe nach dem ohnehin
+  fälligen Vermessen.
+
+Gemessen (1.30.7 und 1.30.8 abwechselnd, 6 Seiten × 3 Durchgänge): Rechenzeit der Erweiterung im
+Hauptthread je Seitenaufruf **1138 → 975 ms** (derStandard 1608 → 1227 ms, krone 1226 → 953 ms, heute
+1007 → 866 ms, kurier 1582 → 1416 ms, nachrichten.at 1029 → 1032 ms, orf.at 374 → 359 ms). Test in
+`test/extra.mjs` (`test/site/bilder-viele.html`): 150 nachgeladene Bilder, Layouts der Seite
+115–121 → 50–60.
+
+### Gesamtvergleich 1.30.2 → 1.30.8
+
+Nach den Änderungen 1.30.3–1.30.8 (`tools/vergleich.mjs`, 6 Seiten × 3 Durchgänge, Stände abwechselnd,
+wie ein erster Besuch, KI mit Gegenprüfung und „gute Nachrichten“ an, Testrechner mit 4 Kernen):
+
+| Seite | Bilder unscharf 1.30.2 | 1.30.8 |
+|---|---|---|
+| orf.at | 0,96 s | 0,56 s |
+| derstandard.at | 0,60 s | 0,29 s |
+| kurier.at | 3,46 s | 0,51 s |
+| krone.at | 2,40 s | 0,49 s |
+| heute.at | 1,55 s | 0,76 s |
+| nachrichten.at | 1,00 s | 0,58 s |
+| **alle (Median)** | **1,00 s** | **0,51 s** |
+
+KI erkennt sichtbare Teaser 0,70 → 0,68 s (unverändert; je Seite 0–5 Treffer, nachrichten.at 0,71 →
+1,03 s, kurier 4,61 → 1,40 s). Blockierzeit der Seite 474 → 403 ms. Keine schleichende Verlangsamung.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.

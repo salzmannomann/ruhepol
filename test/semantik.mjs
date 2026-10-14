@@ -67,6 +67,24 @@ async function main() {
       await p.close();
     });
 
+    await step('KI: Anfrage mit Vorrang wartet nicht, bis ein großes Paket ohne Vorrang ganz fertig ist', async () => {
+      const order = await sw.evaluate(async () => {
+        for (let i = 0; i < 200 && (semRunning || semJobs.length); i++) await new Promise((r) => setTimeout(r, 25));
+        semCache.clear();
+        const big = Array.from({ length: 48 }, (_, i) => `Gemeinde ${i} plant neuen Radweg entlang des Flusses Nummer ${i}`);
+        const done = [];
+        // Das große Paket muss schon laufen (am Anfang künstlich verzögert), wenn die vorrangige Anfrage kommt.
+        globalThis.__semDelay = 1500;
+        const a = semScore(big, false).then((r) => done.push('gross ' + r.ok));
+        for (let i = 0; i < 400 && semJobs.length; i++) await new Promise((r) => setTimeout(r, 10));
+        globalThis.__semDelay = 0;
+        const b = semScore(['Ein sichtbarer Teaser, dessen Bild auf die Entscheidung wartet'], true).then((r) => done.push('vorrang ' + r.ok));
+        await Promise.all([a, b]);
+        return done;
+      });
+      assert.deepEqual(order, ['vorrang true', 'gross true']);
+    });
+
     await step('Ohne Schlagwort: Klima-Artikel über Themen-Beschreibung erkannt', async () => {
       await page.goto(srv.base + '/semantik.html');
       await hidden(page, '#s-klima');

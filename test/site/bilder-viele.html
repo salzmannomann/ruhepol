@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Viele Bilder</title></head>
+<body>
+  <h1>Bildergalerie</h1>
+  <div id="galerie"></div>
+  <script>
+    // Viele Bilder in schneller Folge einfügen, je ein eigener Task (wie nachladende Seiten).
+    // Das Bild selbst ist ein kleines, schon geladenes Bild (gleiche Adresse), groß dargestellt.
+    window.__fertig = false;
+    window.start = () => new Promise((resolve) => {
+      let i = 0;
+      const next = () => {
+        if (i++ >= 150) { window.__fertig = true; resolve(); return; }
+        const fig = document.createElement('figure');
+        fig.innerHTML = '<img src="{{IMG}}/rasen.png?n=' + (i % 3) + '" width="320" height="180" alt="">' +
+          '<figcaption>Bild ' + i + ' der Galerie</figcaption>';
+        document.getElementById('galerie').append(fig);
+        setTimeout(next, 0);
+      };
+      next();
+    });
+  </script>
+</body>
+</html>

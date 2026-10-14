@@ -463,3 +463,35 @@ test('Eigene Schlagwörter treffen einfache Endungen („Tesla“ → „Teslas�
   assert.ok(m.find('Formel 1 in Spa'));
   assert.equal(m.find('Teslaspule im Physiksaal'), null);
 });
+
+test('Text vorbereiten in einem Durchgang: gleiches Ergebnis wie die frühere Fassung, mehrfach schneller', () => {
+  const M = require('../extension/lib/match.js');
+  const same = (s) => {
+    const a = M._slow.tokenizeJoins(s), b = M.tokenizeJoins(s);
+    assert.deepEqual(b.toks, a.toks, JSON.stringify(s));
+    assert.deepEqual([...b.joins].sort(), [...a.joins].sort(), JSON.stringify(s));
+    assert.equal(M.normalize(s), M._slow.normalize(s), JSON.stringify(s));
+  };
+  // jedes Zeichen der ersten Unicode-Blöcke allein, zwischen Buchstaben und an Bindestrichen
+  for (let cp = 0; cp < 0x3000; cp++) {
+    if (cp >= 0xd800 && cp <= 0xdfff) continue;
+    const c = String.fromCodePoint(cp);
+    same(c); same('a' + c + 'b'); same('Ab-' + c + '-cd');
+  }
+  // Zufallstexte aus Sonderfällen: Umlaute zusammengesetzt/zerlegt, Bindestriche, Ligaturen, Emoji …
+  const pool = [...'aAbZz09 -‐‑­.,;!?"()äöüÄÖÜßẞéñÅæœ½²™ﬁİıΣς€ \t\n –—…„“/', 'ö', 'Å', '😀', '𝐀', 'ﬀ', '́'];
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 20000; k++) {
+    let s = '';
+    for (let j = 1 + Math.floor(rnd() * 16); j > 0; j--) s += pool[Math.floor(rnd() * pool.length)];
+    same(s);
+  }
+  // Tempo: typische Teaser-Texte (ohne Speicher gemessen, jeder Text neu)
+  const texts = [];
+  for (let i = 0; i < 3000; i++) texts.push(`Gemeinderat ${i} beschließt Ausbau – Bürgermeisterin: „Öffi-Netz wird größer“, Kosten ${i * 7} Mio. Euro`);
+  const time = (f) => { f(); const t = performance.now(); for (let r = 0; r < 5; r++) f(); return performance.now() - t; };
+  const slow = time(() => { for (const s of texts) M._slow.tokenizeJoins(s); });
+  const fast = time(() => { for (const s of texts) M.tokenize(s); });
+  assert.ok(fast * 1.5 < slow, `neu ${fast.toFixed(1)} ms, früher ${slow.toFixed(1)} ms`);
+});

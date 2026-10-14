@@ -39,9 +39,10 @@
   // damit nach dem Abschalten nichts unscharf bleibt.
   const SHADOW_CSS = `
     .sf-hidden, .sf-hidden-ph { display: none !important; }
-    .sf-blurred { filter: blur(14px) !important; cursor: pointer !important; user-select: none !important; }
-    img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],
-    [data-sf-bg="pending"], [data-sf-bg="err"] { filter: blur(18px) !important; }
+    .sf-blurred { cursor: pointer !important; user-select: none !important; }
+    .sf-blurred:not(:is(.sf-blurred, .sf-pre) *), .sf-pre:not(:is(.sf-blurred, .sf-pre) *) { filter: blur(14px) !important; }
+    :is(img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],
+    [data-sf-bg="pending"], [data-sf-bg="err"]):not(:is(.sf-blurred, .sf-pre) *) { filter: blur(14px) !important; }
     .sf-placeholder { display: block !important; margin: 6px 0 !important; padding: 8px 12px !important;
       border: 1px dashed #9a9a9a !important; border-radius: 6px !important; background: #f3f3f3 !important;
       color: #444 !important; font: 14px/1.4 system-ui, sans-serif !important; cursor: pointer !important; }
@@ -49,8 +50,8 @@
 
   // Auf Nicht-Nachrichtenseiten nur fertige Treffer und Fehler unscharf (siehe content.css).
   const SHADOW_CSS_CALM = SHADOW_CSS.replace(
-    'img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],\n    [data-sf-bg="pending"], [data-sf-bg="err"]',
-    'img[data-sf="hit"], img[data-sf="err"], [data-sf-bg="err"]');
+    ':is(img[data-sf="wait"], img[data-sf="pending"], img[data-sf="err"],\n    [data-sf-bg="pending"], [data-sf-bg="err"])',
+    ':is(img[data-sf="hit"], img[data-sf="err"], [data-sf-bg="err"])');
 
   let settings = null;
   let calmSite = false; // Nicht-Nachrichtenseite: Bilder sofort zeigen (lib/sitekind.js)
@@ -269,6 +270,18 @@
   async function init() {
     // Nur HTML-Dokumente (keine XML-Ansichten wie RSS/Sitemaps: dort fehlen style und dataset).
     if (!(document.documentElement instanceof HTMLElement)) return;
+    // Winzige eingebettete Rahmen (Werbe- und Zählrahmen) erst einrichten, wenn sie sichtbar groß
+    // werden: Dort ist nichts zu sehen, das Einrichten kostete auf derStandard (rund 45 Rahmen)
+    // aber 0,6–0,8 s Rechenzeit je Seitenaufruf. Die Größe meldet ein ResizeObserver nach dem
+    // ohnehin fälligen Vermessen und vor dem Zeichnen. Sie gleich beim Start abzufragen (1.30.6),
+    // zwang die halb geladene Seite zum Neuvermessen (52 ms je Seitenaufruf).
+    if (window !== window.top) {
+      document.documentElement.classList.add('sf-boot'); // Bilder bis dahin vorsorglich unscharf
+      await new Promise((resolve) => {
+        const ro = new ResizeObserver(() => { if (!tinyFrame()) { ro.disconnect(); resolve(); } });
+        ro.observe(document.documentElement);
+      });
+    }
     // Bis die Einstellungen geladen sind, Bilder schon unscharf (sonst blitzen sie kurz auf).
     // apply() hebt das gleich wieder auf; Sicherheitsnetz, falls etwas hängt.
     document.documentElement.classList.add('sf-boot');
@@ -326,6 +339,11 @@
       if (msg && msg.type === 'toast' && msg.text) toast(String(msg.text));
       return false;
     });
+  }
+
+  const TINY_FRAME_PX = 50;
+  function tinyFrame() {
+    return innerWidth < TINY_FRAME_PX || innerHeight < TINY_FRAME_PX;
   }
 
   function endBoot() {
@@ -845,13 +863,6 @@
     }
   }
 
-  function imageSize(img) {
-    const r = img.getBoundingClientRect();
-    const w = r.width || img.naturalWidth || Number(img.getAttribute('width')) || 0;
-    const h = r.height || img.naturalHeight || Number(img.getAttribute('height')) || 0;
-    return { w, h };
-  }
-
   /**
    * Zustände (data-sf): wait (noch nicht geladen, per CSS unscharf), small, pending (unscharf,
    * Prüfung läuft), ok, hit, err.
@@ -879,12 +890,7 @@
       return;
     }
 
-    const { w, h } = imageSize(img);
     img.dataset.sfSrc = src;
-    if (w < settings.minWidth || h < settings.minHeight) {
-      img.dataset.sf = 'small';
-      return;
-    }
     // Lazy-Loading-Platzhalter (z. B. 1×1-GIF, groß dargestellt): auf das echte Bild warten.
     if (img.naturalWidth <= 4 && img.naturalHeight <= 4) {
       img.dataset.sf = 'wait';
@@ -893,8 +899,12 @@
     }
     img.dataset.sf = 'pending';
     if (!settings.ocr) { img.dataset.sf = 'ok'; return; }
-    // Schon herunterladen lassen; die Texterkennung startet, sobald das Bild sichtbar ist.
-    if (/^https?:/i.test(src)) {
+    // Ob es nur ein Symbol ist (angezeigte Größe unter der Mindestgröße), entscheidet onIntersect:
+    // Die Lage liefert der Browser dort ohne Neuvermessung mit. Bis 1.30.7 wurde sie hier für
+    // jedes Bild abgefragt, mitten im Laden (rund 100 ms je Seitenaufruf).
+    // Schon herunterladen lassen (nur, was nicht schon von Haus aus ein Symbol ist); die
+    // Texterkennung startet, sobald das Bild sichtbar ist.
+    if (/^https?:/i.test(src) && img.naturalWidth >= settings.minWidth && img.naturalHeight >= settings.minHeight) {
       try { chrome.runtime.sendMessage({ type: 'ocrPrefetch', url: src }).catch(() => {}); } catch (_) { /* neu geladen */ }
     }
     if (io) io.observe(img);
@@ -1005,6 +1015,13 @@
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       io.unobserve(e.target);
+      const img = e.target;
+      if (img.tagName === 'IMG' && img.dataset.sf === 'pending') {
+        const r = e.boundingClientRect;
+        const w = r.width || img.naturalWidth || Number(img.getAttribute('width')) || 0;
+        const h = r.height || img.naturalHeight || Number(img.getAttribute('height')) || 0;
+        if (w < settings.minWidth || h < settings.minHeight) { img.dataset.sf = 'small'; continue; }
+      }
       if (!ocrWaiting.has(e.target)) ocrWaiting.set(e.target, performance.now());
     }
     flushOcr();
@@ -1092,11 +1109,18 @@
             setTimeout(() => releaseHeld(block), KI_HOLD_MS);
           }
           set.add(img);
+          if (semQueue.has(block)) semSoon(); // mit Vorrang losschicken, nicht hinter anderen warten
           return; // bleibt „pending“ und damit unscharf
         }
       }
     }
     setState(img, 'ok');
+  }
+
+  // Mehrere Bilder werden oft kurz nacheinander fertig: gesammelt in einer Anfrage losschicken.
+  let semSoonTimer = null;
+  function semSoon() {
+    if (!semSoonTimer) semSoonTimer = setTimeout(() => { semSoonTimer = null; flushSem(); }, 30);
   }
 
   function releaseHeld(block) {
@@ -1567,12 +1591,16 @@
     return text.split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
   }
   const semQueue = new Set();
-  let semBusy = false;
+  // Höchstens eine Anfrage ohne und eine mit Vorrang gleichzeitig. Gemessen (1.30.4, 6 Seiten): Bilder,
+  // die auf die KI warten, warteten im Median 0,3 s nur darauf, dass eine andere Anfrage dieser Seite
+  // fertig wird; ihr eigener Teaser brauchte dann 0,1 s. Jetzt überholen sie (im Hintergrund vorrangig).
+  let semReqs = 0;
+  let semPrioReqs = 0;
   let semUnavailable = false; // Modell fehlt: auf dieser Seite nicht weiter nachfragen
 
-  /** Teaser gesammelt an das lokale Sprachmodell geben (immer nur eine Anfrage gleichzeitig). */
+  /** Teaser gesammelt an das lokale Sprachmodell geben (eine Anfrage, dazu höchstens eine mit Vorrang). */
   async function flushSem() {
-    if (semBusy || !semQueue.size || !semanticOn() || !active) return;
+    if (semPrioReqs || !semQueue.size || !semanticOn() || !active) return;
     // Sichtbare Teaser zuerst, in kleinerem Paket und mit Vorrang (überholen im Hintergrund die
     // Gegenprüfungen); der Rest danach in großen Paketen.
     const live = [];
@@ -1581,7 +1609,9 @@
       else live.push(b);
     }
     if (!live.length) return;
-    const visible = live.filter(inView);
+    // Vorrang: sichtbar oder ein fertig geprüftes Bild wartet auf diesen Teaser
+    const visible = live.filter((b) => inView(b) || kiHold.has(b)).sort((x, y) => kiHold.has(y) - kiHold.has(x));
+    if (semReqs && !visible.length) return; // läuft schon eine, der Rest wartet
     // Neue Teaser, deren Sichtbarkeit der Browser noch nicht gemeldet hat (meist im nächsten Bild):
     // kurz warten, damit sichtbare nicht in einem großen Paket ohne Vorrang landen.
     if (!visible.length && live.some((b) => !viewKnown.has(b))) {
@@ -1593,13 +1623,15 @@
     const prio = visible.length > 0;
     const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
     for (const b of blocks) { semQueue.delete(b); semInflight.add(b); }
-    semBusy = true;
+    semReqs++;
+    if (prio) semPrioReqs++;
     const gen = generation;
     let res = null;
     try {
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
-    semBusy = false;
+    semReqs--;
+    if (prio) semPrioReqs--;
     for (const b of blocks) { semInflight.delete(b); unwatchView(b); }
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
     if (gen !== generation || !active) { for (const b of blocks) releaseHeld(b); if (active) flushSem(); return; }
