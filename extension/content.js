@@ -1093,11 +1093,18 @@
             setTimeout(() => releaseHeld(block), KI_HOLD_MS);
           }
           set.add(img);
+          if (semQueue.has(block)) semSoon(); // mit Vorrang losschicken, nicht hinter anderen warten
           return; // bleibt „pending“ und damit unscharf
         }
       }
     }
     setState(img, 'ok');
+  }
+
+  // Mehrere Bilder werden oft kurz nacheinander fertig: gesammelt in einer Anfrage losschicken.
+  let semSoonTimer = null;
+  function semSoon() {
+    if (!semSoonTimer) semSoonTimer = setTimeout(() => { semSoonTimer = null; flushSem(); }, 30);
   }
 
   function releaseHeld(block) {
@@ -1568,12 +1575,16 @@
     return text.split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
   }
   const semQueue = new Set();
-  let semBusy = false;
+  // Höchstens eine Anfrage ohne und eine mit Vorrang gleichzeitig. Gemessen (1.30.4, 6 Seiten): Bilder,
+  // die auf die KI warten, warteten im Median 0,3 s nur darauf, dass eine andere Anfrage dieser Seite
+  // fertig wird; ihr eigener Teaser brauchte dann 0,1 s. Jetzt überholen sie (im Hintergrund vorrangig).
+  let semReqs = 0;
+  let semPrioReqs = 0;
   let semUnavailable = false; // Modell fehlt: auf dieser Seite nicht weiter nachfragen
 
-  /** Teaser gesammelt an das lokale Sprachmodell geben (immer nur eine Anfrage gleichzeitig). */
+  /** Teaser gesammelt an das lokale Sprachmodell geben (eine Anfrage, dazu höchstens eine mit Vorrang). */
   async function flushSem() {
-    if (semBusy || !semQueue.size || !semanticOn() || !active) return;
+    if (semPrioReqs || !semQueue.size || !semanticOn() || !active) return;
     // Sichtbare Teaser zuerst, in kleinerem Paket und mit Vorrang (überholen im Hintergrund die
     // Gegenprüfungen); der Rest danach in großen Paketen.
     const live = [];
@@ -1582,7 +1593,9 @@
       else live.push(b);
     }
     if (!live.length) return;
-    const visible = live.filter(inView);
+    // Vorrang: sichtbar oder ein fertig geprüftes Bild wartet auf diesen Teaser
+    const visible = live.filter((b) => inView(b) || kiHold.has(b)).sort((x, y) => kiHold.has(y) - kiHold.has(x));
+    if (semReqs && !visible.length) return; // läuft schon eine, der Rest wartet
     // Neue Teaser, deren Sichtbarkeit der Browser noch nicht gemeldet hat (meist im nächsten Bild):
     // kurz warten, damit sichtbare nicht in einem großen Paket ohne Vorrang landen.
     if (!visible.length && live.some((b) => !viewKnown.has(b))) {
@@ -1594,13 +1607,15 @@
     const prio = visible.length > 0;
     const blocks = (prio ? visible : live).slice(0, prio ? SEM_PRIO_BATCH : SEM_BATCH);
     for (const b of blocks) { semQueue.delete(b); semInflight.add(b); }
-    semBusy = true;
+    semReqs++;
+    if (prio) semPrioReqs++;
     const gen = generation;
     let res = null;
     try {
       res = await withTimeout(chrome.runtime.sendMessage({ type: 'semScore', prio, texts: blocks.map((b) => blockText(b).slice(0, 600)) }), 120000);
     } catch (_) { /* Zeitüberschreitung o. Ä.: diese Teaser bleiben sichtbar */ }
-    semBusy = false;
+    semReqs--;
+    if (prio) semPrioReqs--;
     for (const b of blocks) { semInflight.delete(b); unwatchView(b); }
     // Veraltete Antwort (Einstellungen geändert): Warteschlange trotzdem weiter abarbeiten.
     if (gen !== generation || !active) { for (const b of blocks) releaseHeld(b); if (active) flushSem(); return; }

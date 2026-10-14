@@ -903,6 +903,39 @@ Seitenaufruf **302 → 170 ms** (auf jeder Seite weniger, z. B. kurier.at 439 �
 einzelnen Seitenaufrufe schwanken um ±200 ms, weil sich die Seiten ändern. Sichtbar wird das nicht
 direkt, die Seite bleibt beim Laden aber etwas flüssiger.
 
+### Bilder warten kürzer auf die KI (1.30.5)
+
+Seit 1.29.3 wird ein Bild ohne Treffer erst freigegeben, wenn auch die KI über seinen Teaser entschieden
+hat (siehe „Kein kurzes Aufblitzen“). Gemessen mit Zeitmesspunkten in einem Messstand
+(`tools/vergleich.mjs` sammelt Konsolenzeilen „SFDIAG“; 6 Nachrichtenseiten, je 2–3 Durchgänge): Die Zeit
+ging fast nie in die KI-Rechnung für den Teaser selbst (Median 0,1 s), sondern ins **Warten in der
+Schlange**. Jede Seite schickte immer nur eine KI-Anfrage gleichzeitig. Lief gerade ein großes Paket
+(bis 24 Teaser weiter unten), wartete der Teaser des fertig gelesenen Bildes, bis es zurück war, auf
+kurier.at bis 2,5 s.
+
+Seit 1.30.5:
+- Ein Teaser, auf den ein fertig geprüftes Bild wartet, geht **sofort mit Vorrang** los, auch wenn
+  gerade eine andere Anfrage läuft (höchstens eine ohne und eine mit Vorrang gleichzeitig). Bilder,
+  die kurz nacheinander fertig werden, gehen gesammelt in einer Anfrage (30 ms sammeln). Einzeln
+  geschickt waren es auf krone.at so viele kleine Anfragen, dass es langsamer wurde.
+- Im Hintergrund kommt eine vorrangige Anfrage **zwischen zwei Teilpaketen** einer großen Anfrage dran,
+  nicht erst an deren Ende (Test in `test/semantik.mjs`).
+
+Gemessen (1.30.4 und 1.30.5 abwechselnd, 6 Seiten × 3 Durchgänge):
+
+| | 1.30.4 | 1.30.5 |
+|---|---|---|
+| alle Bilder, die auf die KI warten: Wartezeit (Median) | 1,04 s | 0,50 s |
+| … davon bis zur Grenze von 8 s gewartet | 39 | 1 |
+| … davon Zeit in der Schlange (Median) | 0,47 s | 0,15 s |
+| sichtbare Bilder: Wartezeit auf die KI (Median) | 0,15 s | 0,11 s |
+| sichtbare harmlose Bilder unscharf (Median) | 0,76 s | 0,72 s |
+
+Am meisten bringt es bei Bildern weiter unten auf der Seite, die beim Scrollen ins Bild kommen. Beim
+Öffnen sichtbare Bilder warteten in diesen Messungen ohnehin nur kurz auf die KI (0,1–0,15 s). Ein
+Durchgang mit derselben Änderung ohne Sammeln und ohne die Hintergrund-Änderung brachte weniger
+(Wartezeit 0,54 → 0,49 s, Bilder 0,69 → 0,68 s). Die einzelnen Seiten schwanken stark.
+
 ### Aufdeck-Protokoll (seit 1.30, standardmäßig aus)
 
 Damit lässt sich Ruhepol an echten Fehlfällen verbessern, ohne dass du etwas beschreiben musst.

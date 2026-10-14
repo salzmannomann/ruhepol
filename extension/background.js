@@ -559,14 +559,28 @@ function serialSem(fn, prio) {
   });
 }
 
+let semCurrentPrio = false;
+
+async function runSemJob(job) {
+  const prev = semCurrentPrio;
+  semCurrentPrio = job.prio;
+  try { job.resolve(await job.fn()); } catch (e) { job.reject(e); }
+  semCurrentPrio = prev;
+}
+
 async function pumpSem() {
   if (semRunning) return;
   semRunning = true;
-  while (semJobs.length) {
-    const job = semJobs.shift();
-    try { job.resolve(await job.fn()); } catch (e) { job.reject(e); }
-  }
+  while (semJobs.length) await runSemJob(semJobs.shift());
   semRunning = false;
+}
+
+/**
+ * Zwischen zwei Teilpaketen einer Anfrage ohne Vorrang: wartende vorrangige Anfragen jetzt
+ * erledigen, statt sie bis zum Ende eines großen Pakets (bis 24 Teaser) warten zu lassen.
+ */
+async function semYield() {
+  while (!semCurrentPrio && semJobs.length && semJobs[0].prio) await runSemJob(semJobs.shift());
 }
 
 async function semModelId() {
@@ -680,6 +694,7 @@ async function embedTextsNow(model, texts) {
     else chunks.push([i]);
   }
   for (const idx of chunks) {
+    await semYield();
     await ensureOffscreen();
     const r = await chrome.runtime.sendMessage({
       target: 'offscreen', type: 'embed', model, prefix: cfg.prefix, texts: idx.map((i) => texts[i]),
