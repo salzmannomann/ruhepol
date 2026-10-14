@@ -132,8 +132,12 @@ async function main() {
       assert.ok(Math.abs(pos.x - x) > 50, 'Kreis sitzt unter dem Mauszeiger statt in der Mitte');
       await page.waitForTimeout(850);
       assert.ok(await page.evaluate(() => document.querySelector('#x-hold').classList.contains('sf-blurred')), 'nach 1 s schon offen');
-      const offset = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sf-holdring .sf-ring-fg')).strokeDashoffset.replace('px', '')));
-      assert.ok(offset > 15 && offset < 35, `Ladekreis nicht halb gefüllt (${offset})`);
+      // Kreis füllt sich (leer = 50,3, voll = 0). Kein fester Zeitpunkt: Auf einem ausgelasteten
+      // Rechner startet die Animation manchmal etwas später (früher gelegentlich 50,3 nach 1 s).
+      await page.waitForFunction(() => {
+        const o = Number(getComputedStyle(document.querySelector('.sf-holdring .sf-ring-fg')).strokeDashoffset.replace('px', ''));
+        return o > 5 && o < 45;
+      }, null, { timeout: 1500 }).catch(() => { throw new Error('Ladekreis füllt sich nicht'); });
       await page.waitForTimeout(1200);
       await page.mouse.up();
       await page.waitForFunction(() => !document.querySelector('#x-hold').classList.contains('sf-blurred'), null, { timeout: 2000 });
