@@ -258,6 +258,16 @@
     'KI-generiertes Bild', 'KI-generiertes Foto', 'KI-generierte Grafik', 'KI-generierte Illustration',
     'mit KI generiert', 'mit KI erstellt', 'AI-generated image'];
 
+  /**
+   * Wendungen, die sich nicht als feste Wortfolge schreiben lassen: Der Treffer wird vor dem Abgleich
+   * aus dem Text entfernt. „Einer Chance nachtrauern“ steht getrennt im Satz („Der Trainer trauerte dem
+   * Sieg nach.“) und hat mit Tod nichts zu tun. Gilt nur, wenn „nach“ als abgetrennter Verbteil am Ende
+   * des Satzes bzw. Satzteils steht – „Die Stadt trauerte nach dem Unglück um die Opfer“ bleibt ein Treffer.
+   */
+  const ALLOW_RE = [
+    /\btrauer(?:e|n|t|te|ten|tet|st|test)\b(?=[^.!?;:]*?\bnach\b\s*(?:[.!?;:,–—"“”„»«)]|$))/gi,
+  ];
+
   function examplesFor(ids) {
     const set = new Set(ids || []);
     const out = [];
@@ -265,6 +275,6 @@
     return out;
   }
 
-  root.SFPresets = { PRESETS, ALL_IDS, MILD_IDS, ALLOW, termsFor, aboutFor, examplesFor };
+  root.SFPresets = { PRESETS, ALL_IDS, MILD_IDS, ALLOW, ALLOW_RE, termsFor, aboutFor, examplesFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SFPresets;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

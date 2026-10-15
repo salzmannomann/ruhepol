@@ -552,6 +552,17 @@ verlinkten Überschriften als Übersichtsseite und nie als Artikel. Anlass: Nach
 „News“ hielt Ruhepol die orf.at-Startseite für einen Artikel, weil deren Aufmacher als
 Hauptüberschrift (`<h1>`) ausgezeichnet ist, und deckte die Teaser darin auf.
 
+### „Einer Sache nachtrauern“ ist keine Trauer (1.30.9)
+
+In einem Sportbericht stand sinngemäß „Der Trainer trauerte dem verpassten Sieg nach“, und der Absatz
+wurde über die Liste „Tod, Trauer, Suizid“ („Trauer*“) unscharf. Die KI-Gegenprüfung deckte ihn nicht
+auf (sie ist bewusst streng). Seit 1.30.9 zählen „trauert/trauerte/trauern … nach“ nicht, wenn „nach“ als
+abgetrennter Verbteil am Ende des Satzes oder Satzteils steht („… dem Erfolg nach.“, „nach:“, „nach,“).
+„Die Stadt trauerte nach dem Unglück um die Opfer“ bleibt ein Treffer, ebenso „trauert um“. Gilt wie die
+übrigen Ausnahmen der Vorschlagslisten (`ALLOW_RE` in `lib/presets.js`). In den 973 eingestuften echten
+Teasern kommt „trauer…“ nicht vor; Testfälle in `test/match.test.mjs`. Auf der Seite des Berichts
+(direkt geöffnet) ist danach nichts mehr unscharf.
+
 ### Artikelseiten: nur der betroffene Absatz
 
 Steht ein Treffer in einem Absatz eines längeren Fließtexts (mindestens drei Absätze

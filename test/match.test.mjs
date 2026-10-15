@@ -495,3 +495,18 @@ test('Text vorbereiten in einem Durchgang: gleiches Ergebnis wie die frühere Fa
   const fast = time(() => { for (const s of texts) M.tokenize(s); });
   assert.ok(fast * 1.5 < slow, `neu ${fast.toFixed(1)} ms, früher ${slow.toFixed(1)} ms`);
 });
+
+test('Vorschlagslisten: „einer Sache nachtrauern“ ist kein Trauer-Treffer, „trauern um“ schon', () => {
+  const P = require('../extension/lib/presets.js');
+  const m = compile(P.termsFor(P.ALL_IDS), { allow: P.ALLOW, allowRe: P.ALLOW_RE });
+  // abgetrenntes „nach“ am Satz- bzw. Satzteilende: Bedauern, keine Trauer
+  assert.equal(m.find('Die Trainerin trauerte dem verpassten Sieg nach: „Schade.“'), null);
+  assert.equal(m.find('Die Fans trauern dem verpassten Titel nach.'), null);
+  assert.equal(m.find('Der Verein trauert der Chance nach, man hätte gewinnen können'), null);
+  // echte Trauer bleibt ein Treffer
+  assert.ok(m.find('Die Stadt trauerte nach dem Unglück um die Opfer'));
+  assert.ok(m.find('Familie trauert um Vater'));
+  assert.ok(m.find('Trauer um verstorbenen Bürgermeister'));
+  assert.ok(m.find('Ganz Österreich trauert. Danach kam die Mannschaft nach'));
+  assert.ok(m.find('Er trauerte seiner verstorbenen Frau nach.')); // „verstorben“ trifft
+});

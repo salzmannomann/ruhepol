@@ -8,6 +8,7 @@
  *   ab 6 Zeichen.
  * - Platzhalter je Wort: "Wort*" (Wortanfang), "*wort" (Wortende), "*wort*" (Wortteil).
  * - "Nie ausblenden"-Liste (opts.allow): passende Wörter werden vor dem Abgleich entfernt.
+ *   opts.allowRe: dasselbe für Wendungen, die nur ein regulärer Ausdruck fasst (presets.js ALLOW_RE).
  *   "Wohnungskrise" in der Liste schützt also „Wohnungskrise“, aber ein Text mit
  *   „Wohnungskrise und Klimakrise“ trifft weiterhin über „Klimakrise“.
  *
@@ -224,6 +225,7 @@
     opts = opts || {};
     const partial = !!opts.partial;
     const fuzzy = !!opts.fuzzy;
+    const allowRe = opts.allowRe || [];
     const allowList = [];
     for (const raw of opts.allow || []) {
       const pats = parseTerm(raw);
@@ -385,6 +387,7 @@
     function scan(text, limit) {
       const c = collector(limit);
       if (!entries.length || !text) return c.out;
+      for (const re of allowRe) text = String(text).replace(re, ' ');
       let { toks, joins } = tokenizeJoins(text);
       if (allowList.length) ({ toks, joins } = stripAllowed(toks, joins));
       if (!toks.length) return c.out;
